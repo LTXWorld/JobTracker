@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: jobView
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: jobView_db
+      POSTGRES_USER: ltx
+      POSTGRES_PASSWORD: iutaol123
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5433:5432"
+    volumes:
+      - /Users/lutao/docker/postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ltx -d jobView_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

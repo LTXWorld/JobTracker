@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker-compose up:*)",
+      "Bash(go mod:*)",
+      "Bash(go run:*)",
+      "Bash(curl:*)",
+      "Bash(go build:*)",
+      "Bash(docker exec:*)",
+      "Bash(npm create:*)",
+      "Bash(cd:*)",
+      "Bash(docker-compose:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(npm run dev:*)",
+      "Bash(./main)",
+      "Bash(lsof:*)",
+      "Bash(npm install:*)",
+      "Bash(kill:*)",
+      "Bash(rm:*)",
+      "Bash(touch:*)",
+      "WebFetch(domain:localhost)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
