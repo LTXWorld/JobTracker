@@ -1,0 +1,7 @@
+# jobView-backend/tests/handler [jobView-backend/tests/handler.test]
+tests/handler/auth_handler_test.go:11:2: "jobView-backend/internal/service" imported and not used
+tests/handler/auth_handler_test.go:72:30: cannot use mockService (variable of type *MockAuthService) as *service.AuthService value in argument to handler.NewAuthHandler
+tests/handler/auth_handler_test.go:303:14: cannot use "updateduser" (untyped string constant) as *string value in struct literal
+tests/handler/auth_handler_test.go:304:14: cannot use "updated@example.com" (untyped string constant) as *string value in struct literal
+FAIL	jobView-backend/tests/handler [build failed]
+FAIL
