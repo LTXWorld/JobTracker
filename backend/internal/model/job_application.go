@@ -259,3 +259,58 @@ type APIResponse struct {
 	Message string      `json:"message"`
 	Data    interface{} `json:"data,omitempty"`
 }
+
+// PaginationRequest 分页请求参数
+type PaginationRequest struct {
+	Page     int    `json:"page" form:"page"`         // 页码，从1开始
+	PageSize int    `json:"page_size" form:"page_size"` // 每页条数，默认20，最大100
+	SortBy   string `json:"sort_by" form:"sort_by"`   // 排序字段，默认application_date
+	SortDir  string `json:"sort_dir" form:"sort_dir"` // 排序方向，ASC或DESC，默认DESC
+	Status   *ApplicationStatus `json:"status" form:"status"` // 状态筛选，可选
+}
+
+// PaginationResponse 分页响应结构
+type PaginationResponse struct {
+	Data       interface{} `json:"data"`
+	Total      int64       `json:"total"`        // 总记录数
+	Page       int         `json:"page"`         // 当前页码
+	PageSize   int         `json:"page_size"`    // 每页条数
+	TotalPages int         `json:"total_pages"`  // 总页数
+	HasNext    bool        `json:"has_next"`     // 是否有下一页
+	HasPrev    bool        `json:"has_prev"`     // 是否有上一页
+}
+
+// ValidateAndSetDefaults 验证并设置分页参数默认值
+func (p *PaginationRequest) ValidateAndSetDefaults() {
+	if p.Page < 1 {
+		p.Page = 1
+	}
+	if p.PageSize < 1 {
+		p.PageSize = 20
+	}
+	if p.PageSize > 100 {
+		p.PageSize = 100 // 限制最大每页条数，避免性能问题
+	}
+	if p.SortBy == "" {
+		p.SortBy = "application_date"
+	}
+	if p.SortDir == "" || (p.SortDir != "ASC" && p.SortDir != "DESC") {
+		p.SortDir = "DESC"
+	}
+}
+
+// GetOffset 计算偏移量
+func (p *PaginationRequest) GetOffset() int {
+	return (p.Page - 1) * p.PageSize
+}
+
+// BatchStatusUpdate 批量状态更新结构
+type BatchStatusUpdate struct {
+	ID     int               `json:"id" binding:"required"`
+	Status ApplicationStatus `json:"status" binding:"required"`
+}
+
+// BatchCreateRequest 批量创建请求结构
+type BatchCreateRequest struct {
+	Applications []CreateJobApplicationRequest `json:"applications" binding:"required,min=1,max=50"`
+}

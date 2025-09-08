@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	
 	"github.com/joho/godotenv"
 )
@@ -15,12 +16,14 @@ type Config struct {
 }
 
 type DatabaseConfig struct {
-	Host     string
-	Port     string
-	User     string
-	Password string
-	DBName   string
-	SSLMode  string
+	Host            string
+	Port            string
+	User            string
+	Password        string
+	DBName          string
+	SSLMode         string
+	MaxOpenConns    int
+	MaxIdleConns    int
 }
 
 type ServerConfig struct {
@@ -46,12 +49,14 @@ func Load() *Config {
 
 	return &Config{
 		Database: DatabaseConfig{
-			Host:     getEnv("DB_HOST", "127.0.0.1"),
-			Port:     getEnv("DB_PORT", "5433"),
-			User:     getEnv("DB_USER", "ltx"),
-			Password: getEnv("DB_PASSWORD", ""),  // 不提供默认值，强制使用环境变量
-			DBName:   getEnv("DB_NAME", "jobView_db"),
-			SSLMode:  getEnv("DB_SSLMODE", "disable"),
+			Host:         getEnv("DB_HOST", "127.0.0.1"),
+			Port:         getEnv("DB_PORT", "5433"),
+			User:         getEnv("DB_USER", "ltx"),
+			Password:     getEnv("DB_PASSWORD", ""),  // 不提供默认值，强制使用环境变量
+			DBName:       getEnv("DB_NAME", "jobView_db"),
+			SSLMode:      getEnv("DB_SSLMODE", "disable"),
+			MaxOpenConns: getEnvAsInt("DB_MAX_OPEN_CONNS", 0), // 0 表示使用自动计算
+			MaxIdleConns: getEnvAsInt("DB_MAX_IDLE_CONNS", 0), // 0 表示使用自动计算
 		},
 		Server: ServerConfig{
 			Port:        getEnv("SERVER_PORT", "8010"),
@@ -68,6 +73,16 @@ func Load() *Config {
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
+	}
+	return defaultValue
+}
+
+// getEnvAsInt 获取环境变量作为整数
+func getEnvAsInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if intValue, err := strconv.Atoi(value); err == nil {
+			return intValue
+		}
 	}
 	return defaultValue
 }
