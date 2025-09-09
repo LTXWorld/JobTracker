@@ -34,8 +34,12 @@ export const useJobApplicationStore = defineStore('jobApplication', () => {
   const fetchApplications = async () => {
     loading.value = true
     try {
-      applications.value = await JobApplicationAPI.getAll()
+      const data = await JobApplicationAPI.getAll()
+      applications.value = Array.isArray(data) ? data : []
     } catch (error) {
+      console.error('获取应用数据失败:', error)
+      // 确保即使出错也有一个空数组
+      applications.value = []
       message.error('获取数据失败: ' + (error as Error).message)
     } finally {
       loading.value = false
@@ -47,8 +51,10 @@ export const useJobApplicationStore = defineStore('jobApplication', () => {
     loading.value = true
     try {
       currentApplication.value = await JobApplicationAPI.getById(id)
+      return currentApplication.value
     } catch (error) {
       message.error('获取详情失败: ' + (error as Error).message)
+      throw error
     } finally {
       loading.value = false
     }
@@ -59,6 +65,10 @@ export const useJobApplicationStore = defineStore('jobApplication', () => {
     loading.value = true
     try {
       const newApp = await JobApplicationAPI.create(data)
+      // 确保applications是数组
+      if (!Array.isArray(applications.value)) {
+        applications.value = []
+      }
       applications.value.unshift(newApp) // 添加到列表开头
       message.success('创建成功')
       return newApp

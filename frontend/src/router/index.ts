@@ -70,6 +70,15 @@ const router = createRouter({
       }
     },
     {
+      path: '/status-tracking',
+      name: 'status-tracking',
+      component: () => import('../views/StatusTrackingView.vue'),
+      meta: {
+        title: '状态跟踪',
+        requiresAuth: true
+      }
+    },
+    {
       path: '/statistics',
       name: 'statistics', 
       component: () => import('../views/Statistics.vue'),

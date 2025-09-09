@@ -1,0 +1,710 @@
+// Location: /Users/lutao/GolandProjects/jobView/backend/internal/service/status_tracking_service.go
+// This file implements the core status tracking service for JobView system.
+// It handles job application status history, transitions, analytics, and preference management.
+// Used by the status tracking handlers to provide business logic and data processing.
+
+package service
+
+import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"jobView-backend/internal/database"
+	"jobView-backend/internal/model"
+	"strings"
+	"time"
+)
+
+type StatusTrackingService struct {
+	db *database.DB
+}
+
+func NewStatusTrackingService(db *database.DB) *StatusTrackingService {
+	return &StatusTrackingService{db: db}
+}
+
+// GetStatusHistory 获取岗位状态历史记录
+func (s *StatusTrackingService) GetStatusHistory(userID uint, jobApplicationID int, page, pageSize int) (*model.StatusHistoryResponse, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 50
+	}
+
+	// 验证用户权限
+	var exists bool
+	checkQuery := "SELECT EXISTS(SELECT 1 FROM job_applications WHERE id = $1 AND user_id = $2)"
+	err := s.db.QueryRow(checkQuery, jobApplicationID, userID).Scan(&exists)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify job application access: %w", err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("job application not found or access denied")
+	}
+
+	// 获取总数
+	var total int
+	countQuery := "SELECT COUNT(*) FROM job_status_history WHERE job_application_id = $1"
+	err = s.db.QueryRow(countQuery, jobApplicationID).Scan(&total)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count status history: %w", err)
+	}
+
+	// 获取历史记录
+	offset := (page - 1) * pageSize
+	historyQuery := `
+		SELECT id, job_application_id, user_id, old_status, new_status, 
+		       status_changed_at, duration_minutes, metadata, created_at
+		FROM job_status_history 
+		WHERE job_application_id = $1 
+		ORDER BY status_changed_at DESC 
+		LIMIT $2 OFFSET $3
+	`
+
+	rows, err := s.db.Query(historyQuery, jobApplicationID, pageSize, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get status history: %w", err)
+	}
+	defer rows.Close()
+
+	var history []model.StatusHistoryEntry
+	for rows.Next() {
+		var entry model.StatusHistoryEntry
+		var metadataBytes []byte
+		var oldStatusStr sql.NullString
+
+		err := rows.Scan(
+			&entry.ID,
+			&entry.JobApplicationID,
+			&entry.UserID,
+			&oldStatusStr,
+			&entry.NewStatus,
+			&entry.StatusChangedAt,
+			&entry.DurationMinutes,
+			&metadataBytes,
+			&entry.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan status history entry: %w", err)
+		}
+
+		// 处理旧状态（可能为NULL）
+		if oldStatusStr.Valid {
+			oldStatus := model.ApplicationStatus(oldStatusStr.String)
+			entry.OldStatus = &oldStatus
+		}
+
+		// 解析元数据
+		if len(metadataBytes) > 0 {
+			var metadata map[string]interface{}
+			if err := json.Unmarshal(metadataBytes, &metadata); err == nil {
+				entry.Metadata = metadata
+			}
+		}
+
+		history = append(history, entry)
+	}
+
+	return &model.StatusHistoryResponse{
+		History:     history,
+		Total:       total,
+		CurrentPage: page,
+		PageSize:    pageSize,
+	}, nil
+}
+
+// UpdateJobStatus 更新岗位状态并记录历史
+func (s *StatusTrackingService) UpdateJobStatus(userID uint, jobApplicationID int, request *model.StatusUpdateRequest) (*model.JobApplication, error) {
+	// 验证状态有效性
+	if !request.Status.IsValid() {
+		return nil, fmt.Errorf("invalid status: %s", request.Status)
+	}
+
+	// 开始事务
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// 获取当前记录（含乐观锁检查）
+	var currentJob model.JobApplication
+	var currentVersion sql.NullInt32
+	var currentStatusHistory sql.NullString
+	var currentDurationStats sql.NullString
+
+	getCurrentQuery := `
+		SELECT id, user_id, company_name, position_title, application_date, status,
+		       job_description, salary_range, work_location, contact_info, notes,
+		       interview_time, reminder_time, reminder_enabled, follow_up_date,
+		       hr_name, hr_phone, hr_email, interview_location, interview_type,
+		       created_at, updated_at, last_status_change, status_version,
+		       status_history, status_duration_stats
+		FROM job_applications 
+		WHERE id = $1 AND user_id = $2
+	`
+
+	var lastStatusChange sql.NullTime
+	err = tx.QueryRow(getCurrentQuery, jobApplicationID, userID).Scan(
+		&currentJob.ID,
+		&currentJob.UserID,
+		&currentJob.CompanyName,
+		&currentJob.PositionTitle,
+		&currentJob.ApplicationDate,
+		&currentJob.Status,
+		&currentJob.JobDescription,
+		&currentJob.SalaryRange,
+		&currentJob.WorkLocation,
+		&currentJob.ContactInfo,
+		&currentJob.Notes,
+		&currentJob.InterviewTime,
+		&currentJob.ReminderTime,
+		&currentJob.ReminderEnabled,
+		&currentJob.FollowUpDate,
+		&currentJob.HRName,
+		&currentJob.HRPhone,
+		&currentJob.HREmail,
+		&currentJob.InterviewLocation,
+		&currentJob.InterviewType,
+		&currentJob.CreatedAt,
+		&currentJob.UpdatedAt,
+		&lastStatusChange,
+		&currentVersion,
+		&currentStatusHistory,
+		&currentDurationStats,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("job application not found")
+		}
+		return nil, fmt.Errorf("failed to get current job application: %w", err)
+	}
+
+	// 乐观锁检查
+	if request.Version != nil && currentVersion.Valid {
+		if int32(*request.Version) != currentVersion.Int32 {
+			return nil, fmt.Errorf("version conflict: expected %d, got %d", currentVersion.Int32, *request.Version)
+		}
+	}
+
+	// 检查状态是否有变化
+	if currentJob.Status == request.Status {
+		return &currentJob, nil // 状态未变化，直接返回
+	}
+
+	// 验证状态转换合法性
+	if err := s.validateStatusTransition(userID, currentJob.Status, request.Status); err != nil {
+		return nil, err
+	}
+
+	// 计算状态持续时间
+	now := time.Now()
+	var durationMinutes *int
+	if lastStatusChange.Valid {
+		duration := int(now.Sub(lastStatusChange.Time).Minutes())
+		durationMinutes = &duration
+	}
+
+	// 创建历史记录
+	insertHistoryQuery := `
+		INSERT INTO job_status_history (job_application_id, user_id, old_status, new_status, 
+		                               status_changed_at, duration_minutes, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id
+	`
+
+	// 准备metadata，确保是有效的JSON对象
+	var metadataBytes []byte
+	if request.Metadata != nil && len(request.Metadata) > 0 {
+		metadataBytes, _ = json.Marshal(request.Metadata)
+	} else {
+		metadataBytes = []byte("{}")
+	}
+	var historyID int64
+	err = tx.QueryRow(insertHistoryQuery, jobApplicationID, userID, currentJob.Status,
+		request.Status, now, durationMinutes, metadataBytes).Scan(&historyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to insert status history: %w", err)
+	}
+
+	// 更新状态历史JSON
+	statusHistory := s.updateStatusHistoryJSON(currentStatusHistory.String, currentJob.Status, request.Status, now, durationMinutes)
+	statusHistoryBytes, _ := json.Marshal(statusHistory)
+
+	// 更新持续时间统计
+	durationStats := s.updateDurationStats(currentDurationStats.String, currentJob.Status, durationMinutes)
+	durationStatsBytes, _ := json.Marshal(durationStats)
+
+	// 更新主记录
+	newVersion := 1
+	if currentVersion.Valid {
+		newVersion = int(currentVersion.Int32) + 1
+	}
+
+	updateQuery := `
+		UPDATE job_applications 
+		SET status = $1, last_status_change = $2, status_version = $3, 
+		    status_history = $4, status_duration_stats = $5, updated_at = $6
+		WHERE id = $7 AND user_id = $8
+		RETURNING id, user_id, company_name, position_title, application_date, status,
+		          job_description, salary_range, work_location, contact_info, notes,
+		          interview_time, reminder_time, reminder_enabled, follow_up_date,
+		          hr_name, hr_phone, hr_email, interview_location, interview_type,
+		          created_at, updated_at
+	`
+
+	var updatedJob model.JobApplication
+	err = tx.QueryRow(updateQuery, request.Status, now, newVersion,
+		string(statusHistoryBytes), string(durationStatsBytes), now,
+		jobApplicationID, userID).Scan(
+		&updatedJob.ID,
+		&updatedJob.UserID,
+		&updatedJob.CompanyName,
+		&updatedJob.PositionTitle,
+		&updatedJob.ApplicationDate,
+		&updatedJob.Status,
+		&updatedJob.JobDescription,
+		&updatedJob.SalaryRange,
+		&updatedJob.WorkLocation,
+		&updatedJob.ContactInfo,
+		&updatedJob.Notes,
+		&updatedJob.InterviewTime,
+		&updatedJob.ReminderTime,
+		&updatedJob.ReminderEnabled,
+		&updatedJob.FollowUpDate,
+		&updatedJob.HRName,
+		&updatedJob.HRPhone,
+		&updatedJob.HREmail,
+		&updatedJob.InterviewLocation,
+		&updatedJob.InterviewType,
+		&updatedJob.CreatedAt,
+		&updatedJob.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to update job application: %w", err)
+	}
+
+	// 提交事务
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return &updatedJob, nil
+}
+
+// GetStatusTimeline 获取岗位状态时间轴视图
+func (s *StatusTrackingService) GetStatusTimeline(userID uint, jobApplicationID int) (map[string]interface{}, error) {
+	// 验证用户权限
+	var exists bool
+	checkQuery := "SELECT EXISTS(SELECT 1 FROM job_applications WHERE id = $1 AND user_id = $2)"
+	err := s.db.QueryRow(checkQuery, jobApplicationID, userID).Scan(&exists)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify job application access: %w", err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("job application not found or access denied")
+	}
+
+	// 获取详细状态历史
+	historyQuery := `
+		SELECT old_status, new_status, status_changed_at, duration_minutes, metadata
+		FROM job_status_history 
+		WHERE job_application_id = $1 
+		ORDER BY status_changed_at ASC
+	`
+
+	rows, err := s.db.Query(historyQuery, jobApplicationID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get status timeline: %w", err)
+	}
+	defer rows.Close()
+
+	var timeline []map[string]interface{}
+	totalDuration := 0
+
+	for rows.Next() {
+		var oldStatusStr sql.NullString
+		var newStatus string
+		var changedAt time.Time
+		var durationMinutes sql.NullInt32
+		var metadataBytes []byte
+
+		err := rows.Scan(&oldStatusStr, &newStatus, &changedAt, &durationMinutes, &metadataBytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan timeline entry: %w", err)
+		}
+
+		timelineEntry := map[string]interface{}{
+			"new_status":        newStatus,
+			"status_changed_at": changedAt,
+		}
+
+		if oldStatusStr.Valid {
+			timelineEntry["old_status"] = oldStatusStr.String
+		}
+
+		if durationMinutes.Valid {
+			timelineEntry["duration_minutes"] = durationMinutes.Int32
+			totalDuration += int(durationMinutes.Int32)
+		}
+
+		// 解析元数据
+		if len(metadataBytes) > 0 {
+			var metadata map[string]interface{}
+			if err := json.Unmarshal(metadataBytes, &metadata); err == nil {
+				timelineEntry["metadata"] = metadata
+			}
+		}
+
+		timeline = append(timeline, timelineEntry)
+	}
+
+	return map[string]interface{}{
+		"job_application_id":    jobApplicationID,
+		"timeline":             timeline,
+		"total_duration_minutes": totalDuration,
+		"total_changes":        len(timeline),
+	}, nil
+}
+
+// BatchUpdateStatus 批量状态更新
+func (s *StatusTrackingService) BatchUpdateStatus(userID uint, updates []model.BatchStatusUpdate) error {
+	if len(updates) == 0 {
+		return nil
+	}
+	if len(updates) > 100 {
+		return fmt.Errorf("batch size too large: maximum 100 updates allowed")
+	}
+
+	// 验证所有状态
+	for _, update := range updates {
+		if !update.Status.IsValid() {
+			return fmt.Errorf("invalid status: %s for ID %d", update.Status, update.ID)
+		}
+	}
+
+	// 开始事务
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	now := time.Now()
+
+	for _, update := range updates {
+		// 获取当前状态
+		var currentStatus model.ApplicationStatus
+		var lastStatusChange sql.NullTime
+		getCurrentQuery := `
+			SELECT status, last_status_change 
+			FROM job_applications 
+			WHERE id = $1 AND user_id = $2
+		`
+		err = tx.QueryRow(getCurrentQuery, update.ID, userID).Scan(&currentStatus, &lastStatusChange)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				continue // 跳过不存在或无权限的记录
+			}
+			return fmt.Errorf("failed to get current status for ID %d: %w", update.ID, err)
+		}
+
+		// 跳过相同状态
+		if currentStatus == update.Status {
+			continue
+		}
+
+		// 验证状态转换
+		if err := s.validateStatusTransition(userID, currentStatus, update.Status); err != nil {
+			return fmt.Errorf("invalid transition for ID %d: %w", update.ID, err)
+		}
+
+		// 计算持续时间
+		var durationMinutes *int
+		if lastStatusChange.Valid {
+			duration := int(now.Sub(lastStatusChange.Time).Minutes())
+			durationMinutes = &duration
+		}
+
+		// 插入历史记录
+		insertHistoryQuery := `
+			INSERT INTO job_status_history (job_application_id, user_id, old_status, new_status, 
+			                               status_changed_at, duration_minutes, metadata)
+			VALUES ($1, $2, $3, $4, $5, $6, '{}')
+		`
+		_, err = tx.Exec(insertHistoryQuery, update.ID, userID, currentStatus, update.Status, now, durationMinutes)
+		if err != nil {
+			return fmt.Errorf("failed to insert history for ID %d: %w", update.ID, err)
+		}
+
+		// 更新状态
+		updateQuery := `
+			UPDATE job_applications 
+			SET status = $1, last_status_change = $2, updated_at = $3,
+			    status_version = COALESCE(status_version, 0) + 1
+			WHERE id = $4 AND user_id = $5
+		`
+		_, err = tx.Exec(updateQuery, update.Status, now, now, update.ID, userID)
+		if err != nil {
+			return fmt.Errorf("failed to update status for ID %d: %w", update.ID, err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+// GetStatusAnalytics 获取用户状态分析数据
+func (s *StatusTrackingService) GetStatusAnalytics(userID uint) (*model.StatusAnalyticsResponse, error) {
+	analytics := &model.StatusAnalyticsResponse{
+		UserID:             userID,
+		StatusDistribution: make(map[string]int),
+		AverageDurations:   make(map[string]float64),
+		StageAnalysis:      make(map[string]model.StageStatistics),
+	}
+
+	// 获取状态分布
+	statusQuery := `
+		SELECT status, COUNT(*) as count
+		FROM job_applications 
+		WHERE user_id = $1
+		GROUP BY status
+		ORDER BY count DESC
+	`
+	rows, err := s.db.Query(statusQuery, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get status distribution: %w", err)
+	}
+	defer rows.Close()
+
+	totalApplications := 0
+	successCount := 0
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, fmt.Errorf("failed to scan status distribution: %w", err)
+		}
+		analytics.StatusDistribution[status] = count
+		totalApplications += count
+
+		// 计算成功率
+		appStatus := model.ApplicationStatus(status)
+		if appStatus.IsPassedStatus() {
+			successCount += count
+		}
+	}
+
+	analytics.TotalApplications = totalApplications
+	if totalApplications > 0 {
+		analytics.SuccessRate = float64(successCount) / float64(totalApplications) * 100
+	}
+
+	// 获取平均持续时间
+	durationQuery := `
+		SELECT old_status, AVG(duration_minutes) as avg_duration
+		FROM job_status_history 
+		WHERE user_id = $1 AND old_status IS NOT NULL AND duration_minutes IS NOT NULL
+		GROUP BY old_status
+	`
+	durationRows, err := s.db.Query(durationQuery, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get average durations: %w", err)
+	}
+	defer durationRows.Close()
+
+	for durationRows.Next() {
+		var status string
+		var avgDuration float64
+		if err := durationRows.Scan(&status, &avgDuration); err != nil {
+			return nil, fmt.Errorf("failed to scan average duration: %w", err)
+		}
+		analytics.AverageDurations[status] = avgDuration
+	}
+
+	return analytics, nil
+}
+
+// GetStatusTrends 获取状态趋势数据
+func (s *StatusTrackingService) GetStatusTrends(userID uint, days int) ([]model.StatusTrend, error) {
+	if days <= 0 || days > 365 {
+		days = 30
+	}
+
+	startDate := time.Now().AddDate(0, 0, -days)
+
+	trendsQuery := `
+		SELECT DATE(status_changed_at) as date, new_status, COUNT(*) as count
+		FROM job_status_history 
+		WHERE user_id = $1 AND status_changed_at >= $2
+		GROUP BY DATE(status_changed_at), new_status
+		ORDER BY date DESC, count DESC
+	`
+
+	rows, err := s.db.Query(trendsQuery, userID, startDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get status trends: %w", err)
+	}
+	defer rows.Close()
+
+	var trends []model.StatusTrend
+	for rows.Next() {
+		var trend model.StatusTrend
+		var date time.Time
+		err := rows.Scan(&date, &trend.Status, &trend.Count)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan status trend: %w", err)
+		}
+		trend.Date = date.Format("2006-01-02")
+		trends = append(trends, trend)
+	}
+
+	return trends, nil
+}
+
+// validateStatusTransition 验证状态转换合法性
+func (s *StatusTrackingService) validateStatusTransition(userID uint, oldStatus, newStatus model.ApplicationStatus) error {
+	// 获取用户的流转模板配置
+	var flowConfig string
+	templateQuery := `
+		SELECT COALESCE(sft.flow_config::text, '{"transitions": {}}')
+		FROM status_flow_templates sft
+		WHERE sft.is_default = true AND sft.is_active = true
+		LIMIT 1
+	`
+	err := s.db.QueryRow(templateQuery).Scan(&flowConfig)
+	if err != nil && err != sql.ErrNoRows {
+		return fmt.Errorf("failed to get flow template: %w", err)
+	}
+
+	// 如果没有配置模板，允许所有转换
+	if err == sql.ErrNoRows {
+		return nil
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal([]byte(flowConfig), &config); err != nil {
+		return nil // 配置解析失败，允许转换
+	}
+
+	transitions, ok := config["transitions"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	allowedStates, ok := transitions[string(oldStatus)].([]interface{})
+	if !ok {
+		return nil // 没有限制，允许转换
+	}
+
+	// 检查新状态是否在允许列表中
+	for _, allowed := range allowedStates {
+		if allowedStr, ok := allowed.(string); ok && allowedStr == string(newStatus) {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("status transition not allowed: %s -> %s", oldStatus, newStatus)
+}
+
+// updateStatusHistoryJSON 更新状态历史JSON
+func (s *StatusTrackingService) updateStatusHistoryJSON(currentHistoryStr string, oldStatus, newStatus model.ApplicationStatus, changedAt time.Time, durationMinutes *int) model.StatusHistory {
+	var history model.StatusHistory
+
+	// 解析现有历史
+	if currentHistoryStr != "" {
+		json.Unmarshal([]byte(currentHistoryStr), &history)
+	}
+
+	// 初始化
+	if history.History == nil {
+		history.History = []model.StatusHistoryEntry{}
+	}
+
+	// 添加新记录
+	entry := model.StatusHistoryEntry{
+		OldStatus:       &oldStatus,
+		NewStatus:       newStatus,
+		StatusChangedAt: changedAt,
+		CreatedAt:       changedAt,
+	}
+	if durationMinutes != nil {
+		entry.DurationMinutes = durationMinutes
+	}
+
+	history.History = append(history.History, entry)
+
+	// 更新元数据
+	history.Metadata.TotalChanges = len(history.History)
+	history.Metadata.CurrentStatus = string(newStatus)
+	history.Metadata.LastChanged = changedAt
+
+	// 计算总持续时间
+	totalDuration := 0
+	for _, h := range history.History {
+		if h.DurationMinutes != nil {
+			totalDuration += *h.DurationMinutes
+		}
+	}
+	history.Metadata.TotalDurationMinutes = totalDuration
+
+	return history
+}
+
+// updateDurationStats 更新持续时间统计
+func (s *StatusTrackingService) updateDurationStats(currentStatsStr string, status model.ApplicationStatus, durationMinutes *int) model.DurationStats {
+	var stats model.DurationStats
+
+	// 解析现有统计
+	if currentStatsStr != "" {
+		json.Unmarshal([]byte(currentStatsStr), &stats)
+	}
+
+	// 初始化
+	if stats.StatusDurations == nil {
+		stats.StatusDurations = make(map[string]model.StatusDuration)
+	}
+	if stats.Milestones == nil {
+		stats.Milestones = make(map[string]time.Time)
+	}
+
+	// 更新状态持续时间
+	if durationMinutes != nil {
+		statusStr := string(status)
+		if existing, ok := stats.StatusDurations[statusStr]; ok {
+			existing.TotalMinutes += *durationMinutes
+			stats.StatusDurations[statusStr] = existing
+		} else {
+			stats.StatusDurations[statusStr] = model.StatusDuration{
+				TotalMinutes: *durationMinutes,
+			}
+		}
+
+		// 更新里程碑
+		now := time.Now()
+		if status == model.StatusResumeScreening {
+			stats.Milestones["first_response"] = now
+		} else if status.IsInProgressStatus() && strings.Contains(string(status), "面") {
+			if _, exists := stats.Milestones["first_interview"]; !exists {
+				stats.Milestones["first_interview"] = now
+			}
+		}
+	}
+
+	// 重新计算百分比
+	totalMinutes := 0
+	for _, duration := range stats.StatusDurations {
+		totalMinutes += duration.TotalMinutes
+	}
+
+	if totalMinutes > 0 {
+		for statusStr, duration := range stats.StatusDurations {
+			duration.Percentage = float64(duration.TotalMinutes) / float64(totalMinutes) * 100
+			stats.StatusDurations[statusStr] = duration
+		}
+	}
+
+	return stats
+}

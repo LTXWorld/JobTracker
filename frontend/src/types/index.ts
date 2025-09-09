@@ -238,3 +238,218 @@ export interface Reminder {
   position_title: string;
   message?: string;
 }
+
+// ======== 状态跟踪功能类型定义 ========
+
+// 状态历史记录条目
+export interface StatusHistoryEntry {
+  status: ApplicationStatus;
+  timestamp: string;
+  duration?: number | null; // 停留时长（分钟）
+  note?: string | null;
+  trigger?: 'manual' | 'auto' | 'system';
+  user_id?: number;
+  interview_scheduled?: string | null; // 面试安排时间
+  metadata?: Record<string, any>; // 额外元数据
+}
+
+// 状态历史记录
+export interface StatusHistory {
+  history: StatusHistoryEntry[];
+  metadata: {
+    total_duration: number; // 总时长（分钟）
+    status_count: number; // 状态变更次数
+    last_updated: string; // 最后更新时间
+    current_stage: string; // 当前阶段
+    initial_status?: ApplicationStatus; // 初始状态（可选）
+  };
+}
+
+// 状态持续时间统计
+export interface StatusDurationStats {
+  duration_stats: Record<ApplicationStatus, {
+    total_minutes: number;
+    percentage: number;
+  }>;
+  milestones: {
+    first_response?: string; // 首次回复时间
+    first_interview?: string; // 首次面试时间
+    offer_time?: string; // 收到offer时间
+  };
+  analytics: {
+    average_response_time: number; // 平均响应时间（分钟）
+    total_process_time: number; // 总流程时间（分钟）
+    success_probability: number; // 成功概率
+  };
+}
+
+// 状态流转模板
+export interface StatusFlowTemplate {
+  id: number;
+  name: string;
+  description?: string;
+  flow_config: {
+    stages: Array<{
+      name: string;
+      statuses: ApplicationStatus[];
+      transitions: ApplicationStatus[];
+      estimated_duration?: number; // 预计时长（天）
+    }>;
+    rules: {
+      auto_transitions?: Array<{
+        from: ApplicationStatus;
+        to: ApplicationStatus;
+        conditions: Record<string, any>;
+      }>;
+      reminders?: Array<{
+        status: ApplicationStatus;
+        delay_days: number;
+        message: string;
+      }>;
+    };
+  };
+  is_default: boolean;
+  created_by?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// 用户状态偏好设置
+export interface UserStatusPreferences {
+  id: number;
+  user_id: number;
+  preference_config: {
+    default_template_id?: number;
+    notification_settings: {
+      email_enabled: boolean;
+      push_enabled: boolean;
+      reminder_frequency: 'daily' | 'weekly' | 'custom';
+    };
+    display_preferences: {
+      show_durations: boolean;
+      show_probabilities: boolean;
+      timeline_compact: boolean;
+      kanban_show_counts: boolean;
+    };
+    auto_reminder_rules: Array<{
+      status: ApplicationStatus;
+      delay_days: number;
+      enabled: boolean;
+    }>;
+  };
+  created_at: string;
+  updated_at: string;
+}
+
+// 状态分析数据
+export interface StatusAnalytics {
+  summary: {
+    total_applications: number;
+    active_applications: number;
+    success_rate: number;
+    average_process_time: number; // 平均流程时长（天）
+  };
+  status_distribution: Record<ApplicationStatus, {
+    count: number;
+    percentage: number;
+    average_duration: number;
+  }>;
+  trends: {
+    period: 'week' | 'month' | 'quarter';
+    data: Array<{
+      date: string;
+      applications: number;
+      success_rate: number;
+    }>;
+  };
+  insights: Array<{
+    type: 'warning' | 'info' | 'success';
+    title: string;
+    description: string;
+    action_suggestion?: string;
+  }>;
+}
+
+// 状态转换规则
+export interface StatusTransitionRule {
+  from: ApplicationStatus;
+  to: ApplicationStatus[];
+  conditions?: Record<string, any>;
+  auto_transition?: boolean;
+  estimated_duration?: number; // 预计时长（天）
+}
+
+// 状态跟踪API请求/响应类型
+
+// 更新状态请求
+export interface UpdateStatusRequest {
+  status: ApplicationStatus;
+  note?: string;
+  metadata?: Record<string, any>;
+  interview_scheduled?: string;
+}
+
+// 批量状态更新请求
+export interface BatchStatusUpdateRequest {
+  updates: Array<{
+    application_id: number;
+    status: ApplicationStatus;
+    note?: string;
+  }>;
+}
+
+// 状态历史查询参数
+export interface StatusHistoryParams {
+  application_id?: number;
+  status?: ApplicationStatus;
+  start_date?: string;
+  end_date?: string;
+  page?: number;
+  page_size?: number;
+}
+
+// 状态流转时间轴项目
+export interface StatusTimelineItem {
+  id: string;
+  status: ApplicationStatus;
+  timestamp: string;
+  duration?: number;
+  note?: string;
+  is_current: boolean;
+  is_failed: boolean;
+  is_passed: boolean;
+  icon: string;
+  color: string;
+  interview_scheduled?: string;
+}
+
+// 看板拖拽事件数据
+export interface DragChangeEvent {
+  added?: { element: JobApplication; newIndex: number };
+  removed?: { element: JobApplication; oldIndex: number };
+  moved?: { element: JobApplication; newIndex: number; oldIndex: number };
+}
+
+// 状态统计卡片数据
+export interface StatusStatsCard {
+  title: string;
+  value: number | string;
+  icon: string;
+  color: string;
+  trend?: {
+    direction: 'up' | 'down' | 'stable';
+    value: string;
+    period: string;
+  };
+}
+
+// 状态筛选选项
+export interface StatusFilterOptions {
+  statuses?: ApplicationStatus[];
+  dateRange?: [string, string];
+  companies?: string[];
+  only_active?: boolean;
+  only_failed?: boolean;
+  sort_by?: 'date' | 'company' | 'status' | 'duration';
+  sort_order?: 'asc' | 'desc';
+}

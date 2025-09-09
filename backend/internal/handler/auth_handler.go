@@ -50,9 +50,12 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req model.LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("[AUTH] Login JSON decode error: %v", err)
 		h.writeErrorResponse(w, http.StatusBadRequest, "请求参数格式错误", err)
 		return
 	}
+	
+	log.Printf("[AUTH] Login request received: username=%s", req.Username)
 	
 	// 记录登录尝试（不记录密码）
 	log.Printf("[AUTH] Login attempt for username: %s", req.Username)

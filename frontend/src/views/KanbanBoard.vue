@@ -32,6 +32,11 @@
         
         <!-- 操作按钮 -->
         <div class="kanban-actions">
+          <!-- 新增状态跟踪按钮 -->
+          <a-button @click="$router.push('/status-tracking')">
+            <template #icon><DashboardOutlined /></template>
+            状态分析
+          </a-button>
           <a-button type="primary" @click="showCreateModal = true">
             <template #icon><PlusOutlined /></template>
             添加投递
@@ -68,14 +73,24 @@
             @change="handleDragChange($event, column.status)"
           >
             <template #item="{ element }">
-              <div class="job-card">
+              <div 
+                class="job-card"
+                @click="openStatusDetail(element)"
+              >
                 <div class="card-header">
                   <h4>{{ element.company_name }}</h4>
-                  <a-dropdown>
+                  <a-dropdown @click.stop>
                     <template #overlay>
                       <a-menu @click="handleCardAction($event, element)">
+                        <a-menu-item key="status-detail">
+                          <HistoryOutlined /> 状态详情
+                        </a-menu-item>
+                        <a-menu-item key="quick-update">
+                          <EditOutlined /> 快速更新
+                        </a-menu-item>
+                        <a-menu-divider />
                         <a-menu-item key="edit">
-                          <EditOutlined /> 编辑
+                          <SettingOutlined /> 编辑
                         </a-menu-item>
                         <a-menu-item key="delete">
                           <DeleteOutlined /> 删除
@@ -90,8 +105,25 @@
                 
                 <div class="card-body">
                   <p class="position">{{ element.position_title }}</p>
+                  
+                  <!-- 状态持续时间指示器 -->
+                  <div class="status-duration" v-if="getStatusDuration(element)">
+                    <ClockCircleOutlined />
+                    <span>{{ getStatusDuration(element) }}</span>
+                  </div>
+                  
                   <div class="card-date">
                     <CalendarOutlined /> {{ formatDate(element.application_date) }}
+                  </div>
+                  
+                  <!-- 进度指示器 -->
+                  <div class="progress-indicator">
+                    <a-progress 
+                      :percent="getProgressPercent(element.status)" 
+                      size="small" 
+                      :show-info="false"
+                      :stroke-color="getProgressColor(element.status)"
+                    />
                   </div>
                 </div>
               </div>
@@ -123,6 +155,24 @@
       v-model:visible="showImportModal"
       @success="handleImportSuccess"
     />
+
+    <!-- 状态详情弹窗 -->
+    <StatusDetailModal
+      v-model:visible="showStatusDetailModal"
+      :application-id="selectedApplicationId"
+      :current-status="selectedApplicationStatus"
+      @status-updated="handleStatusUpdated"
+    />
+
+    <!-- 状态快速更新弹窗 -->
+    <StatusQuickUpdate
+      v-if="showQuickUpdateModal && selectedApplication"
+      :application-id="selectedApplication.id"
+      :current-status="selectedApplication.status"
+      mode="button"
+      @updated="handleStatusUpdated"
+      @cancelled="showQuickUpdateModal = false"
+    />
   </div>
 </template>
 
@@ -134,12 +184,16 @@ import {
   PlusOutlined, ReloadOutlined, CalendarOutlined, DollarOutlined, 
   EnvironmentOutlined, MoreOutlined, EditOutlined, DeleteOutlined,
   UploadOutlined, BellOutlined, BellFilled, DownOutlined, UpOutlined,
-  ClockCircleOutlined, TrophyOutlined, CloseCircleOutlined
+  ClockCircleOutlined, TrophyOutlined, CloseCircleOutlined, DashboardOutlined,
+  HistoryOutlined, SettingOutlined
 } from '@ant-design/icons-vue'
 import { useJobApplicationStore } from '../stores/jobApplication'
-import { ApplicationStatus, type JobApplication } from '../types'
+import { useStatusTrackingStore } from '../stores/statusTracking'
+import { ApplicationStatus, StatusHelper, type JobApplication, type ApplicationStatus as AppStatus } from '../types'
 import NewApplicationForm from '../components/NewApplicationForm.vue'
 import BatchImport from '../components/BatchImport.vue'
+import StatusDetailModal from '../components/StatusDetailModal.vue'
+import StatusQuickUpdate from '../components/StatusQuickUpdate.vue'
 import dayjs from 'dayjs'
 import { message, Modal } from 'ant-design-vue'
 
@@ -151,11 +205,17 @@ interface KanbanColumn {
 }
 
 const jobStore = useJobApplicationStore()
+const statusTrackingStore = useStatusTrackingStore()
 const { applications, loading } = storeToRefs(jobStore)
 
 const showCreateModal = ref(false)
 const showImportModal = ref(false)
+const showStatusDetailModal = ref(false)
+const showQuickUpdateModal = ref(false)
 const editingApplication = ref<JobApplication | null>(null)
+const selectedApplication = ref<JobApplication | null>(null)
+const selectedApplicationId = ref<number>(0)
+const selectedApplicationStatus = ref<AppStatus>('已投递')
 
 // 当前活跃的标签页
 const activeTab = ref<'in-progress' | 'failed'>('in-progress')
@@ -190,12 +250,13 @@ const currentStatusColumns = computed(() => {
   const columns = activeTab.value === 'in-progress' ? inProgressColumns : failedColumns
   return columns.map(col => ({
     ...col,
-    items: applications.value.filter(app => app.status === col.status)
+    items: Array.isArray(applications.value) ? applications.value.filter(app => app.status === col.status) : []
   }))
 })
 
 // 计算进行中状态数量
 const inProgressCount = computed(() => {
+  if (!Array.isArray(applications.value)) return 0
   return inProgressColumns.reduce((total, col) => {
     return total + applications.value.filter(app => app.status === col.status).length
   }, 0)
@@ -203,6 +264,7 @@ const inProgressCount = computed(() => {
 
 // 计算失败状态数量  
 const failedCount = computed(() => {
+  if (!Array.isArray(applications.value)) return 0
   return failedColumns.reduce((total, col) => {
     return total + applications.value.filter(app => app.status === col.status).length
   }, 0)
@@ -213,7 +275,7 @@ const kanbanColumns = computed((): KanbanColumn[] => {
   const allColumns = [...inProgressColumns, ...failedColumns]
   return allColumns.map(col => ({
     ...col,
-    items: applications.value.filter(app => app.status === col.status)
+    items: Array.isArray(applications.value) ? applications.value.filter(app => app.status === col.status) : []
   }))
 })
 
@@ -243,7 +305,12 @@ const handleDragChange = async (evt: any, newStatus: ApplicationStatus) => {
 
 // 处理卡片操作
 const handleCardAction = ({ key }: { key: string }, app: JobApplication) => {
-  if (key === 'edit') {
+  if (key === 'status-detail') {
+    openStatusDetail(app)
+  } else if (key === 'quick-update') {
+    selectedApplication.value = app
+    showQuickUpdateModal.value = true
+  } else if (key === 'edit') {
     editingApplication.value = app
     showCreateModal.value = true
   } else if (key === 'delete') {
@@ -255,6 +322,74 @@ const handleCardAction = ({ key }: { key: string }, app: JobApplication) => {
       }
     })
   }
+}
+
+// 打开状态详情
+const openStatusDetail = (app: JobApplication) => {
+  selectedApplicationId.value = app.id
+  selectedApplicationStatus.value = app.status
+  showStatusDetailModal.value = true
+}
+
+// 获取状态持续时间
+const getStatusDuration = (app: JobApplication): string => {
+  const updatedTime = dayjs(app.updated_at)
+  const now = dayjs()
+  const duration = now.diff(updatedTime, 'day')
+  
+  if (duration === 0) {
+    const hours = now.diff(updatedTime, 'hour')
+    return hours > 0 ? `${hours}小时` : '刚刚'
+  } else if (duration < 30) {
+    return `${duration}天`
+  } else {
+    return '超过1月'
+  }
+}
+
+// 获取进度百分比
+const getProgressPercent = (status: AppStatus): number => {
+  const progressMap: Record<string, number> = {
+    '已投递': 10,
+    '简历筛选中': 20,
+    '简历筛选未通过': 0,
+    '笔试中': 30,
+    '笔试通过': 40,
+    '笔试未通过': 0,
+    '一面中': 50,
+    '一面通过': 60,
+    '一面未通过': 0,
+    '二面中': 70,
+    '二面通过': 80,
+    '二面未通过': 0,
+    '三面中': 85,
+    '三面通过': 90,
+    '三面未通过': 0,
+    'HR面中': 95,
+    'HR面通过': 98,
+    'HR面未通过': 0,
+    '待发offer': 99,
+    '已拒绝': 0,
+    '已收到offer': 100,
+    '已接受offer': 100,
+    '流程结束': 100
+  }
+  return progressMap[status] || 0
+}
+
+// 获取进度条颜色
+const getProgressColor = (status: AppStatus): string => {
+  if (StatusHelper.isFailedStatus(status)) return '#ff4d4f'
+  if (StatusHelper.isPassedStatus(status)) return '#52c41a'
+  return '#1890ff'
+}
+
+// 处理状态更新成功
+const handleStatusUpdated = (newStatus: AppStatus) => {
+  showStatusDetailModal.value = false
+  showQuickUpdateModal.value = false
+  selectedApplication.value = null
+  fetchData() // 刷新数据以反映状态变更
 }
 
 // 表单成功回调
@@ -709,5 +844,75 @@ onMounted(() => {
 .kanban-container::-webkit-scrollbar-thumb:hover,
 .column-content::-webkit-scrollbar-thumb:hover {
   background: #bfbfbf;
+}
+
+/* 状态跟踪相关样式 */
+.status-duration {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #8c8c8c;
+  margin-bottom: 6px;
+}
+
+.status-duration .anticon {
+  font-size: 10px;
+}
+
+.progress-indicator {
+  margin-top: 8px;
+}
+
+.card-date {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #8c8c8c;
+  margin-bottom: 8px;
+}
+
+.card-date .anticon {
+  font-size: 10px;
+}
+
+/* 增强卡片交互效果 */
+.job-card {
+  position: relative;
+}
+
+.job-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 3px;
+  height: 100%;
+  background: transparent;
+  border-radius: 0 8px 8px 0;
+  transition: all 0.2s ease;
+}
+
+.job-card:hover::after {
+  background: #1890ff;
+}
+
+/* 状态持续时间警告色 */
+.status-duration.warning {
+  color: #faad14;
+}
+
+.status-duration.danger {
+  color: #ff4d4f;
+}
+
+/* 进度条样式调整 */
+.progress-indicator :deep(.ant-progress-bg) {
+  border-radius: 2px;
+}
+
+.progress-indicator :deep(.ant-progress-outer) {
+  padding-right: 0;
 }
 </style>

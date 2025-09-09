@@ -368,3 +368,11 @@ func ValidateNotes(notes string) error {
 func ValidateContactInfo(contactInfo string) error {
 	return ValidateOptionalText("contact_info", contactInfo, 500)
 }
+
+// NewValidationError 创建验证错误
+func NewValidationError(field, message string, args ...interface{}) error {
+	return ValidationError{
+		Field:   field,
+		Message: fmt.Sprintf(message, args...),
+	}
+}

@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -101,12 +102,15 @@ func OptionalAuthMiddleware(next http.Handler) http.Handler {
 func RateLimitMiddleware(requests int, window time.Duration) func(http.Handler) http.Handler {
 	// 简单的内存限流实现（生产环境建议使用Redis）
 	clients := make(map[string][]time.Time)
+	var mu sync.Mutex // 添加互斥锁保护map
 	
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// 使用IP作为限流键
 			ip := getClientIP(r)
 			now := time.Now()
+			
+			mu.Lock() // 加锁保护map操作
 			
 			// 清理过期记录
 			if records, exists := clients[ip]; exists {
@@ -121,6 +125,7 @@ func RateLimitMiddleware(requests int, window time.Duration) func(http.Handler) 
 			
 			// 检查请求数量
 			if len(clients[ip]) >= requests {
+				mu.Unlock() // 在返回错误前释放锁
 				writeErrorResponse(w, http.StatusTooManyRequests, "Too many requests", nil)
 				return
 			}
@@ -128,6 +133,8 @@ func RateLimitMiddleware(requests int, window time.Duration) func(http.Handler) 
 			// 记录当前请求
 			clients[ip] = append(clients[ip], now)
 			
+			// 在调用下一个handler之前释放锁
+			mu.Unlock()
 			next.ServeHTTP(w, r)
 		})
 	}

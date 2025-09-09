@@ -41,10 +41,14 @@ func main() {
 	// 初始化服务
 	jobService := service.NewJobApplicationService(db)
 	authService := service.NewAuthService(db)
+	statusTrackingService := service.NewStatusTrackingService(db)
+	statusConfigService := service.NewStatusConfigService(db)
 
 	// 初始化处理器
 	jobHandler := handler.NewJobApplicationHandler(jobService)
 	authHandler := handler.NewAuthHandler(authService)
+	statusTrackingHandler := handler.NewStatusTrackingHandler(statusTrackingService)
+	statusConfigHandler := handler.NewStatusConfigHandler(statusConfigService)
 
 	// 设置路由
 	router := mux.NewRouter()
@@ -96,11 +100,32 @@ func main() {
 
 	// 投递记录相关路由
 	api.HandleFunc("/applications", jobHandler.Create).Methods("POST")
-	api.HandleFunc("/applications", jobHandler.GetAll).Methods("GET")
+	api.HandleFunc("/applications", jobHandler.GetJobApplicationsWithFilters).Methods("GET") // 更新为筛选版本
 	api.HandleFunc("/applications/statistics", jobHandler.GetStatistics).Methods("GET")
+	api.HandleFunc("/applications/search", jobHandler.SearchJobApplications).Methods("GET")
+	api.HandleFunc("/applications/dashboard", jobHandler.GetDashboardData).Methods("GET")
 	api.HandleFunc("/applications/{id}", jobHandler.GetByID).Methods("GET")
 	api.HandleFunc("/applications/{id}", jobHandler.Update).Methods("PUT")
 	api.HandleFunc("/applications/{id}", jobHandler.Delete).Methods("DELETE")
+
+	// 状态跟踪相关路由
+	api.HandleFunc("/job-applications/{id}/status-history", statusTrackingHandler.GetStatusHistory).Methods("GET")
+	api.HandleFunc("/job-applications/{id}/status", statusTrackingHandler.UpdateJobStatus).Methods("POST")
+	api.HandleFunc("/job-applications/{id}/status-timeline", statusTrackingHandler.GetStatusTimeline).Methods("GET")
+	api.HandleFunc("/job-applications/status/batch", statusTrackingHandler.BatchUpdateStatus).Methods("PUT")
+	api.HandleFunc("/job-applications/status-analytics", statusTrackingHandler.GetStatusAnalytics).Methods("GET")
+	api.HandleFunc("/job-applications/status-trends", statusTrackingHandler.GetStatusTrends).Methods("GET")
+	api.HandleFunc("/job-applications/process-insights", statusTrackingHandler.GetProcessInsights).Methods("GET")
+
+	// 状态配置管理路由
+	api.HandleFunc("/status-flow-templates", statusConfigHandler.GetStatusFlowTemplates).Methods("GET")
+	api.HandleFunc("/status-flow-templates", statusConfigHandler.CreateStatusFlowTemplate).Methods("POST")
+	api.HandleFunc("/status-flow-templates/{id}", statusConfigHandler.UpdateStatusFlowTemplate).Methods("PUT")
+	api.HandleFunc("/status-flow-templates/{id}", statusConfigHandler.DeleteStatusFlowTemplate).Methods("DELETE")
+	api.HandleFunc("/user-status-preferences", statusConfigHandler.GetUserStatusPreferences).Methods("GET")
+	api.HandleFunc("/user-status-preferences", statusConfigHandler.UpdateUserStatusPreferences).Methods("PUT")
+	api.HandleFunc("/status-transitions/{status}", statusConfigHandler.GetAvailableStatusTransitions).Methods("GET")
+	api.HandleFunc("/status-definitions", statusConfigHandler.GetAllStatusDefinitions).Methods("GET")
 
 	// 健康检查路由（无需认证）
 	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -125,12 +150,14 @@ func main() {
 	serverAddr := fmt.Sprintf(":%s", cfg.Server.Port)
 	
 	// 打印启动信息
-	log.Printf("=== JobView Backend Server Starting ===")
+	log.Printf("=== JobView Backend Server Starting ===") 
 	log.Printf("Environment: %s", cfg.Server.Environment)
 	log.Printf("Server starting on port %s", cfg.Server.Port)
 	log.Printf("Health check: http://localhost%s/health", serverAddr)
 	log.Printf("Auth endpoints: http://localhost%s/api/auth/*", serverAddr)
-	log.Printf("API endpoints: http://localhost%s/api/v1/*", serverAddr)
+	log.Printf("Job Applications: http://localhost%s/api/v1/applications/*", serverAddr)
+	log.Printf("Status Tracking: http://localhost%s/api/v1/job-applications/*/status*", serverAddr)
+	log.Printf("Status Config: http://localhost%s/api/v1/status-*", serverAddr)
 	log.Printf("=== Ready for connections ===")
 	
 	// 生产环境启用更多安全特性

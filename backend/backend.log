@@ -1,0 +1,959 @@
+[DB-POOL] Connection pool optimized:
+  - MaxOpenConns: 16
+  - MaxIdleConns: 5
+  - ConnMaxLifetime: 30m0s
+  - ConnMaxIdleTime: 15m0s
+  - CPU Cores: 8
+  - Environment: development
+2025/09/09 10:30:06 Successfully connected to database
+2025/09/09 10:30:06 Running database migrations...
+2025/09/09 10:30:06 Database migrations completed successfully
+2025/09/09 10:30:06 === JobView Backend Server Starting ===
+2025/09/09 10:30:06 Environment: development
+2025/09/09 10:30:06 Server starting on port 8010
+2025/09/09 10:30:06 Health check: http://localhost:8010/health
+2025/09/09 10:30:06 Auth endpoints: http://localhost:8010/api/auth/*
+2025/09/09 10:30:06 Job Applications: http://localhost:8010/api/v1/applications/*
+2025/09/09 10:30:06 Status Tracking: http://localhost:8010/api/v1/job-applications/*/status*
+2025/09/09 10:30:06 Status Config: http://localhost:8010/api/v1/status-*
+2025/09/09 10:30:06 === Ready for connections ===
+2025/09/09 10:30:06 Development mode: Debug logging enabled
+2025/09/09 10:30:06 Default test user: username=testuser, password=TestPass123!
+2025/09/09 10:30:08 [AUTH] Login JSON decode error: invalid character '!' in string escape code
+2025/09/09 10:30:08 [HTTP] POST /api/auth/login - 400 - 780.959µs - [::1]
+2025/09/09 10:30:19 [AUTH] Login request received: username=testuser
+2025/09/09 10:30:19 [AUTH] Login attempt for username: testuser
+2025/09/09 10:30:19 [AUTH] Login failed for user: testuser - incorrect password
+2025/09/09 10:30:19 [HTTP] POST /api/auth/login - 401 - 260.987834ms - [::1]
+2025/09/09 10:30:35 [AUTH] Login JSON decode error: invalid character '!' in string escape code
+2025/09/09 10:30:35 [HTTP] POST /api/auth/login - 400 - 450.792µs - [::1]
+2025/09/09 10:30:41 [AUTH] Registration attempt for username: testuser2, email: test2@example.com
+2025/09/09 10:30:41 [AUTH] Registration failed for username: testuser2 - password: 密码必须至少包含一个特殊字符
+2025/09/09 10:30:41 [HTTP] POST /api/auth/register - 400 - 195.167µs - [::1]
+2025/09/09 10:30:47 [AUTH] Registration attempt for username: testuser2, email: test2@example.com
+2025/09/09 10:30:47 [AUTH] Registration failed for username: testuser2 - 用户名已存在
+2025/09/09 10:30:47 [HTTP] POST /api/auth/register - 400 - 9.472125ms - [::1]
+2025/09/09 10:30:53 [AUTH] Login request received: username=testuser2
+2025/09/09 10:30:53 [AUTH] Login attempt for username: testuser2
+2025/09/09 10:30:53 [AUTH] Login failed for user: testuser2 - incorrect password
+2025/09/09 10:30:53 [HTTP] POST /api/auth/login - 401 - 245.113708ms - [::1]
+2025/09/09 10:31:05 [AUTH] Login JSON decode error: invalid character '!' in string escape code
+2025/09/09 10:31:05 [HTTP] POST /api/auth/login - 400 - 134.875µs - [::1]
+2025/09/09 10:31:19 [HTTP] GET /health - 200 - 63.209µs - [::1]
+2025/09/09 10:31:19 [HTTP] OPTIONS /api/auth/health - 204 - 6.875µs - 127.0.0.1
+2025/09/09 10:31:19 [HTTP] OPTIONS /api/auth/validate - 204 - 5.417µs - 127.0.0.1
+2025/09/09 10:31:19 [HTTP] GET /api/auth/health - 200 - 160.584µs - 127.0.0.1
+2025/09/09 10:31:19 [AUTH] User 7 (apitest) accessing GET /api/auth/validate
+2025/09/09 10:31:19 [HTTP] GET /api/auth/validate - 200 - 162.5µs - 127.0.0.1
+2025/09/09 10:31:20 [HTTP] OPTIONS /api/v1/job-applications/status-analytics - 204 - 14.25µs - 127.0.0.1
+2025/09/09 10:31:20 [HTTP] OPTIONS /api/v1/applications/dashboard - 204 - 7.166µs - 127.0.0.1
+2025/09/09 10:31:20 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 10:31:20 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/dashboard
+2025/09/09 10:31:20 [HTTP] GET /api/v1/applications/dashboard - 200 - 47.917292ms - 127.0.0.1
+2025/09/09 10:31:20 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 90.442791ms - 127.0.0.1
+2025/09/09 10:31:20 [HTTP] OPTIONS /api/v1/job-applications/status-trends - 204 - 6.667µs - 127.0.0.1
+2025/09/09 10:31:20 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 10:31:20 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 2.510042ms - 127.0.0.1
+2025/09/09 10:33:26 [HTTP] GET /health - 200 - 1.448834ms - [::1]
+2025/09/09 10:33:37 [HTTP] GET /health - 200 - 91.125µs - [::1]
+2025/09/09 10:35:40 [HTTP] OPTIONS /api/v1/applications - 204 - 180.459µs - 127.0.0.1
+2025/09/09 10:35:40 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 10:35:40 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 10:35:40 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 10:35:40 [HTTP] GET /api/v1/applications - 200 - 125.135708ms - 127.0.0.1
+2025/09/09 10:35:43 [HTTP] OPTIONS /api/v1/applications - 204 - 128.916µs - 127.0.0.1
+2025/09/09 10:35:43 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 10:35:43 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 10:35:43 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 10:35:43 [HTTP] GET /api/v1/applications - 200 - 20.50175ms - 127.0.0.1
+2025/09/09 10:35:43 [HTTP] OPTIONS /api/v1/applications/statistics - 204 - 15.75µs - 127.0.0.1
+2025/09/09 10:35:43 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/statistics
+2025/09/09 10:35:43 [HTTP] GET /api/v1/applications/statistics - 200 - 10.26125ms - 127.0.0.1
+2025/09/09 10:35:44 [HTTP] OPTIONS /api/v1/applications - 204 - 18.583µs - 127.0.0.1
+2025/09/09 10:35:44 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 10:35:44 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 10:35:44 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 10:35:44 [HTTP] GET /api/v1/applications - 200 - 7.804709ms - 127.0.0.1
+2025/09/09 10:35:47 [HTTP] OPTIONS /api/v1/job-applications/status-analytics - 204 - 103.333µs - 127.0.0.1
+2025/09/09 10:35:47 [HTTP] OPTIONS /api/v1/applications/dashboard - 204 - 724.958µs - 127.0.0.1
+2025/09/09 10:35:47 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/dashboard
+2025/09/09 10:35:47 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 10:35:47 [HTTP] GET /api/v1/applications/dashboard - 200 - 24.666875ms - 127.0.0.1
+2025/09/09 10:35:47 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 34.362584ms - 127.0.0.1
+2025/09/09 10:35:47 [HTTP] OPTIONS /api/v1/job-applications/status-trends - 204 - 44.5µs - 127.0.0.1
+2025/09/09 10:35:47 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 10:35:47 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 6.9135ms - 127.0.0.1
+2025/09/09 10:37:51 [HTTP] GET /api/auth/health - 200 - 3.077083ms - 127.0.0.1
+2025/09/09 10:37:51 [HTTP] GET /health - 200 - 3.035375ms - [::1]
+2025/09/09 10:38:02 [AUTH] Login request received: username=ltx002
+2025/09/09 10:38:02 [AUTH] Login attempt for username: ltx002
+2025/09/09 10:38:02 [AUTH] User logged in successfully: ID=4, Username=ltx002
+2025/09/09 10:38:02 [HTTP] POST /api/auth/login - 200 - 392.211625ms - 127.0.0.1
+2025/09/09 10:38:03 [AUTH] User 4 (ltx002) accessing GET /api/v1/applications
+2025/09/09 10:38:03 [DEBUG] User 4 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 10:38:03 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 10:38:03 [HTTP] GET /api/v1/applications - 200 - 19.148875ms - 127.0.0.1
+2025/09/09 10:38:06 [AUTH] User 4 (ltx002) accessing GET /api/v1/applications
+2025/09/09 10:38:06 [DEBUG] User 4 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 10:38:06 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 10:38:06 [HTTP] GET /api/v1/applications - 200 - 12.006417ms - 127.0.0.1
+2025/09/09 10:38:07 [AUTH] User 4 (ltx002) accessing GET /api/v1/applications/statistics
+2025/09/09 10:38:07 [HTTP] GET /api/v1/applications/statistics - 200 - 4.557167ms - 127.0.0.1
+2025/09/09 10:38:07 [AUTH] User 4 (ltx002) accessing GET /api/v1/applications
+2025/09/09 10:38:07 [DEBUG] User 4 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 10:38:07 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 10:38:07 [HTTP] GET /api/v1/applications - 200 - 9.289334ms - 127.0.0.1
+2025/09/09 10:41:30 [HTTP] GET /health - 200 - 1.2315ms - [::1]
+2025/09/09 10:41:30 [HTTP] OPTIONS /api/auth/health - 204 - 44µs - [::1]
+2025/09/09 10:41:30 [HTTP] OPTIONS /api/auth/validate - 204 - 16.958µs - [::1]
+2025/09/09 10:41:30 [HTTP] GET /api/auth/health - 200 - 864.708µs - [::1]
+2025/09/09 10:41:30 [HTTP] GET /api/auth/validate - 401 - 2.794667ms - [::1]
+2025/09/09 10:41:30 [HTTP] OPTIONS /api/auth/refresh - 204 - 37.459µs - [::1]
+2025/09/09 10:41:30 [AUTH] Token refreshed for user: ID=4, Username=ltx002
+2025/09/09 10:41:30 [HTTP] POST /api/auth/refresh - 200 - 21.964375ms - [::1]
+2025/09/09 10:41:30 [AUTH] User 4 (ltx002) accessing GET /api/auth/validate
+2025/09/09 10:41:30 [HTTP] GET /api/auth/validate - 200 - 138.792µs - [::1]
+2025/09/09 10:41:32 [HTTP] OPTIONS /api/v1/applications - 204 - 16.834µs - [::1]
+2025/09/09 10:41:32 [AUTH] User 4 (ltx002) accessing GET /api/v1/applications
+2025/09/09 10:41:32 [DEBUG] User 4 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 10:41:32 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 10:41:32 [HTTP] GET /api/v1/applications - 200 - 16.867542ms - [::1]
+2025/09/09 10:50:54 [HTTP] OPTIONS /api/auth/validate - 204 - 2.435583ms - 127.0.0.1
+2025/09/09 10:50:54 [AUTH] User 4 (ltx002) accessing GET /api/auth/validate
+2025/09/09 10:50:54 [HTTP] GET /api/auth/validate - 200 - 5.547084ms - 127.0.0.1
+2025/09/09 10:50:54 [AUTH] User 4 (ltx002) accessing GET /api/v1/applications/dashboard
+2025/09/09 10:50:54 [AUTH] User 4 (ltx002) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 10:50:54 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 107.219666ms - 127.0.0.1
+2025/09/09 10:50:54 [HTTP] GET /api/v1/applications/dashboard - 200 - 164.520167ms - 127.0.0.1
+2025/09/09 10:50:54 [AUTH] User 4 (ltx002) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 10:50:54 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 5.715333ms - 127.0.0.1
+2025/09/09 10:51:31 [HTTP] OPTIONS /api/v1/job-applications/status-analytics - 204 - 805.333µs - 127.0.0.1
+2025/09/09 10:51:31 [HTTP] OPTIONS /api/v1/applications/dashboard - 204 - 3.48375ms - 127.0.0.1
+2025/09/09 10:51:31 [AUTH] User 4 (ltx002) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 10:51:31 [AUTH] User 4 (ltx002) accessing GET /api/v1/applications/dashboard
+2025/09/09 10:51:31 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 17.333875ms - 127.0.0.1
+2025/09/09 10:51:31 [HTTP] GET /api/v1/applications/dashboard - 200 - 20.679792ms - 127.0.0.1
+2025/09/09 10:51:31 [HTTP] OPTIONS /api/v1/job-applications/status-trends - 204 - 15.5µs - 127.0.0.1
+2025/09/09 10:51:32 [AUTH] User 4 (ltx002) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 10:51:32 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 1.196875ms - 127.0.0.1
+2025/09/09 10:59:06 [HTTP] GET /health - 200 - 2.620625ms - [::1]
+2025/09/09 10:59:07 [HTTP] GET /api/auth/health - 200 - 552.166µs - [::1]
+2025/09/09 10:59:07 [AUTH] User 4 (ltx002) accessing GET /api/v1/applications
+2025/09/09 10:59:07 [DEBUG] User 4 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 10:59:07 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 10:59:07 [HTTP] GET /api/v1/applications - 200 - 76.536208ms - [::1]
+2025/09/09 10:59:07 [AUTH] User 4 (ltx002) accessing GET /api/v1/applications
+2025/09/09 10:59:07 [DEBUG] User 4 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 10:59:07 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 10:59:07 [HTTP] GET /api/v1/applications - 200 - 1.695541ms - [::1]
+2025/09/09 10:59:11 [HTTP] GET /health - 200 - 66.542µs - [::1]
+2025/09/09 10:59:13 [HTTP] OPTIONS /api/v1/job-applications/status-analytics - 204 - 7.708µs - 127.0.0.1
+2025/09/09 10:59:13 [AUTH] User 4 (ltx002) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 10:59:13 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 23.001583ms - 127.0.0.1
+2025/09/09 10:59:13 [HTTP] OPTIONS /api/v1/applications/dashboard - 204 - 31.625µs - 127.0.0.1
+2025/09/09 10:59:13 [HTTP] OPTIONS /api/auth/health - 204 - 9.458µs - 127.0.0.1
+2025/09/09 10:59:13 [AUTH] User 4 (ltx002) accessing GET /api/v1/applications/dashboard
+2025/09/09 10:59:13 [HTTP] OPTIONS /api/v1/job-applications/status-analytics - 204 - 27.416µs - 127.0.0.1
+2025/09/09 10:59:13 [HTTP] OPTIONS /api/v1/applications/dashboard - 204 - 2.459µs - 127.0.0.1
+2025/09/09 10:59:13 [HTTP] GET /api/auth/health - 200 - 17.25µs - 127.0.0.1
+2025/09/09 10:59:13 [AUTH] User 4 (ltx002) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 10:59:13 [AUTH] User 4 (ltx002) accessing GET /api/v1/applications/dashboard
+2025/09/09 10:59:13 [HTTP] GET /api/v1/applications/dashboard - 200 - 12.666958ms - 127.0.0.1
+2025/09/09 10:59:13 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 19.745042ms - 127.0.0.1
+2025/09/09 10:59:13 [HTTP] GET /api/v1/applications/dashboard - 200 - 66.47725ms - 127.0.0.1
+2025/09/09 10:59:14 [HTTP] OPTIONS /api/v1/job-applications/status-trends - 204 - 21.125µs - 127.0.0.1
+2025/09/09 10:59:14 [AUTH] User 4 (ltx002) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 10:59:14 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 9.893959ms - 127.0.0.1
+2025/09/09 10:59:45 [HTTP] OPTIONS /api/v1/job-applications/status-analytics - 204 - 41.125µs - 127.0.0.1
+2025/09/09 10:59:45 [HTTP] OPTIONS /api/v1/applications/dashboard - 204 - 3.834µs - 127.0.0.1
+2025/09/09 10:59:45 [AUTH] User 4 (ltx002) accessing GET /api/v1/applications/dashboard
+2025/09/09 10:59:45 [AUTH] User 4 (ltx002) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 10:59:46 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 19.60875ms - 127.0.0.1
+2025/09/09 10:59:46 [HTTP] GET /api/v1/applications/dashboard - 200 - 26.613584ms - 127.0.0.1
+2025/09/09 10:59:46 [HTTP] OPTIONS /api/v1/job-applications/status-trends - 204 - 15.084µs - 127.0.0.1
+2025/09/09 10:59:46 [AUTH] User 4 (ltx002) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 10:59:46 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 2.628875ms - 127.0.0.1
+2025/09/09 11:01:04 [HTTP] GET /health - 200 - 8.599541ms - [::1]
+2025/09/09 11:01:04 [HTTP] OPTIONS /api/auth/health - 204 - 80.541µs - 127.0.0.1
+2025/09/09 11:01:04 [HTTP] OPTIONS /api/auth/validate - 204 - 33.375µs - 127.0.0.1
+2025/09/09 11:01:04 [HTTP] GET /api/auth/health - 200 - 974.75µs - 127.0.0.1
+2025/09/09 11:01:04 [AUTH] User 4 (ltx002) accessing GET /api/auth/validate
+2025/09/09 11:01:04 [HTTP] GET /api/auth/validate - 200 - 3.391125ms - 127.0.0.1
+2025/09/09 11:01:05 [HTTP] OPTIONS /api/v1/applications/dashboard - 204 - 20.333µs - 127.0.0.1
+2025/09/09 11:01:05 [HTTP] OPTIONS /api/v1/job-applications/status-analytics - 204 - 27.75µs - 127.0.0.1
+2025/09/09 11:01:05 [AUTH] User 4 (ltx002) accessing GET /api/v1/applications/dashboard
+2025/09/09 11:01:05 [AUTH] User 4 (ltx002) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 11:01:05 [HTTP] GET /api/v1/applications/dashboard - 200 - 66.547125ms - 127.0.0.1
+2025/09/09 11:01:05 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 80.348416ms - 127.0.0.1
+2025/09/09 11:01:05 [HTTP] OPTIONS /api/v1/job-applications/status-trends - 204 - 5.833µs - 127.0.0.1
+2025/09/09 11:01:05 [AUTH] User 4 (ltx002) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 11:01:06 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 3.266875ms - 127.0.0.1
+2025/09/09 11:01:08 [HTTP] OPTIONS /api/v1/applications - 204 - 75.833µs - 127.0.0.1
+2025/09/09 11:01:08 [AUTH] User 4 (ltx002) accessing GET /api/v1/applications
+2025/09/09 11:01:08 [DEBUG] User 4 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 11:01:08 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 11:01:08 [HTTP] GET /api/v1/applications - 200 - 25.324917ms - 127.0.0.1
+2025/09/09 11:02:02 [HTTP] OPTIONS /api/auth/logout - 204 - 134.292µs - 127.0.0.1
+2025/09/09 11:02:02 [AUTH] User 4 (ltx002) accessing POST /api/auth/logout
+2025/09/09 11:02:02 [AUTH] User logged out: ID=4
+2025/09/09 11:02:02 [HTTP] POST /api/auth/logout - 200 - 1.693917ms - 127.0.0.1
+2025/09/09 11:02:17 [HTTP] OPTIONS /api/auth/login - 204 - 54.042µs - 127.0.0.1
+2025/09/09 11:02:17 [AUTH] Login request received: username=apitest
+2025/09/09 11:02:17 [AUTH] Login attempt for username: apitest
+2025/09/09 11:02:17 [AUTH] User logged in successfully: ID=7, Username=apitest
+2025/09/09 11:02:17 [HTTP] POST /api/auth/login - 200 - 298.829917ms - 127.0.0.1
+2025/09/09 11:02:18 [HTTP] OPTIONS /api/v1/applications - 204 - 17.917µs - 127.0.0.1
+2025/09/09 11:02:18 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 11:02:18 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 11:02:18 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 11:02:18 [HTTP] GET /api/v1/applications - 200 - 41.158875ms - 127.0.0.1
+2025/09/09 11:02:22 [HTTP] OPTIONS /api/v1/applications/228 - 204 - 44.25µs - 127.0.0.1
+2025/09/09 11:02:22 [AUTH] User 7 (apitest) accessing DELETE /api/v1/applications/228
+2025/09/09 11:02:22 [HTTP] DELETE /api/v1/applications/228 - 200 - 46.310458ms - 127.0.0.1
+2025/09/09 11:02:25 [HTTP] OPTIONS /api/v1/applications/227 - 204 - 66.417µs - 127.0.0.1
+2025/09/09 11:02:25 [AUTH] User 7 (apitest) accessing DELETE /api/v1/applications/227
+2025/09/09 11:02:26 [HTTP] DELETE /api/v1/applications/227 - 200 - 12.936959ms - 127.0.0.1
+2025/09/09 11:02:28 [HTTP] OPTIONS /api/v1/applications/224 - 204 - 36.333µs - 127.0.0.1
+2025/09/09 11:02:28 [AUTH] User 7 (apitest) accessing DELETE /api/v1/applications/224
+2025/09/09 11:02:28 [HTTP] DELETE /api/v1/applications/224 - 200 - 8.083875ms - 127.0.0.1
+2025/09/09 11:02:31 [HTTP] OPTIONS /api/v1/applications/223 - 204 - 37.833µs - 127.0.0.1
+2025/09/09 11:02:31 [AUTH] User 7 (apitest) accessing DELETE /api/v1/applications/223
+2025/09/09 11:02:31 [HTTP] DELETE /api/v1/applications/223 - 200 - 4.284917ms - 127.0.0.1
+2025/09/09 11:02:34 [HTTP] OPTIONS /api/v1/applications/222 - 204 - 23.875µs - 127.0.0.1
+2025/09/09 11:02:34 [AUTH] User 7 (apitest) accessing DELETE /api/v1/applications/222
+2025/09/09 11:02:34 [HTTP] DELETE /api/v1/applications/222 - 200 - 12.967625ms - 127.0.0.1
+2025/09/09 11:02:37 [HTTP] OPTIONS /api/v1/applications/221 - 204 - 25.584µs - 127.0.0.1
+2025/09/09 11:02:37 [AUTH] User 7 (apitest) accessing DELETE /api/v1/applications/221
+2025/09/09 11:02:37 [HTTP] DELETE /api/v1/applications/221 - 200 - 6.016833ms - 127.0.0.1
+2025/09/09 11:02:40 [HTTP] OPTIONS /api/v1/applications/225 - 204 - 41.666µs - 127.0.0.1
+2025/09/09 11:02:40 [AUTH] User 7 (apitest) accessing DELETE /api/v1/applications/225
+2025/09/09 11:02:40 [HTTP] DELETE /api/v1/applications/225 - 200 - 18.355166ms - 127.0.0.1
+2025/09/09 11:02:45 [HTTP] OPTIONS /api/v1/applications - 204 - 43.584µs - 127.0.0.1
+2025/09/09 11:02:45 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 11:02:45 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 11:02:45 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 11:02:45 [HTTP] GET /api/v1/applications - 200 - 12.249708ms - 127.0.0.1
+2025/09/09 11:02:45 [HTTP] OPTIONS /api/v1/applications/statistics - 204 - 29.916µs - 127.0.0.1
+2025/09/09 11:02:45 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/statistics
+2025/09/09 11:02:45 [HTTP] GET /api/v1/applications/statistics - 200 - 3.877458ms - 127.0.0.1
+2025/09/09 11:02:46 [HTTP] OPTIONS /api/v1/applications - 204 - 15.916µs - 127.0.0.1
+2025/09/09 11:02:46 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 11:02:46 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 11:02:46 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 11:02:47 [HTTP] GET /api/v1/applications - 200 - 12.724416ms - 127.0.0.1
+2025/09/09 11:02:48 [HTTP] OPTIONS /api/v1/job-applications/status-analytics - 204 - 21.833µs - 127.0.0.1
+2025/09/09 11:02:48 [HTTP] OPTIONS /api/v1/applications/dashboard - 204 - 251.167µs - 127.0.0.1
+2025/09/09 11:02:48 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 11:02:48 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/dashboard
+2025/09/09 11:02:48 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 14.17525ms - 127.0.0.1
+2025/09/09 11:02:48 [HTTP] GET /api/v1/applications/dashboard - 200 - 17.589125ms - 127.0.0.1
+2025/09/09 11:02:48 [HTTP] OPTIONS /api/v1/job-applications/status-trends - 204 - 7.292µs - 127.0.0.1
+2025/09/09 11:02:48 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 11:02:48 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 5.40075ms - 127.0.0.1
+2025/09/09 11:08:03 [HTTP] OPTIONS /api/v1/job-applications/status-analytics - 204 - 1.466375ms - 127.0.0.1
+2025/09/09 11:08:03 [HTTP] OPTIONS /api/v1/applications/dashboard - 204 - 1.470375ms - 127.0.0.1
+2025/09/09 11:08:03 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 11:08:03 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/dashboard
+2025/09/09 11:08:03 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 37.27725ms - 127.0.0.1
+2025/09/09 11:08:03 [HTTP] GET /api/v1/applications/dashboard - 200 - 40.75825ms - 127.0.0.1
+2025/09/09 11:08:03 [HTTP] OPTIONS /api/v1/job-applications/status-trends - 204 - 25.584µs - 127.0.0.1
+2025/09/09 11:08:03 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 11:08:03 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 2.681333ms - 127.0.0.1
+2025/09/09 11:09:11 [HTTP] OPTIONS /api/v1/job-applications/status-analytics - 204 - 99.958µs - 127.0.0.1
+2025/09/09 11:09:11 [HTTP] OPTIONS /api/v1/applications/dashboard - 204 - 21.083µs - 127.0.0.1
+2025/09/09 11:09:12 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 11:09:12 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/dashboard
+2025/09/09 11:09:12 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 14.282333ms - 127.0.0.1
+2025/09/09 11:09:12 [HTTP] GET /api/v1/applications/dashboard - 200 - 18.432292ms - 127.0.0.1
+2025/09/09 11:09:12 [HTTP] OPTIONS /api/v1/job-applications/status-trends - 204 - 5.75µs - 127.0.0.1
+2025/09/09 11:09:12 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 11:09:12 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 1.8065ms - 127.0.0.1
+2025/09/09 11:09:54 [HTTP] OPTIONS /api/v1/job-applications/status-analytics - 204 - 26.416µs - 127.0.0.1
+2025/09/09 11:09:54 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 11:09:54 [HTTP] OPTIONS /api/v1/applications/dashboard - 204 - 15.75µs - 127.0.0.1
+2025/09/09 11:09:54 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/dashboard
+2025/09/09 11:09:54 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 10.808375ms - 127.0.0.1
+2025/09/09 11:09:54 [HTTP] GET /api/v1/applications/dashboard - 200 - 9.378917ms - 127.0.0.1
+2025/09/09 11:09:54 [HTTP] OPTIONS /api/v1/job-applications/status-trends - 204 - 37.958µs - 127.0.0.1
+2025/09/09 11:09:54 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 11:09:54 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 2.803333ms - 127.0.0.1
+2025/09/09 11:12:25 [HTTP] GET /health - 200 - 2.75875ms - [::1]
+2025/09/09 11:12:25 [HTTP] OPTIONS /api/auth/health - 204 - 42.583µs - 127.0.0.1
+2025/09/09 11:12:25 [HTTP] OPTIONS /api/auth/validate - 204 - 30µs - 127.0.0.1
+2025/09/09 11:12:25 [HTTP] GET /api/auth/health - 200 - 303.958µs - 127.0.0.1
+2025/09/09 11:12:25 [AUTH] User 7 (apitest) accessing GET /api/auth/validate
+2025/09/09 11:12:25 [HTTP] GET /api/auth/validate - 200 - 385.208µs - 127.0.0.1
+2025/09/09 11:12:25 [HTTP] OPTIONS /api/v1/job-applications/status-analytics - 204 - 10.209µs - 127.0.0.1
+2025/09/09 11:12:25 [HTTP] OPTIONS /api/v1/applications/dashboard - 204 - 46.958µs - 127.0.0.1
+2025/09/09 11:12:25 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/dashboard
+2025/09/09 11:12:25 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 11:12:25 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 79.090709ms - 127.0.0.1
+2025/09/09 11:12:26 [HTTP] GET /api/v1/applications/dashboard - 200 - 85.716ms - 127.0.0.1
+2025/09/09 11:12:26 [HTTP] OPTIONS /api/v1/job-applications/status-trends - 204 - 12µs - 127.0.0.1
+2025/09/09 11:12:26 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 11:12:26 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 2.528042ms - 127.0.0.1
+2025/09/09 11:12:30 [HTTP] OPTIONS /api/v1/job-applications/status-analytics - 204 - 32.792µs - 127.0.0.1
+2025/09/09 11:12:30 [HTTP] OPTIONS /api/v1/applications/dashboard - 204 - 33.125µs - 127.0.0.1
+2025/09/09 11:12:30 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/dashboard
+2025/09/09 11:12:30 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 11:12:30 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 22.552542ms - 127.0.0.1
+2025/09/09 11:12:30 [HTTP] GET /api/v1/applications/dashboard - 200 - 25.777667ms - 127.0.0.1
+2025/09/09 11:12:30 [HTTP] OPTIONS /api/v1/job-applications/status-trends - 204 - 317.375µs - 127.0.0.1
+2025/09/09 11:12:30 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 11:12:30 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 7.067875ms - 127.0.0.1
+2025/09/09 11:12:34 [HTTP] OPTIONS /api/v1/job-applications/status-trends - 204 - 37.042µs - 127.0.0.1
+2025/09/09 11:12:34 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 11:12:34 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 14.692334ms - 127.0.0.1
+2025/09/09 11:12:37 [HTTP] OPTIONS /api/v1/job-applications/status-trends - 204 - 343.292µs - 127.0.0.1
+2025/09/09 11:12:37 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 11:12:37 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 7.558458ms - 127.0.0.1
+2025/09/09 11:12:39 [HTTP] OPTIONS /api/v1/job-applications/status-trends - 204 - 12.375µs - 127.0.0.1
+2025/09/09 11:12:39 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 11:12:39 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 4.849625ms - 127.0.0.1
+2025/09/09 11:12:47 [HTTP] OPTIONS /api/v1/applications - 204 - 64.542µs - 127.0.0.1
+2025/09/09 11:12:47 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 11:12:47 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 11:12:47 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 11:12:47 [HTTP] GET /api/v1/applications - 200 - 14.200166ms - 127.0.0.1
+2025/09/09 11:12:49 [HTTP] OPTIONS /api/v1/applications - 204 - 9.5µs - 127.0.0.1
+2025/09/09 11:12:49 [HTTP] OPTIONS /api/v1/applications - 204 - 3.625µs - 127.0.0.1
+2025/09/09 11:12:49 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 11:12:49 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 11:12:49 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 11:12:49 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 11:12:49 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 11:12:49 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 11:12:49 [HTTP] GET /api/v1/applications - 200 - 9.377208ms - 127.0.0.1
+2025/09/09 11:12:49 [HTTP] GET /api/v1/applications - 200 - 28.56975ms - 127.0.0.1
+2025/09/09 11:12:51 [HTTP] OPTIONS /api/v1/applications - 204 - 29.125µs - 127.0.0.1
+2025/09/09 11:12:51 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 11:12:51 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 11:12:51 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 11:12:51 [HTTP] GET /api/v1/applications - 200 - 11.049083ms - 127.0.0.1
+2025/09/09 11:12:51 [HTTP] OPTIONS /api/v1/applications/statistics - 204 - 13.125µs - 127.0.0.1
+2025/09/09 11:12:51 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/statistics
+2025/09/09 11:12:51 [HTTP] GET /api/v1/applications/statistics - 200 - 5.928125ms - 127.0.0.1
+2025/09/09 11:13:00 [HTTP] OPTIONS /api/v1/applications - 204 - 281.875µs - 127.0.0.1
+2025/09/09 11:13:00 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 11:13:00 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 11:13:00 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 11:13:00 [HTTP] GET /api/v1/applications - 200 - 14.5145ms - 127.0.0.1
+2025/09/09 11:13:02 [HTTP] OPTIONS /api/v1/applications/dashboard - 204 - 188.875µs - 127.0.0.1
+2025/09/09 11:13:02 [HTTP] OPTIONS /api/v1/job-applications/status-analytics - 204 - 280.125µs - 127.0.0.1
+2025/09/09 11:13:02 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 11:13:02 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/dashboard
+2025/09/09 11:13:02 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 13.711208ms - 127.0.0.1
+2025/09/09 11:13:02 [HTTP] GET /api/v1/applications/dashboard - 200 - 16.121959ms - 127.0.0.1
+2025/09/09 11:13:02 [HTTP] OPTIONS /api/v1/job-applications/status-trends - 204 - 17.416µs - 127.0.0.1
+2025/09/09 11:13:02 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 11:13:02 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 6.223ms - 127.0.0.1
+2025/09/09 11:13:34 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 11:13:34 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 27.497667ms - 127.0.0.1
+2025/09/09 11:13:42 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 11:13:42 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 11:13:42 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 11:13:42 [HTTP] GET /api/v1/applications - 200 - 19.029666ms - 127.0.0.1
+2025/09/09 11:13:42 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/statistics
+2025/09/09 11:13:42 [HTTP] GET /api/v1/applications/statistics - 200 - 3.648417ms - 127.0.0.1
+2025/09/09 11:13:43 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 11:13:43 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 11:13:43 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 11:13:43 [HTTP] GET /api/v1/applications - 200 - 5.199417ms - 127.0.0.1
+2025/09/09 11:13:45 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/dashboard
+2025/09/09 11:13:45 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 11:13:45 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 19.902875ms - 127.0.0.1
+2025/09/09 11:13:45 [HTTP] GET /api/v1/applications/dashboard - 200 - 21.759958ms - 127.0.0.1
+2025/09/09 11:13:45 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 11:13:45 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 4.516042ms - 127.0.0.1
+2025/09/09 11:13:53 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 11:13:53 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 11:13:53 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 11:13:54 [HTTP] GET /api/v1/applications - 200 - 15.393875ms - 127.0.0.1
+2025/09/09 11:13:55 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 11:13:55 [HTTP] OPTIONS /api/v1/applications/31 - 204 - 28.625µs - 127.0.0.1
+2025/09/09 11:13:55 [HTTP] OPTIONS /api/v1/status-transitions/已投递 - 204 - 41.5µs - 127.0.0.1
+2025/09/09 11:13:55 [HTTP] OPTIONS /api/v1/job-applications/31/status-history - 204 - 34.125µs - 127.0.0.1
+2025/09/09 11:13:55 [HTTP] OPTIONS /api/v1/job-applications/31/status-history - 204 - 13.667µs - 127.0.0.1
+2025/09/09 11:13:55 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/31
+2025/09/09 11:13:55 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/31/status-history
+2025/09/09 11:13:55 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/已投递
+2025/09/09 11:13:55 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/31/status-history
+2025/09/09 11:13:55 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 74.850708ms - 127.0.0.1
+2025/09/09 11:13:55 [HTTP] GET /api/v1/job-applications/31/status-history - 200 - 103.717875ms - 127.0.0.1
+2025/09/09 11:13:55 [HTTP] GET /api/v1/applications/31 - 200 - 161.309375ms - 127.0.0.1
+2025/09/09 11:13:55 [HTTP] GET /api/v1/status-transitions/已投递 - 200 - 158.153084ms - 127.0.0.1
+2025/09/09 11:13:55 [HTTP] GET /api/v1/job-applications/31/status-history - 200 - 161.18925ms - 127.0.0.1
+2025/09/09 11:14:15 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/已投递
+2025/09/09 11:14:15 [HTTP] GET /api/v1/status-transitions/已投递 - 200 - 13.42075ms - 127.0.0.1
+2025/09/09 11:14:23 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 11:14:23 [HTTP] OPTIONS /api/v1/applications/24 - 204 - 28.5µs - 127.0.0.1
+2025/09/09 11:14:23 [HTTP] OPTIONS /api/v1/status-transitions/二面中 - 204 - 5.75µs - 127.0.0.1
+2025/09/09 11:14:23 [HTTP] OPTIONS /api/v1/status-transitions/二面中 - 204 - 20.25µs - 127.0.0.1
+2025/09/09 11:14:23 [HTTP] OPTIONS /api/v1/job-applications/24/status-history - 204 - 14.875µs - 127.0.0.1
+2025/09/09 11:14:23 [HTTP] OPTIONS /api/v1/job-applications/24/status-history - 204 - 9.5µs - 127.0.0.1
+2025/09/09 11:14:23 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 47.70625ms - 127.0.0.1
+2025/09/09 11:14:23 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/24
+2025/09/09 11:14:23 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/二面中
+2025/09/09 11:14:23 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/二面中
+2025/09/09 11:14:23 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/24/status-history
+2025/09/09 11:14:23 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/24/status-history
+2025/09/09 11:14:23 [HTTP] GET /api/v1/applications/24 - 200 - 5.028459ms - 127.0.0.1
+2025/09/09 11:14:23 [HTTP] GET /api/v1/status-transitions/二面中 - 200 - 7.727667ms - 127.0.0.1
+2025/09/09 11:14:23 [HTTP] GET /api/v1/job-applications/24/status-history - 200 - 10.937375ms - 127.0.0.1
+2025/09/09 11:14:23 [HTTP] GET /api/v1/job-applications/24/status-history - 200 - 11.915459ms - 127.0.0.1
+2025/09/09 11:14:23 [HTTP] GET /api/v1/status-transitions/二面中 - 200 - 14.815875ms - 127.0.0.1
+2025/09/09 11:14:46 [HTTP] OPTIONS /api/v1/applications/28 - 204 - 848.709µs - 127.0.0.1
+2025/09/09 11:14:46 [AUTH] User 7 (apitest) accessing PUT /api/v1/applications/28
+2025/09/09 11:14:46 [HTTP] PUT /api/v1/applications/28 - 200 - 192.777292ms - 127.0.0.1
+2025/09/09 11:14:54 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/28
+2025/09/09 11:14:54 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 11:14:54 [HTTP] OPTIONS /api/v1/job-applications/28/status-history - 204 - 14.625µs - 127.0.0.1
+2025/09/09 11:14:54 [HTTP] OPTIONS /api/v1/status-transitions/简历筛选中 - 204 - 7.333µs - 127.0.0.1
+2025/09/09 11:14:54 [HTTP] OPTIONS /api/v1/job-applications/28/status-history - 204 - 84.792µs - 127.0.0.1
+2025/09/09 11:14:54 [HTTP] OPTIONS /api/v1/status-transitions/简历筛选中 - 204 - 231.209µs - 127.0.0.1
+2025/09/09 11:14:54 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/28/status-history
+2025/09/09 11:14:54 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/28/status-history
+2025/09/09 11:14:54 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/简历筛选中
+2025/09/09 11:14:54 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/简历筛选中
+2025/09/09 11:14:54 [HTTP] GET /api/v1/status-transitions/简历筛选中 - 200 - 22.433708ms - 127.0.0.1
+2025/09/09 11:14:54 [HTTP] GET /api/v1/applications/28 - 200 - 42.026667ms - 127.0.0.1
+2025/09/09 11:14:54 [HTTP] GET /api/v1/job-applications/28/status-history - 200 - 26.942583ms - 127.0.0.1
+2025/09/09 11:14:54 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 45.122833ms - 127.0.0.1
+2025/09/09 11:14:54 [HTTP] GET /api/v1/job-applications/28/status-history - 200 - 46.504375ms - 127.0.0.1
+2025/09/09 11:14:54 [HTTP] GET /api/v1/status-transitions/简历筛选中 - 200 - 98.283458ms - 127.0.0.1
+2025/09/09 11:15:32 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 11:15:32 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/28
+2025/09/09 11:15:32 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/28/status-history
+2025/09/09 11:15:32 [HTTP] GET /api/v1/applications/28 - 200 - 15.543083ms - 127.0.0.1
+2025/09/09 11:15:32 [HTTP] GET /api/v1/job-applications/28/status-history - 200 - 21.768833ms - 127.0.0.1
+2025/09/09 11:15:32 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 29.696917ms - 127.0.0.1
+2025/09/09 11:16:26 [HTTP] OPTIONS /api/v1/job-applications/28/status - 204 - 55µs - 127.0.0.1
+2025/09/09 11:16:26 [AUTH] User 7 (apitest) accessing POST /api/v1/job-applications/28/status
+2025/09/09 11:16:26 [HTTP] POST /api/v1/job-applications/28/status - 200 - 69.788667ms - 127.0.0.1
+2025/09/09 11:16:26 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/28/status-history
+2025/09/09 11:16:26 [HTTP] GET /api/v1/job-applications/28/status-history - 200 - 2.627917ms - 127.0.0.1
+2025/09/09 11:16:26 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 11:16:26 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 1.756125ms - 127.0.0.1
+2025/09/09 11:16:26 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/28/status-history
+2025/09/09 11:16:26 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 11:16:26 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 11:16:26 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 11:16:26 [HTTP] GET /api/v1/job-applications/28/status-history - 200 - 3.326833ms - 127.0.0.1
+2025/09/09 11:16:26 [HTTP] GET /api/v1/applications - 200 - 15.819417ms - 127.0.0.1
+2025/09/09 11:16:26 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 11:16:26 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/28
+2025/09/09 11:16:26 [HTTP] GET /api/v1/applications/28 - 200 - 1.998375ms - 127.0.0.1
+2025/09/09 11:16:26 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 3.35475ms - 127.0.0.1
+2025/09/09 11:16:28 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/28/status-history
+2025/09/09 11:16:28 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/28
+2025/09/09 11:16:28 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 11:16:28 [HTTP] OPTIONS /api/v1/status-transitions/笔试中 - 204 - 8.25µs - 127.0.0.1
+2025/09/09 11:16:28 [HTTP] OPTIONS /api/v1/status-transitions/笔试中 - 204 - 7.084µs - 127.0.0.1
+2025/09/09 11:16:28 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/笔试中
+2025/09/09 11:16:28 [HTTP] GET /api/v1/applications/28 - 200 - 5.327333ms - 127.0.0.1
+2025/09/09 11:16:28 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/笔试中
+2025/09/09 11:16:28 [HTTP] GET /api/v1/status-transitions/笔试中 - 200 - 1.771584ms - 127.0.0.1
+2025/09/09 11:16:28 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 9.943417ms - 127.0.0.1
+2025/09/09 11:16:28 [HTTP] GET /api/v1/job-applications/28/status-history - 200 - 10.533ms - 127.0.0.1
+2025/09/09 11:16:28 [HTTP] GET /api/v1/status-transitions/笔试中 - 200 - 6.008542ms - 127.0.0.1
+2025/09/09 11:16:41 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/28/status-history
+2025/09/09 11:16:41 [HTTP] GET /api/v1/job-applications/28/status-history - 200 - 27.405375ms - 127.0.0.1
+2025/09/09 11:20:45 [AUTH] User 7 (apitest) accessing GET /api/auth/validate
+2025/09/09 11:20:45 [HTTP] GET /api/auth/validate - 200 - 8.718375ms - 127.0.0.1
+2025/09/09 11:20:46 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 11:20:46 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 11:20:46 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 11:20:46 [HTTP] GET /api/v1/applications - 200 - 87.269ms - 127.0.0.1
+2025/09/09 11:20:55 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 11:20:55 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 11:20:55 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 11:20:55 [HTTP] GET /api/v1/applications - 200 - 21.840375ms - 127.0.0.1
+2025/09/09 11:20:55 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/statistics
+2025/09/09 11:20:55 [HTTP] GET /api/v1/applications/statistics - 200 - 25.068666ms - 127.0.0.1
+2025/09/09 11:25:35 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 11:25:35 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 11:25:35 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 11:25:35 [HTTP] GET /api/v1/applications - 200 - 45.877792ms - 127.0.0.1
+2025/09/09 11:25:35 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/statistics
+2025/09/09 11:25:35 [HTTP] GET /api/v1/applications/statistics - 200 - 4.635209ms - 127.0.0.1
+2025/09/09 11:29:36 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 11:29:36 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 11:29:36 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 11:29:36 [HTTP] GET /api/v1/applications - 200 - 41.553ms - 127.0.0.1
+2025/09/09 11:29:36 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/statistics
+2025/09/09 11:29:36 [HTTP] GET /api/v1/applications/statistics - 200 - 5.472541ms - 127.0.0.1
+2025/09/09 11:30:51 [AUTH] User 7 (apitest) accessing GET /api/auth/validate
+2025/09/09 11:30:51 [HTTP] GET /api/auth/validate - 200 - 11.644292ms - 127.0.0.1
+2025/09/09 11:30:52 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 11:30:52 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 11:30:52 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 11:30:52 [HTTP] GET /api/v1/applications - 200 - 62.493958ms - 127.0.0.1
+2025/09/09 11:30:53 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/28
+2025/09/09 11:30:53 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/笔试中
+2025/09/09 11:30:53 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 11:30:53 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/28/status-history
+2025/09/09 11:30:53 [HTTP] GET /api/v1/applications/28 - 200 - 23.202042ms - 127.0.0.1
+2025/09/09 11:30:53 [HTTP] GET /api/v1/status-transitions/笔试中 - 200 - 46.426083ms - 127.0.0.1
+2025/09/09 11:30:54 [HTTP] GET /api/v1/job-applications/28/status-history - 200 - 163.705834ms - 127.0.0.1
+2025/09/09 11:30:54 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 167.540125ms - 127.0.0.1
+2025/09/09 11:31:02 [HTTP] GET /health - 200 - 1.297375ms - [::1]
+2025/09/09 11:31:02 [HTTP] GET /api/auth/health - 200 - 617.916µs - 127.0.0.1
+2025/09/09 11:31:02 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 11:31:02 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 11:31:02 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 11:31:02 [HTTP] GET /api/v1/applications - 200 - 63.040833ms - 127.0.0.1
+2025/09/09 11:31:04 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/28
+2025/09/09 11:31:04 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 11:31:04 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/28/status-history
+2025/09/09 11:31:04 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/笔试中
+2025/09/09 11:31:04 [HTTP] GET /api/v1/applications/28 - 200 - 19.207959ms - 127.0.0.1
+2025/09/09 11:31:04 [HTTP] GET /api/v1/status-transitions/笔试中 - 200 - 39.148792ms - 127.0.0.1
+2025/09/09 11:31:04 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 67.029709ms - 127.0.0.1
+2025/09/09 11:31:04 [HTTP] GET /api/v1/job-applications/28/status-history - 200 - 69.101209ms - 127.0.0.1
+2025/09/09 11:31:04 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/28/status-history
+2025/09/09 11:31:04 [HTTP] GET /api/v1/job-applications/28/status-history - 200 - 2.648625ms - 127.0.0.1
+2025/09/09 11:31:44 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/简历筛选中
+2025/09/09 11:31:44 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 11:31:44 [HTTP] GET /api/v1/status-transitions/简历筛选中 - 200 - 27.702541ms - 127.0.0.1
+2025/09/09 11:31:44 [HTTP] OPTIONS /api/v1/job-applications/76/status-history - 204 - 8.792µs - 127.0.0.1
+2025/09/09 11:31:44 [HTTP] OPTIONS /api/v1/job-applications/76/status-history - 204 - 8.75µs - 127.0.0.1
+2025/09/09 11:31:44 [HTTP] OPTIONS /api/v1/applications/76 - 204 - 20.792µs - 127.0.0.1
+2025/09/09 11:31:44 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/76/status-history
+2025/09/09 11:31:44 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/76/status-history
+2025/09/09 11:31:44 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/76
+2025/09/09 11:31:44 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 55.287209ms - 127.0.0.1
+2025/09/09 11:31:44 [HTTP] GET /api/v1/applications/76 - 200 - 20.592625ms - 127.0.0.1
+2025/09/09 11:31:44 [HTTP] GET /api/v1/job-applications/76/status-history - 200 - 21.087667ms - 127.0.0.1
+2025/09/09 11:31:44 [HTTP] GET /api/v1/job-applications/76/status-history - 200 - 21.527125ms - 127.0.0.1
+2025/09/09 11:32:42 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/28
+2025/09/09 11:32:42 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 11:32:42 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/笔试中
+2025/09/09 11:32:42 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/28/status-history
+2025/09/09 11:32:42 [HTTP] GET /api/v1/status-transitions/笔试中 - 200 - 18.1045ms - 127.0.0.1
+2025/09/09 11:32:42 [HTTP] GET /api/v1/applications/28 - 200 - 19.429875ms - 127.0.0.1
+2025/09/09 11:32:42 [HTTP] GET /api/v1/job-applications/28/status-history - 200 - 22.095708ms - 127.0.0.1
+2025/09/09 11:32:42 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 22.012583ms - 127.0.0.1
+2025/09/09 11:32:42 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/28/status-history
+2025/09/09 11:32:42 [HTTP] GET /api/v1/job-applications/28/status-history - 200 - 2.94125ms - 127.0.0.1
+2025/09/09 12:15:40 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 12:15:40 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 12:15:40 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 12:15:41 [HTTP] GET /api/v1/applications - 200 - 163.408667ms - 127.0.0.1
+2025/09/09 12:16:58 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/28
+2025/09/09 12:16:58 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/笔试中
+2025/09/09 12:16:58 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/28/status-history
+2025/09/09 12:16:58 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 12:16:58 [HTTP] GET /api/v1/status-transitions/笔试中 - 200 - 48.242667ms - 127.0.0.1
+2025/09/09 12:16:58 [HTTP] GET /api/v1/applications/28 - 200 - 61.034917ms - 127.0.0.1
+2025/09/09 12:16:58 [HTTP] GET /api/v1/job-applications/28/status-history - 200 - 63.791083ms - 127.0.0.1
+2025/09/09 12:16:58 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 67.361042ms - 127.0.0.1
+2025/09/09 12:17:10 [AUTH] User 7 (apitest) accessing GET /api/auth/validate
+2025/09/09 12:17:10 [HTTP] GET /api/auth/validate - 200 - 966.708µs - 127.0.0.1
+2025/09/09 12:17:10 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 12:17:10 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 12:17:10 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 12:17:10 [HTTP] GET /api/v1/applications - 200 - 38.819917ms - 127.0.0.1
+2025/09/09 12:17:11 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/statistics
+2025/09/09 12:17:11 [HTTP] GET /api/v1/applications/statistics - 200 - 3.586708ms - 127.0.0.1
+2025/09/09 12:17:17 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 12:17:17 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 12:17:17 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 12:17:17 [HTTP] GET /api/v1/applications - 200 - 32.899792ms - 127.0.0.1
+2025/09/09 12:17:22 [AUTH] User 7 (apitest) accessing PUT /api/v1/applications/31
+2025/09/09 12:17:22 [HTTP] PUT /api/v1/applications/31 - 200 - 106.328291ms - 127.0.0.1
+2025/09/09 12:17:33 [HTTP] GET /health - 200 - 1.523417ms - [::1]
+2025/09/09 12:17:33 [HTTP] GET /api/auth/health - 200 - 45.125µs - 127.0.0.1
+2025/09/09 12:17:33 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 12:17:33 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 12:17:33 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 12:17:33 [HTTP] GET /api/v1/applications - 200 - 16.8555ms - 127.0.0.1
+2025/09/09 12:17:35 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/笔试中
+2025/09/09 12:17:35 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/28
+2025/09/09 12:17:35 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/28/status-history
+2025/09/09 12:17:35 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 12:17:35 [HTTP] GET /api/v1/status-transitions/笔试中 - 200 - 27.941959ms - 127.0.0.1
+2025/09/09 12:17:35 [HTTP] GET /api/v1/applications/28 - 200 - 41.848291ms - 127.0.0.1
+2025/09/09 12:17:35 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 65.477541ms - 127.0.0.1
+2025/09/09 12:17:35 [HTTP] GET /api/v1/job-applications/28/status-history - 200 - 65.517167ms - 127.0.0.1
+2025/09/09 12:17:35 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/28/status-history
+2025/09/09 12:17:35 [HTTP] GET /api/v1/job-applications/28/status-history - 200 - 2.441208ms - 127.0.0.1
+2025/09/09 12:17:43 [AUTH] User 7 (apitest) accessing PUT /api/v1/applications/28
+2025/09/09 12:17:43 [HTTP] PUT /api/v1/applications/28 - 500 - 43.404791ms - 127.0.0.1
+2025/09/09 12:17:43 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 12:17:43 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 12:17:43 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 12:17:43 [HTTP] GET /api/v1/applications - 200 - 14.595916ms - 127.0.0.1
+2025/09/09 12:18:05 [HTTP] OPTIONS /api/v1/status-transitions/一面中 - 204 - 73.5µs - 127.0.0.1
+2025/09/09 12:18:05 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/一面中
+2025/09/09 12:18:05 [HTTP] GET /api/v1/status-transitions/一面中 - 200 - 17.636042ms - 127.0.0.1
+2025/09/09 12:25:54 [HTTP] GET /health - 200 - 6.215084ms - [::1]
+2025/09/09 12:25:54 [HTTP] GET /api/auth/health - 200 - 1.59325ms - 127.0.0.1
+2025/09/09 12:25:54 [AUTH] User 7 (apitest) accessing GET /api/auth/validate
+2025/09/09 12:25:54 [HTTP] GET /api/auth/validate - 200 - 3.03325ms - 127.0.0.1
+2025/09/09 12:25:55 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 12:25:55 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 12:25:55 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 12:25:55 [HTTP] GET /api/v1/applications - 200 - 135.835708ms - 127.0.0.1
+2025/09/09 12:26:50 [HTTP] GET /health - 200 - 575.042µs - [::1]
+2025/09/09 12:26:50 [HTTP] GET /api/auth/health - 200 - 104.958µs - 127.0.0.1
+2025/09/09 12:26:51 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 12:26:51 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 12:26:51 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 12:26:51 [HTTP] GET /api/v1/applications - 200 - 59.248334ms - 127.0.0.1
+2025/09/09 12:26:55 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 12:26:55 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/一面中
+2025/09/09 12:26:55 [HTTP] OPTIONS /api/v1/applications/110 - 204 - 176.917µs - 127.0.0.1
+2025/09/09 12:26:55 [HTTP] OPTIONS /api/v1/job-applications/110/status-history - 204 - 12.959µs - 127.0.0.1
+2025/09/09 12:26:55 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/110/status-history
+2025/09/09 12:26:55 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/110
+2025/09/09 12:26:55 [HTTP] OPTIONS /api/v1/job-applications/110/status-history - 204 - 9.125µs - 127.0.0.1
+2025/09/09 12:26:55 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/110/status-history
+2025/09/09 12:26:55 [HTTP] GET /api/v1/status-transitions/一面中 - 200 - 93.416416ms - 127.0.0.1
+2025/09/09 12:26:55 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 140.424375ms - 127.0.0.1
+2025/09/09 12:26:55 [HTTP] GET /api/v1/applications/110 - 200 - 78.395458ms - 127.0.0.1
+2025/09/09 12:26:55 [HTTP] GET /api/v1/job-applications/110/status-history - 200 - 82.489417ms - 127.0.0.1
+2025/09/09 12:26:56 [HTTP] GET /api/v1/job-applications/110/status-history - 200 - 181.483542ms - 127.0.0.1
+2025/09/09 12:27:01 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/28
+2025/09/09 12:27:01 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/28/status-history
+2025/09/09 12:27:01 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 12:27:01 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/笔试中
+2025/09/09 12:27:01 [HTTP] GET /api/v1/applications/28 - 200 - 15.606417ms - 127.0.0.1
+2025/09/09 12:27:01 [HTTP] GET /api/v1/status-transitions/笔试中 - 200 - 13.145917ms - 127.0.0.1
+2025/09/09 12:27:01 [HTTP] GET /api/v1/job-applications/28/status-history - 200 - 18.910334ms - 127.0.0.1
+2025/09/09 12:27:01 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/28/status-history
+2025/09/09 12:27:01 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 21.480875ms - 127.0.0.1
+2025/09/09 12:27:01 [HTTP] GET /api/v1/job-applications/28/status-history - 200 - 8.895667ms - 127.0.0.1
+2025/09/09 12:27:14 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 12:27:14 [HTTP] OPTIONS /api/v1/job-applications/65/status-history - 204 - 23.625µs - 127.0.0.1
+2025/09/09 12:27:14 [HTTP] OPTIONS /api/v1/job-applications/65/status-history - 204 - 5µs - 127.0.0.1
+2025/09/09 12:27:14 [HTTP] OPTIONS /api/v1/applications/65 - 204 - 10.667µs - 127.0.0.1
+2025/09/09 12:27:15 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/65/status-history
+2025/09/09 12:27:15 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/65
+2025/09/09 12:27:15 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/65/status-history
+2025/09/09 12:27:15 [HTTP] GET /api/v1/applications/65 - 200 - 13.846083ms - 127.0.0.1
+2025/09/09 12:27:15 [HTTP] GET /api/v1/job-applications/65/status-history - 200 - 17.943958ms - 127.0.0.1
+2025/09/09 12:27:15 [HTTP] GET /api/v1/job-applications/65/status-history - 200 - 17.544291ms - 127.0.0.1
+2025/09/09 12:27:15 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 31.479833ms - 127.0.0.1
+2025/09/09 12:31:44 [AUTH] User 7 (apitest) accessing GET /api/auth/validate
+2025/09/09 12:31:44 [HTTP] GET /api/auth/validate - 200 - 9.911334ms - 127.0.0.1
+2025/09/09 12:31:45 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 12:31:45 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 12:31:45 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 12:31:45 [HTTP] GET /api/v1/applications - 200 - 58.768083ms - 127.0.0.1
+2025/09/09 12:31:45 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/statistics
+2025/09/09 12:31:45 [HTTP] GET /api/v1/applications/statistics - 200 - 11.498541ms - 127.0.0.1
+2025/09/09 12:31:51 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 12:31:51 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 12:31:51 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 12:31:51 [HTTP] GET /api/v1/applications - 200 - 14.622917ms - 127.0.0.1
+2025/09/09 12:31:53 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 12:31:53 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 12:31:53 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 12:31:53 [HTTP] GET /api/v1/applications - 200 - 17.934ms - 127.0.0.1
+2025/09/09 12:31:57 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 12:31:57 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 12:31:57 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 12:31:57 [HTTP] GET /api/v1/applications - 200 - 27.633959ms - 127.0.0.1
+2025/09/09 12:32:00 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 12:32:00 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/dashboard
+2025/09/09 12:32:00 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 17.500958ms - 127.0.0.1
+2025/09/09 12:32:00 [HTTP] GET /api/v1/applications/dashboard - 200 - 48.153542ms - 127.0.0.1
+2025/09/09 12:32:00 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 12:32:00 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 1.417875ms - 127.0.0.1
+2025/09/09 12:32:14 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 12:32:14 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 17.556ms - 127.0.0.1
+2025/09/09 12:32:19 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 12:32:19 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 12:32:19 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 12:32:19 [HTTP] GET /api/v1/applications - 200 - 19.175833ms - 127.0.0.1
+2025/09/09 12:32:20 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/110
+2025/09/09 12:32:20 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/110/status-history
+2025/09/09 12:32:20 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/一面中
+2025/09/09 12:32:20 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 12:32:20 [HTTP] GET /api/v1/applications/110 - 200 - 16.608709ms - 127.0.0.1
+2025/09/09 12:32:20 [HTTP] GET /api/v1/job-applications/110/status-history - 200 - 22.794917ms - 127.0.0.1
+2025/09/09 12:32:20 [HTTP] GET /api/v1/status-transitions/一面中 - 200 - 25.548667ms - 127.0.0.1
+2025/09/09 12:32:20 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 26.432625ms - 127.0.0.1
+2025/09/09 16:17:50 [AUTH] User 7 (apitest) accessing GET /api/auth/validate
+2025/09/09 16:17:50 [HTTP] GET /api/auth/validate - 200 - 8.951667ms - 127.0.0.1
+2025/09/09 16:17:51 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 16:17:51 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 16:17:51 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 16:17:51 [HTTP] GET /api/v1/applications - 200 - 152.766334ms - 127.0.0.1
+2025/09/09 16:18:11 [HTTP] OPTIONS /api/v1/applications/61 - 204 - 101.583µs - 127.0.0.1
+2025/09/09 16:18:11 [AUTH] User 7 (apitest) accessing PUT /api/v1/applications/61
+2025/09/09 16:18:11 [HTTP] PUT /api/v1/applications/61 - 200 - 124.824334ms - 127.0.0.1
+2025/09/09 16:18:11 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 16:18:11 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 16:18:11 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 16:18:11 [HTTP] GET /api/v1/applications - 200 - 12.359459ms - 127.0.0.1
+2025/09/09 16:18:16 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 16:18:16 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 16:18:16 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 16:18:16 [HTTP] GET /api/v1/applications - 200 - 19.291667ms - 127.0.0.1
+2025/09/09 16:18:22 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/61
+2025/09/09 16:18:22 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/笔试中
+2025/09/09 16:18:22 [HTTP] OPTIONS /api/v1/job-applications/61/status-history - 204 - 9µs - 127.0.0.1
+2025/09/09 16:18:22 [HTTP] OPTIONS /api/v1/job-applications/61/status-history - 204 - 14.417µs - 127.0.0.1
+2025/09/09 16:18:22 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 16:18:22 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/61/status-history
+2025/09/09 16:18:22 [HTTP] GET /api/v1/applications/61 - 200 - 44.337625ms - 127.0.0.1
+2025/09/09 16:18:22 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/61/status-history
+2025/09/09 16:18:22 [HTTP] GET /api/v1/job-applications/61/status-history - 200 - 49.983417ms - 127.0.0.1
+2025/09/09 16:18:22 [HTTP] GET /api/v1/status-transitions/笔试中 - 200 - 163.078291ms - 127.0.0.1
+2025/09/09 16:18:22 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 176.75125ms - 127.0.0.1
+2025/09/09 16:18:22 [HTTP] GET /api/v1/job-applications/61/status-history - 200 - 161.802625ms - 127.0.0.1
+2025/09/09 16:18:41 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 16:18:41 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 16:18:41 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 16:18:41 [HTTP] GET /api/v1/applications - 200 - 32.968792ms - 127.0.0.1
+2025/09/09 16:18:50 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 16:18:50 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 16:18:50 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 16:18:50 [HTTP] GET /api/v1/applications - 200 - 11.705917ms - 127.0.0.1
+2025/09/09 16:19:52 [AUTH] User 7 (apitest) accessing POST /api/v1/applications
+2025/09/09 16:19:52 [HTTP] POST /api/v1/applications - 201 - 40.554292ms - 127.0.0.1
+2025/09/09 16:19:52 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 16:19:52 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 16:19:52 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 16:19:52 [HTTP] GET /api/v1/applications - 200 - 8.79425ms - 127.0.0.1
+2025/09/09 16:19:55 [HTTP] OPTIONS /api/v1/applications/232 - 204 - 14.708µs - 127.0.0.1
+2025/09/09 16:19:55 [AUTH] User 7 (apitest) accessing PUT /api/v1/applications/232
+2025/09/09 16:19:55 [HTTP] PUT /api/v1/applications/232 - 200 - 40.91875ms - 127.0.0.1
+2025/09/09 16:19:58 [AUTH] User 7 (apitest) accessing PUT /api/v1/applications/232
+2025/09/09 16:19:58 [HTTP] PUT /api/v1/applications/232 - 200 - 8.653292ms - 127.0.0.1
+2025/09/09 16:19:59 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/232
+2025/09/09 16:19:59 [HTTP] GET /api/v1/applications/232 - 200 - 2.116708ms - 127.0.0.1
+2025/09/09 16:19:59 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 16:19:59 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/笔试中
+2025/09/09 16:19:59 [HTTP] OPTIONS /api/v1/job-applications/232/status-history - 204 - 6.875µs - 127.0.0.1
+2025/09/09 16:19:59 [HTTP] OPTIONS /api/v1/job-applications/232/status-history - 204 - 11.5µs - 127.0.0.1
+2025/09/09 16:19:59 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/232/status-history
+2025/09/09 16:19:59 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/232/status-history
+2025/09/09 16:19:59 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 10.307167ms - 127.0.0.1
+2025/09/09 16:19:59 [HTTP] GET /api/v1/job-applications/232/status-history - 200 - 8.757459ms - 127.0.0.1
+2025/09/09 16:19:59 [HTTP] GET /api/v1/status-transitions/笔试中 - 200 - 11.306542ms - 127.0.0.1
+2025/09/09 16:19:59 [HTTP] GET /api/v1/job-applications/232/status-history - 200 - 13.392084ms - 127.0.0.1
+2025/09/09 16:29:35 [AUTH] User 7 (apitest) accessing GET /api/auth/validate
+2025/09/09 16:29:35 [HTTP] GET /api/auth/validate - 200 - 4.755708ms - 127.0.0.1
+2025/09/09 16:29:35 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 16:29:35 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/dashboard
+2025/09/09 16:29:35 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 33.802958ms - 127.0.0.1
+2025/09/09 16:29:35 [HTTP] GET /api/v1/applications/dashboard - 200 - 41.495583ms - 127.0.0.1
+2025/09/09 16:29:35 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 16:29:35 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 2.17575ms - 127.0.0.1
+2025/09/09 16:40:19 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 16:40:19 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 58.189167ms - 127.0.0.1
+2025/09/09 16:40:20 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 16:40:20 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 1.71025ms - 127.0.0.1
+2025/09/09 16:40:21 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 16:40:21 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 2.2365ms - 127.0.0.1
+2025/09/09 16:40:25 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 16:40:25 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 6.385417ms - 127.0.0.1
+2025/09/09 16:40:31 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 16:40:31 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 19.995917ms - 127.0.0.1
+2025/09/09 16:40:33 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 16:40:33 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 2.438917ms - 127.0.0.1
+2025/09/09 16:40:40 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 16:40:40 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 9.352958ms - 127.0.0.1
+2025/09/09 16:40:53 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 16:40:53 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 28.916375ms - 127.0.0.1
+2025/09/09 16:40:55 [HTTP] OPTIONS /api/v1/user-status-preferences - 204 - 19.958µs - 127.0.0.1
+2025/09/09 16:40:55 [AUTH] User 7 (apitest) accessing GET /api/v1/user-status-preferences
+2025/09/09 16:40:55 [HTTP] GET /api/v1/user-status-preferences - 200 - 14.120833ms - 127.0.0.1
+2025/09/09 16:40:59 [AUTH] User 7 (apitest) accessing GET /api/auth/validate
+2025/09/09 16:40:59 [HTTP] GET /api/auth/validate - 200 - 772.542µs - 127.0.0.1
+2025/09/09 16:41:00 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 16:41:00 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 16:41:00 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 16:41:00 [HTTP] GET /api/v1/applications - 200 - 36.955041ms - 127.0.0.1
+2025/09/09 16:41:02 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/28
+2025/09/09 16:41:02 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/笔试中
+2025/09/09 16:41:02 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 16:41:02 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/28/status-history
+2025/09/09 16:41:02 [HTTP] GET /api/v1/applications/28 - 200 - 6.818417ms - 127.0.0.1
+2025/09/09 16:41:02 [HTTP] GET /api/v1/status-transitions/笔试中 - 200 - 12.483333ms - 127.0.0.1
+2025/09/09 16:41:02 [HTTP] GET /api/v1/job-applications/28/status-history - 200 - 39.623833ms - 127.0.0.1
+2025/09/09 16:41:02 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 44.76425ms - 127.0.0.1
+2025/09/09 16:41:19 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/24
+2025/09/09 16:41:19 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 16:41:19 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/24/status-history
+2025/09/09 16:41:19 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/二面中
+2025/09/09 16:41:19 [HTTP] GET /api/v1/status-transitions/二面中 - 200 - 10.343167ms - 127.0.0.1
+2025/09/09 16:41:19 [HTTP] GET /api/v1/applications/24 - 200 - 16.078875ms - 127.0.0.1
+2025/09/09 16:41:19 [HTTP] GET /api/v1/job-applications/24/status-history - 200 - 24.711041ms - 127.0.0.1
+2025/09/09 16:41:19 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/24/status-history
+2025/09/09 16:41:19 [HTTP] GET /api/v1/job-applications/24/status-history - 200 - 7.072334ms - 127.0.0.1
+2025/09/09 16:41:19 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 33.976375ms - 127.0.0.1
+2025/09/09 16:41:57 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 16:41:57 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 16:41:57 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 16:41:57 [HTTP] GET /api/v1/applications - 200 - 28.20775ms - 127.0.0.1
+2025/09/09 16:41:59 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 16:41:59 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 16:41:59 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 16:41:59 [HTTP] GET /api/v1/applications - 200 - 5.247208ms - 127.0.0.1
+2025/09/09 16:41:59 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/statistics
+2025/09/09 16:41:59 [HTTP] GET /api/v1/applications/statistics - 200 - 3.047958ms - 127.0.0.1
+2025/09/09 17:09:25 [AUTH] User 7 (apitest) accessing GET /api/auth/validate
+2025/09/09 17:09:25 [HTTP] GET /api/auth/validate - 200 - 6.989375ms - 127.0.0.1
+2025/09/09 17:09:25 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 17:09:25 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 17:09:25 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 17:09:26 [HTTP] GET /api/v1/applications - 200 - 93.0415ms - 127.0.0.1
+2025/09/09 17:09:38 [AUTH] User 7 (apitest) accessing POST /api/v1/applications
+2025/09/09 17:09:38 [HTTP] POST /api/v1/applications - 201 - 63.612625ms - 127.0.0.1
+2025/09/09 17:09:39 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 17:09:39 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 17:09:39 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 17:09:39 [HTTP] GET /api/v1/applications - 200 - 20.748833ms - 127.0.0.1
+2025/09/09 17:09:56 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 17:09:56 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 17:09:56 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 17:09:56 [HTTP] GET /api/v1/applications - 200 - 28.710791ms - 127.0.0.1
+2025/09/09 17:10:12 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 17:10:12 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 17:10:12 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 17:10:12 [HTTP] GET /api/v1/applications - 200 - 15.879333ms - 127.0.0.1
+2025/09/09 17:10:36 [HTTP] OPTIONS /api/v1/applications/44 - 204 - 35.625µs - 127.0.0.1
+2025/09/09 17:10:36 [AUTH] User 7 (apitest) accessing PUT /api/v1/applications/44
+2025/09/09 17:10:36 [HTTP] PUT /api/v1/applications/44 - 200 - 65.450625ms - 127.0.0.1
+2025/09/09 17:10:42 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/44
+2025/09/09 17:10:42 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/process-insights
+2025/09/09 17:10:42 [AUTH] User 7 (apitest) accessing GET /api/v1/status-transitions/笔试中
+2025/09/09 17:10:42 [HTTP] OPTIONS /api/v1/job-applications/44/status-history - 204 - 25.459µs - 127.0.0.1
+2025/09/09 17:10:42 [HTTP] OPTIONS /api/v1/job-applications/44/status-history - 204 - 650.208µs - 127.0.0.1
+2025/09/09 17:10:42 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/44/status-history
+2025/09/09 17:10:42 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/44/status-history
+2025/09/09 17:10:42 [HTTP] GET /api/v1/applications/44 - 200 - 40.992042ms - 127.0.0.1
+2025/09/09 17:10:42 [HTTP] GET /api/v1/status-transitions/笔试中 - 200 - 51.305584ms - 127.0.0.1
+2025/09/09 17:10:42 [HTTP] GET /api/v1/job-applications/44/status-history - 200 - 55.786125ms - 127.0.0.1
+2025/09/09 17:10:42 [HTTP] GET /api/v1/job-applications/44/status-history - 200 - 55.648042ms - 127.0.0.1
+2025/09/09 17:10:42 [HTTP] GET /api/v1/job-applications/process-insights - 200 - 74.1845ms - 127.0.0.1
+2025/09/09 17:17:41 [AUTH] User 7 (apitest) accessing POST /api/v1/applications
+2025/09/09 17:17:41 [HTTP] POST /api/v1/applications - 201 - 46.731ms - 127.0.0.1
+2025/09/09 17:17:41 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 17:17:41 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 17:17:41 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 17:17:41 [HTTP] GET /api/v1/applications - 200 - 11.719708ms - 127.0.0.1
+2025/09/09 17:20:18 [AUTH] User 7 (apitest) accessing POST /api/v1/applications
+2025/09/09 17:20:18 [HTTP] POST /api/v1/applications - 201 - 41.896125ms - 127.0.0.1
+2025/09/09 17:20:19 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 17:20:19 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 17:20:19 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 17:20:19 [HTTP] GET /api/v1/applications - 200 - 10.39325ms - 127.0.0.1
+2025/09/09 17:20:21 [AUTH] User 7 (apitest) accessing GET /api/auth/validate
+2025/09/09 17:20:21 [HTTP] GET /api/auth/validate - 200 - 5.447625ms - 127.0.0.1
+2025/09/09 17:20:21 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 17:20:21 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 17:20:21 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 17:20:21 [HTTP] GET /api/v1/applications - 200 - 15.72625ms - 127.0.0.1
+2025/09/09 17:20:21 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/statistics
+2025/09/09 17:20:21 [HTTP] GET /api/v1/applications/statistics - 200 - 3.446333ms - 127.0.0.1
+2025/09/09 17:20:32 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 17:20:32 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 17:20:32 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 17:20:32 [HTTP] GET /api/v1/applications - 200 - 29.959208ms - 127.0.0.1
+2025/09/09 17:33:04 [AUTH] User 7 (apitest) accessing GET /api/auth/validate
+2025/09/09 17:33:04 [HTTP] GET /api/auth/validate - 200 - 11.107667ms - 127.0.0.1
+2025/09/09 17:33:04 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 17:33:04 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 17:33:04 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 17:33:04 [HTTP] GET /api/v1/applications - 200 - 61.73325ms - 127.0.0.1
+2025/09/09 17:33:04 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/statistics
+2025/09/09 17:33:04 [HTTP] GET /api/v1/applications/statistics - 200 - 7.536042ms - 127.0.0.1
+2025/09/09 17:33:07 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 17:33:07 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 17:33:07 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 17:33:07 [HTTP] GET /api/v1/applications - 200 - 6.683333ms - 127.0.0.1
+2025/09/09 17:33:07 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 17:33:07 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 17:33:07 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 17:33:07 [HTTP] GET /api/v1/applications - 200 - 3.545791ms - 127.0.0.1
+2025/09/09 17:33:07 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 17:33:07 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 17:33:07 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 17:33:07 [HTTP] GET /api/v1/applications - 200 - 3.496875ms - 127.0.0.1
+2025/09/09 17:34:27 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 17:34:27 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 17:34:27 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 17:34:28 [HTTP] GET /api/v1/applications - 200 - 83.882083ms - 127.0.0.1
+2025/09/09 17:34:28 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/statistics
+2025/09/09 17:34:28 [HTTP] GET /api/v1/applications/statistics - 200 - 5.40425ms - 127.0.0.1
+2025/09/09 17:34:29 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 17:34:29 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 17:34:29 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 17:34:29 [HTTP] GET /api/v1/applications - 200 - 12.717ms - 127.0.0.1
+2025/09/09 17:34:29 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 17:34:29 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 17:34:29 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 17:34:29 [HTTP] GET /api/v1/applications - 200 - 4.013708ms - 127.0.0.1
+2025/09/09 17:34:30 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 17:34:30 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 17:34:30 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 17:34:30 [HTTP] GET /api/v1/applications - 200 - 14.224958ms - 127.0.0.1
+2025/09/09 17:34:31 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 17:34:31 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 17:34:31 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 17:34:31 [HTTP] GET /api/v1/applications - 200 - 4.788959ms - 127.0.0.1
+2025/09/09 17:35:03 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/dashboard
+2025/09/09 17:35:03 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 17:35:03 [HTTP] GET /api/v1/applications/dashboard - 200 - 61.400542ms - 127.0.0.1
+2025/09/09 17:35:04 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 117.055375ms - 127.0.0.1
+2025/09/09 17:35:04 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 17:35:04 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 4.595916ms - 127.0.0.1
+2025/09/09 17:35:09 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 17:35:09 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 17:35:09 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 17:35:09 [HTTP] GET /api/v1/applications - 200 - 33.898416ms - 127.0.0.1
+2025/09/09 17:35:09 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 17:35:09 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 17:35:09 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 17:35:09 [HTTP] GET /api/v1/applications - 200 - 8.361292ms - 127.0.0.1
+[DB-HEALTH] 2025/09/09 18:39:42 health_checker.go:124: Database health check failed: context deadline exceeded (response time: 58.677191583s)
+[DB-HEALTH] 2025/09/09 18:39:42 health_checker.go:130: Slow database response: 58.677191583s
+[DB-HEALTH] 2025/09/09 18:39:42 health_checker.go:122: Database health recovered (response time: 209.305583ms)
+2025/09/09 18:41:58 [AUTH] User 7 (apitest) accessing GET /api/auth/validate
+2025/09/09 18:41:58 [HTTP] GET /api/auth/validate - 200 - 12.360125ms - 127.0.0.1
+2025/09/09 18:41:58 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 18:41:58 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 18:41:58 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 18:41:58 [HTTP] GET /api/v1/applications - 200 - 86.145583ms - 127.0.0.1
+2025/09/09 18:42:03 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 18:42:03 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 18:42:03 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 18:42:03 [HTTP] GET /api/v1/applications - 200 - 19.444291ms - 127.0.0.1
+2025/09/09 18:42:37 [AUTH] User 7 (apitest) accessing POST /api/v1/applications
+2025/09/09 18:42:37 [HTTP] POST /api/v1/applications - 201 - 77.9315ms - 127.0.0.1
+2025/09/09 18:42:37 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 18:42:37 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 18:42:37 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 18:42:37 [HTTP] GET /api/v1/applications - 200 - 13.392792ms - 127.0.0.1
+2025/09/09 18:42:39 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 18:42:39 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 18:42:39 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 18:42:39 [HTTP] GET /api/v1/applications - 200 - 22.698ms - 127.0.0.1
+2025/09/09 18:45:38 [AUTH] User 7 (apitest) accessing POST /api/v1/applications
+2025/09/09 18:45:38 [HTTP] POST /api/v1/applications - 201 - 43.838292ms - 127.0.0.1
+2025/09/09 18:45:38 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 18:45:38 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 18:45:38 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 18:45:38 [HTTP] GET /api/v1/applications - 200 - 11.541583ms - 127.0.0.1
+2025/09/09 18:46:05 [AUTH] User 7 (apitest) accessing POST /api/v1/applications
+2025/09/09 18:46:05 [HTTP] POST /api/v1/applications - 201 - 42.755625ms - 127.0.0.1
+2025/09/09 18:46:05 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 18:46:05 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 18:46:05 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 18:46:05 [HTTP] GET /api/v1/applications - 200 - 9.540875ms - 127.0.0.1
+2025/09/09 18:46:24 [AUTH] User 7 (apitest) accessing POST /api/v1/applications
+2025/09/09 18:46:24 [HTTP] POST /api/v1/applications - 201 - 16.426167ms - 127.0.0.1
+2025/09/09 18:46:24 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 18:46:24 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 18:46:24 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 18:46:24 [HTTP] GET /api/v1/applications - 200 - 7.657625ms - 127.0.0.1
+2025/09/09 18:46:44 [AUTH] User 7 (apitest) accessing POST /api/v1/applications
+2025/09/09 18:46:44 [HTTP] POST /api/v1/applications - 201 - 17.28675ms - 127.0.0.1
+2025/09/09 18:46:44 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 18:46:44 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 18:46:44 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 18:46:44 [HTTP] GET /api/v1/applications - 200 - 6.11225ms - 127.0.0.1

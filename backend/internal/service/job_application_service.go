@@ -1152,3 +1152,295 @@ func isValidDate(date string) bool {
 	}
 	return true
 }
+
+// GetJobApplicationsWithStatusFilters 根据状态和阶段筛选岗位申请
+func (s *JobApplicationService) GetJobApplicationsWithStatusFilters(userID uint, status *model.ApplicationStatus, stage *string, req model.PaginationRequest) (*model.PaginationResponse, error) {
+	// 验证并设置默认值
+	req.ValidateAndSetDefaults()
+
+	// 构建WHERE条件
+	whereClause := "WHERE user_id = $1"
+	args := []interface{}{userID}
+	argIndex := 2
+
+	// 添加状态筛选
+	if status != nil {
+		whereClause += fmt.Sprintf(" AND status = $%d", argIndex)
+		args = append(args, *status)
+		argIndex++
+	}
+
+	// 添加阶段筛选（基于状态分类）
+	if stage != nil {
+		stageStatuses := s.getStatusesByStage(*stage)
+		if len(stageStatuses) > 0 {
+			placeholders := make([]string, len(stageStatuses))
+			for i, stageStatus := range stageStatuses {
+				placeholders[i] = fmt.Sprintf("$%d", argIndex)
+				args = append(args, stageStatus)
+				argIndex++
+			}
+			whereClause += fmt.Sprintf(" AND status IN (%s)", strings.Join(placeholders, ", "))
+		}
+	}
+
+	// 1. 计数查询
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM job_applications %s", whereClause)
+	var total int64
+	err := s.db.QueryRow(countQuery, args...).Scan(&total)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count filtered job applications: %w", err)
+	}
+
+	// 如果没有数据，直接返回空结果
+	if total == 0 {
+		return &model.PaginationResponse{
+			Data:       []model.JobApplication{},
+			Total:      0,
+			Page:       req.Page,
+			PageSize:   req.PageSize,
+			TotalPages: 0,
+			HasNext:    false,
+			HasPrev:    false,
+		}, nil
+	}
+
+	// 2. 验证排序字段安全性
+	allowedSortFields := map[string]bool{
+		"application_date": true,
+		"created_at":       true,
+		"updated_at":       true,
+		"company_name":     true,
+		"position_title":   true,
+		"status":           true,
+	}
+	if !allowedSortFields[req.SortBy] {
+		req.SortBy = "application_date"
+	}
+
+	// 3. 数据查询
+	dataQuery := fmt.Sprintf(`
+		SELECT id, user_id, company_name, position_title, application_date, status,
+			job_description, salary_range, work_location, contact_info, notes,
+			interview_time, reminder_time, reminder_enabled, follow_up_date,
+			hr_name, hr_phone, hr_email, interview_location, interview_type,
+			created_at, updated_at
+		FROM job_applications 
+		%s 
+		ORDER BY %s %s, created_at DESC 
+		LIMIT $%d OFFSET $%d
+	`, whereClause, req.SortBy, req.SortDir, argIndex, argIndex+1)
+
+	// 添加LIMIT和OFFSET参数
+	args = append(args, req.PageSize, req.GetOffset())
+
+	// 执行查询
+	rows, err := s.db.Query(dataQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get filtered job applications: %w", err)
+	}
+	defer rows.Close()
+
+	// 扫描结果
+	var jobs []model.JobApplication
+	for rows.Next() {
+		var job model.JobApplication
+		err := rows.Scan(
+			&job.ID,
+			&job.UserID,
+			&job.CompanyName,
+			&job.PositionTitle,
+			&job.ApplicationDate,
+			&job.Status,
+			&job.JobDescription,
+			&job.SalaryRange,
+			&job.WorkLocation,
+			&job.ContactInfo,
+			&job.Notes,
+			&job.InterviewTime,
+			&job.ReminderTime,
+			&job.ReminderEnabled,
+			&job.FollowUpDate,
+			&job.HRName,
+			&job.HRPhone,
+			&job.HREmail,
+			&job.InterviewLocation,
+			&job.InterviewType,
+			&job.CreatedAt,
+			&job.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan filtered job application: %w", err)
+		}
+		jobs = append(jobs, job)
+	}
+
+	// 4. 计算分页信息
+	totalPages := int((total + int64(req.PageSize) - 1) / int64(req.PageSize))
+	hasNext := req.Page < totalPages
+	hasPrev := req.Page > 1
+
+	return &model.PaginationResponse{
+		Data:       jobs,
+		Total:      total,
+		Page:       req.Page,
+		PageSize:   req.PageSize,
+		TotalPages: totalPages,
+		HasNext:    hasNext,
+		HasPrev:    hasPrev,
+	}, nil
+}
+
+// getStatusesByStage 根据阶段获取对应的状态列表
+func (s *JobApplicationService) getStatusesByStage(stage string) []string {
+	stageMap := map[string][]string{
+		"application": {"已投递"},
+		"screening": {"简历筛选中", "简历筛选未通过"},
+		"written_test": {"笔试中", "笔试通过", "笔试未通过"},
+		"interviews": {
+			"一面中", "一面通过", "一面未通过",
+			"二面中", "二面通过", "二面未通过",
+			"三面中", "三面通过", "三面未通过",
+			"HR面中", "HR面通过", "HR面未通过",
+		},
+		"final": {
+			"待发offer", "已收到offer", "已接受offer",
+			"已拒绝", "流程结束",
+		},
+		"in_progress": {"已投递", "简历筛选中", "笔试中", "一面中", "二面中", "三面中", "HR面中"},
+		"passed": {"笔试通过", "一面通过", "二面通过", "三面通过", "HR面通过", "待发offer", "已收到offer", "已接受offer", "流程结束"},
+		"failed": {"简历筛选未通过", "笔试未通过", "一面未通过", "二面未通过", "三面未通过", "HR面未通过", "已拒绝"},
+	}
+
+	if statuses, exists := stageMap[stage]; exists {
+		return statuses
+	}
+	return []string{}
+}
+
+// GetDashboardData 获取仪表板数据
+func (s *JobApplicationService) GetDashboardData(userID uint) (map[string]interface{}, error) {
+	// 获取状态统计
+	statistics, err := s.GetStatusStatistics(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get status statistics: %w", err)
+	}
+
+	// 获取最近更新的申请
+	recentQuery := `
+		SELECT id, company_name, position_title, status, updated_at
+		FROM job_applications
+		WHERE user_id = $1
+		ORDER BY updated_at DESC
+		LIMIT 10
+	`
+
+	rows, err := s.db.Query(recentQuery, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get recent applications: %w", err)
+	}
+	defer rows.Close()
+
+	var recentApplications []map[string]interface{}
+	for rows.Next() {
+		var id int
+		var companyName, positionTitle, status string
+		var updatedAt time.Time
+
+		err := rows.Scan(&id, &companyName, &positionTitle, &status, &updatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan recent application: %w", err)
+		}
+
+		recentApplications = append(recentApplications, map[string]interface{}{
+			"id":             id,
+			"company_name":   companyName,
+			"position_title": positionTitle,
+			"status":         status,
+			"updated_at":     updatedAt,
+		})
+	}
+
+	// 获取即将到来的面试
+	upcomingQuery := `
+		SELECT id, company_name, position_title, interview_time, interview_type
+		FROM job_applications
+		WHERE user_id = $1 AND interview_time > NOW() AND interview_time <= NOW() + INTERVAL '7 days'
+		ORDER BY interview_time ASC
+		LIMIT 5
+	`
+
+	upcomingRows, err := s.db.Query(upcomingQuery, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get upcoming interviews: %w", err)
+	}
+	defer upcomingRows.Close()
+
+	var upcomingInterviews []map[string]interface{}
+	for upcomingRows.Next() {
+		var id int
+		var companyName, positionTitle string
+		var interviewTime time.Time
+		var interviewType sql.NullString
+
+		err := upcomingRows.Scan(&id, &companyName, &positionTitle, &interviewTime, &interviewType)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan upcoming interview: %w", err)
+		}
+
+		interview := map[string]interface{}{
+			"id":             id,
+			"company_name":   companyName,
+			"position_title": positionTitle,
+			"interview_time": interviewTime,
+		}
+
+		if interviewType.Valid {
+			interview["interview_type"] = interviewType.String
+		}
+
+		upcomingInterviews = append(upcomingInterviews, interview)
+	}
+
+	// 获取每日申请数据（最近30天）
+	dailyStatsQuery := `
+		SELECT DATE(created_at) as date, COUNT(*) as count
+		FROM job_applications
+		WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '30 days'
+		GROUP BY DATE(created_at)
+		ORDER BY date DESC
+	`
+
+	dailyRows, err := s.db.Query(dailyStatsQuery, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get daily stats: %w", err)
+	}
+	defer dailyRows.Close()
+
+	var dailyStats []map[string]interface{}
+	for dailyRows.Next() {
+		var date time.Time
+		var count int
+
+		err := dailyRows.Scan(&date, &count)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan daily stats: %w", err)
+		}
+
+		dailyStats = append(dailyStats, map[string]interface{}{
+			"date":  date.Format("2006-01-02"),
+			"count": count,
+		})
+	}
+
+	// 构建仪表板数据
+	dashboard := map[string]interface{}{
+		"statistics":         statistics,
+		"recent_applications": recentApplications,
+		"upcoming_interviews": upcomingInterviews,
+		"daily_stats":        dailyStats,
+		"generated_at":       time.Now(),
+	}
+
+	return dashboard, nil
+}

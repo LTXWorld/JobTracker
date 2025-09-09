@@ -9,8 +9,17 @@ import type {
 export class JobApplicationAPI {
   // 获取所有投递记录
   static async getAll(): Promise<JobApplication[]> {
-    const response = await request.get('/api/v1/applications')
-    return response.data.data || []
+    const response = await request.get('/api/v1/applications?page_size=1000')
+    const payload = response.data?.data
+    // 后端已切换为分页响应: { data: JobApplication[], total, page, ... }
+    // 同时兼容旧版直接返回数组的形式
+    if (Array.isArray(payload)) {
+      return payload
+    }
+    if (payload && Array.isArray(payload.data)) {
+      return payload.data
+    }
+    return []
   }
 
   // 根据ID获取投递记录
