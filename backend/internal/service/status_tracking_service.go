@@ -524,7 +524,53 @@ func (s *StatusTrackingService) GetStatusAnalytics(userID uint) (*model.StatusAn
 		analytics.AverageDurations[status] = avgDuration
 	}
 
-	return analytics, nil
+    // 计算各阶段通过率（基于历史变迁）
+    type stageDef struct{ Name, Entry, Next string }
+    stages := []stageDef{
+        {Name: "written", Entry: string(model.StatusWrittenTest), Next: string(model.StatusFirstInterview)},
+        {Name: "first", Entry: string(model.StatusFirstInterview), Next: string(model.StatusSecondInterview)},
+        {Name: "second", Entry: string(model.StatusSecondInterview), Next: string(model.StatusThirdInterview)},
+        {Name: "third", Entry: string(model.StatusThirdInterview), Next: string(model.StatusHRInterview)},
+    }
+
+    for _, st := range stages {
+        // reached: 曾经到过该阶段（出现 new_status = Entry）或当前就在该阶段（job_applications.status = Entry）
+        reachedQuery := `
+            SELECT COUNT(*) FROM (
+                SELECT DISTINCT job_application_id FROM job_status_history WHERE user_id = $1 AND new_status = $2
+                UNION
+                SELECT id AS job_application_id FROM job_applications WHERE user_id = $1 AND status = $2
+            ) t`
+        var total int
+        if err := s.db.QueryRow(reachedQuery, userID, st.Entry).Scan(&total); err != nil {
+            return nil, fmt.Errorf("failed to compute stage total for %s: %w", st.Name, err)
+        }
+
+        // pass: 出现 old_status = Entry 且 new_status = Next 的转移（直通表达通过）
+        passQuery := `
+            SELECT COUNT(DISTINCT job_application_id)
+            FROM job_status_history
+            WHERE user_id = $1 AND old_status = $2 AND new_status = $3`
+        var passed int
+        if err := s.db.QueryRow(passQuery, userID, st.Entry, st.Next).Scan(&passed); err != nil {
+            return nil, fmt.Errorf("failed to compute stage pass for %s: %w", st.Name, err)
+        }
+
+        var rate float64
+        if total > 0 {
+            rate = float64(passed) / float64(total) * 100
+        }
+
+        analytics.StageAnalysis[st.Name] = model.StageStatistics{
+            StageName:           st.Name,
+            TotalCount:          total,
+            SuccessCount:        passed,
+            SuccessRate:         rate,
+            AverageDurationDays: 0,
+        }
+    }
+
+    return analytics, nil
 }
 
 // GetStatusTrends 获取状态趋势数据
@@ -589,24 +635,45 @@ func (s *StatusTrackingService) validateStatusTransition(userID uint, oldStatus,
 		return nil // 配置解析失败，允许转换
 	}
 
-	transitions, ok := config["transitions"].(map[string]interface{})
-	if !ok {
-		return nil
-	}
+    transitions, ok := config["transitions"].(map[string]interface{})
+    if !ok {
+        // 没有配置，采用内置直通规则放行
+        if s.isImplicitDirectTransitionAllowed(oldStatus, newStatus) {
+            return nil
+        }
+        return nil
+    }
 
-	allowedStates, ok := transitions[string(oldStatus)].([]interface{})
-	if !ok {
-		return nil // 没有限制，允许转换
-	}
+    allowedStates, ok := transitions[string(oldStatus)].([]interface{})
+    if ok {
+        // 检查新状态是否在允许列表中
+        for _, allowed := range allowedStates {
+            if allowedStr, ok := allowed.(string); ok && allowedStr == string(newStatus) {
+                return nil
+            }
+        }
+    }
 
-	// 检查新状态是否在允许列表中
-	for _, allowed := range allowedStates {
-		if allowedStr, ok := allowed.(string); ok && allowedStr == string(newStatus) {
-			return nil
-		}
-	}
+    // 不在模板中时，允许内置直通规则
+    if s.isImplicitDirectTransitionAllowed(oldStatus, newStatus) {
+        return nil
+    }
 
-	return fmt.Errorf("status transition not allowed: %s -> %s", oldStatus, newStatus)
+    return fmt.Errorf("status transition not allowed: %s -> %s", oldStatus, newStatus)
+}
+
+// isImplicitDirectTransitionAllowed 允许面试阶段的直接推进：一面中->二面中->三面中->HR面中
+func (s *StatusTrackingService) isImplicitDirectTransitionAllowed(oldStatus, newStatus model.ApplicationStatus) bool {
+    direct := map[model.ApplicationStatus]model.ApplicationStatus{
+        model.StatusWrittenTest:      model.StatusFirstInterview,  // 笔试中 → 一面中（表示笔试通过）
+        model.StatusFirstInterview:  model.StatusSecondInterview,
+        model.StatusSecondInterview: model.StatusThirdInterview,
+        model.StatusThirdInterview:  model.StatusHRInterview,
+    }
+    if next, ok := direct[oldStatus]; ok {
+        return next == newStatus
+    }
+    return false
 }
 
 // updateStatusHistoryJSON 更新状态历史JSON

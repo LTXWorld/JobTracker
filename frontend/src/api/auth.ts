@@ -87,13 +87,14 @@ export class AuthAPI {
    * 修改密码
    */
   static async changePassword(currentPassword: string, newPassword: string): Promise<void> {
-    const response = await request.put(`${this.AUTH_BASE_URL}/password`, {
+    // 与后端路由保持一致: /api/auth/change-password
+    const response = await request.put(`${this.AUTH_BASE_URL}/change-password`, {
       current_password: currentPassword,
       new_password: newPassword
     })
-    
-    if (response.data.code !== 200) {
-      throw new Error(response.data.message || '修改密码失败')
+    // 响应拦截器已将 200/201 统一转换为 success=true
+    if (!response.data?.success) {
+      throw new Error(response.data?.message || '修改密码失败')
     }
   }
 
@@ -102,8 +103,9 @@ export class AuthAPI {
    */
   static async logout(): Promise<void> {
     const response = await request.post(`${this.AUTH_BASE_URL}/logout`)
-    if (response.data.code !== 200) {
-      throw new Error(response.data.message || '登出失败')
+    // 对于成功响应，拦截器会包装为 { success: true }
+    if (!response.data?.success) {
+      throw new Error(response.data?.message || '登出失败')
     }
   }
 
@@ -155,8 +157,8 @@ export class AuthAPI {
    */
   static async terminateSession(sessionId: string): Promise<void> {
     const response = await request.delete(`${this.AUTH_BASE_URL}/sessions/${sessionId}`)
-    if (response.data.code !== 200) {
-      throw new Error(response.data.message || '退出会话失败')
+    if (!response.data?.success) {
+      throw new Error(response.data?.message || '退出会话失败')
     }
   }
 
@@ -215,7 +217,7 @@ export class AuthAPI {
   static async healthCheck(): Promise<boolean> {
     try {
       const response = await request.get(`${this.AUTH_BASE_URL}/health`)
-      return response.data.code === 200
+      return response.data?.success === true
     } catch {
       return false
     }

@@ -9,17 +9,29 @@ import type {
 export class JobApplicationAPI {
   // 获取所有投递记录
   static async getAll(): Promise<JobApplication[]> {
-    const response = await request.get('/api/v1/applications?page_size=1000')
-    const payload = response.data?.data
-    // 后端已切换为分页响应: { data: JobApplication[], total, page, ... }
-    // 同时兼容旧版直接返回数组的形式
-    if (Array.isArray(payload)) {
-      return payload
+    const pageSize = 100 // 与后端上限一致
+    let page = 1
+    const all: JobApplication[] = []
+    let hasNext = true
+
+    while (hasNext) {
+      const resp = await request.get(`/api/v1/applications?page=${page}&page_size=${pageSize}`)
+      const payload = resp.data?.data
+      if (Array.isArray(payload)) {
+        // 极端兼容：直接返回数组
+        all.push(...payload)
+        break
+      }
+      const list: JobApplication[] = Array.isArray(payload?.data) ? payload.data : []
+      all.push(...list)
+      hasNext = Boolean(payload?.has_next)
+      page += 1
+
+      // 保险阈值，避免异常循环
+      if (page > 100) break
     }
-    if (payload && Array.isArray(payload.data)) {
-      return payload.data
-    }
-    return []
+
+    return all
   }
 
   // 根据ID获取投递记录

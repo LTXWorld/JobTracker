@@ -57,7 +57,7 @@
     --- PASS: TestEdgeCases/ZeroUser (0.00s)
 === RUN   TestAuthMiddleware
 === RUN   TestAuthMiddleware/ValidToken
-2025/09/07 21:39:06 [AUTH] User 1 (testuser) accessing GET /test
+2025/09/10 10:44:37 [AUTH] User 1 (testuser) accessing GET /test
 === RUN   TestAuthMiddleware/MissingAuthHeader
 === RUN   TestAuthMiddleware/InvalidAuthHeader
 === RUN   TestAuthMiddleware/ExpiredToken
@@ -101,7 +101,7 @@
 === RUN   TestSecurityHeadersMiddleware
 --- PASS: TestSecurityHeadersMiddleware (0.00s)
 === RUN   TestLoggingMiddleware
-2025/09/07 21:39:06 [HTTP] GET /test - 200 - 875ns - 127.0.0.1
+2025/09/10 10:44:37 [HTTP] GET /test - 200 - 459ns - 127.0.0.1
 --- PASS: TestLoggingMiddleware (0.00s)
 === RUN   TestGetUserFromContext
 === RUN   TestGetUserFromContext/UserInContext
@@ -124,10 +124,10 @@
     --- PASS: TestRequireOwnership/DifferentUser (0.00s)
     --- PASS: TestRequireOwnership/ZeroIDs (0.00s)
 === RUN   TestMiddlewareChaining
-2025/09/07 21:39:06 [AUTH] User 1 (testuser) accessing GET /test
-2025/09/07 21:39:06 [HTTP] GET /test - 200 - 19.416µs - 192.0.2.1
+2025/09/10 10:44:37 [AUTH] User 1 (testuser) accessing GET /test
+2025/09/10 10:44:37 [HTTP] GET /test - 200 - 15.333µs - 192.0.2.1
 --- PASS: TestMiddlewareChaining (0.00s)
 FAIL
 coverage: [no statements]
-FAIL	jobView-backend/tests/auth	0.204s
+FAIL	jobView-backend/tests/auth	3.065s
 FAIL

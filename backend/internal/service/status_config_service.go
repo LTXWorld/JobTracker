@@ -15,11 +15,80 @@ import (
 )
 
 type StatusConfigService struct {
-	db *database.DB
+    db *database.DB
 }
 
 func NewStatusConfigService(db *database.DB) *StatusConfigService {
-	return &StatusConfigService{db: db}
+    return &StatusConfigService{db: db}
+}
+
+// EnsureDirectTransitionsInDefaultTemplate 确保默认模板包含面试阶段的直通转移规则
+// 若模板不存在则忽略（由外部迁移负责创建）；若存在则在不改变其他配置的前提下补充：
+// 一面中 -> 二面中，二面中 -> 三面中，三面中 -> HR面中
+func (s *StatusConfigService) EnsureDirectTransitionsInDefaultTemplate() error {
+    // 查询默认模板
+    var id int
+    var cfgBytes []byte
+    q := `SELECT id, COALESCE(flow_config::text, '{"transitions": {}, "rules": {}}') FROM status_flow_templates WHERE is_default = true AND is_active = true LIMIT 1`
+    err := s.db.QueryRow(q).Scan(&id, &cfgBytes)
+    if err == sql.ErrNoRows {
+        // 没有默认模板，交由外部迁移/初始化处理
+        return nil
+    }
+    if err != nil {
+        return fmt.Errorf("failed to read default flow template: %w", err)
+    }
+
+    // 解析配置
+    var cfg map[string]interface{}
+    if err := json.Unmarshal(cfgBytes, &cfg); err != nil {
+        cfg = map[string]interface{}{"transitions": map[string]interface{}{}, "rules": map[string]interface{}{}}
+    }
+
+    transitionsMap, ok := cfg["transitions"].(map[string]interface{})
+    if !ok || transitionsMap == nil {
+        transitionsMap = map[string]interface{}{}
+        cfg["transitions"] = transitionsMap
+    }
+
+    // 需要补充的直通规则
+    direct := map[string]string{
+        string(model.StatusWrittenTest):      string(model.StatusFirstInterview),
+        string(model.StatusFirstInterview):  string(model.StatusSecondInterview),
+        string(model.StatusSecondInterview): string(model.StatusThirdInterview),
+        string(model.StatusThirdInterview):  string(model.StatusHRInterview),
+    }
+
+    changed := false
+    for from, to := range direct {
+        arr, _ := transitionsMap[from].([]interface{})
+        // 检查是否已存在
+        exists := false
+        for _, v := range arr {
+            if s, ok := v.(string); ok && s == to {
+                exists = true
+                break
+            }
+        }
+        if !exists {
+            // 追加
+            arr = append(arr, to)
+            transitionsMap[from] = arr
+            changed = true
+        }
+    }
+
+    if !changed {
+        return nil
+    }
+
+    // 写回数据库
+    newBytes, _ := json.Marshal(cfg)
+    u := `UPDATE status_flow_templates SET flow_config = $1, updated_at = $2 WHERE id = $3`
+    if _, err := s.db.Exec(u, string(newBytes), time.Now(), id); err != nil {
+        return fmt.Errorf("failed to update default flow template: %w", err)
+    }
+    return nil
 }
 
 // GetStatusFlowTemplates 获取状态流转模板列表
@@ -376,7 +445,7 @@ func (s *StatusConfigService) GetAvailableStatusTransitions(userID uint, current
 		return nil, fmt.Errorf("failed to get flow template: %w", err)
 	}
 
-	var transitions []model.ApplicationStatus
+    transitionsSet := make(map[model.ApplicationStatus]bool)
 
 	if err == sql.ErrNoRows {
 		// 没有配置模板，返回所有有效状态
@@ -406,41 +475,66 @@ func (s *StatusConfigService) GetAvailableStatusTransitions(userID uint, current
 			model.StatusProcessFinished,
 		}
 
-		// 排除当前状态
-		for _, status := range allStatuses {
-			if status != currentStatus {
-				transitions = append(transitions, status)
-			}
-		}
-		return transitions, nil
-	}
+        // 排除当前状态
+        for _, status := range allStatuses {
+            if status != currentStatus {
+                transitionsSet[status] = true
+            }
+        }
+        // 添加内置直通规则
+        s.addImplicitDirectTransitions(currentStatus, transitionsSet)
+        return setToSlice(transitionsSet), nil
+    }
 
-	var config map[string]interface{}
-	if err := json.Unmarshal([]byte(flowConfig), &config); err != nil {
-		return transitions, nil // 配置解析失败，返回空列表
-	}
+    var config map[string]interface{}
+    if err := json.Unmarshal([]byte(flowConfig), &config); err != nil {
+        return setToSlice(transitionsSet), nil // 配置解析失败，返回当前集合
+    }
 
-	transitionsMap, ok := config["transitions"].(map[string]interface{})
-	if !ok {
-		return transitions, nil
-	}
+    transitionsMap, ok := config["transitions"].(map[string]interface{})
+    if !ok {
+        return setToSlice(transitionsSet), nil
+    }
 
-	allowedStates, ok := transitionsMap[string(currentStatus)].([]interface{})
-	if !ok {
-		return transitions, nil
-	}
+    allowedStates, ok := transitionsMap[string(currentStatus)].([]interface{})
+    if ok {
+        // 转换为ApplicationStatus类型
+        for _, allowed := range allowedStates {
+            if allowedStr, ok := allowed.(string); ok {
+                status := model.ApplicationStatus(allowedStr)
+                if status.IsValid() && status != currentStatus {
+                    transitionsSet[status] = true
+                }
+            }
+        }
+    }
 
-	// 转换为ApplicationStatus类型
-	for _, allowed := range allowedStates {
-		if allowedStr, ok := allowed.(string); ok {
-			status := model.ApplicationStatus(allowedStr)
-			if status.IsValid() {
-				transitions = append(transitions, status)
-			}
-		}
-	}
+    // 添加内置直通规则
+    s.addImplicitDirectTransitions(currentStatus, transitionsSet)
 
-	return transitions, nil
+    return setToSlice(transitionsSet), nil
+}
+
+// addImplicitDirectTransitions 添加内置直通转移，满足“一面中→二面中→三面中→HR面中”
+func (s *StatusConfigService) addImplicitDirectTransitions(currentStatus model.ApplicationStatus, set map[model.ApplicationStatus]bool) {
+    direct := map[model.ApplicationStatus]model.ApplicationStatus{
+        model.StatusWrittenTest:      model.StatusFirstInterview,
+        model.StatusFirstInterview:  model.StatusSecondInterview,
+        model.StatusSecondInterview: model.StatusThirdInterview,
+        model.StatusThirdInterview:  model.StatusHRInterview,
+    }
+    if next, ok := direct[currentStatus]; ok {
+        set[next] = true
+    }
+}
+
+// setToSlice 将状态集合转换为去重后的切片（稳定顺序不强制）
+func setToSlice(set map[model.ApplicationStatus]bool) []model.ApplicationStatus {
+    res := make([]model.ApplicationStatus, 0, len(set))
+    for k := range set {
+        res = append(res, k)
+    }
+    return res
 }
 
 // validateFlowConfig 验证流转配置格式

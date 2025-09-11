@@ -99,8 +99,8 @@ export class StatusTrackingAPI {
    */
   static async updateStatus(applicationId: number, data: UpdateStatusRequest): Promise<void> {
     const response = await request.post(`/api/v1/job-applications/${applicationId}/status`, data)
-    if (response.data.code !== 200) {
-      throw new Error(response.data.message || '状态更新失败')
+    if (!response.data?.success) {
+      throw new Error(response.data?.message || '状态更新失败')
     }
   }
 
@@ -137,8 +137,8 @@ export class StatusTrackingAPI {
     }
     
     const response = await request.put('/api/v1/job-applications/status/batch', data)
-    if (response.data.code !== 200) {
-      throw new Error(response.data.message || '批量更新失败')
+    if (!response.data?.success) {
+      throw new Error(response.data?.message || '批量更新失败')
     }
   }
 

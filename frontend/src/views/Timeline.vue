@@ -14,6 +14,10 @@
             <template #icon><UploadOutlined /></template>
             批量导入
           </a-button>
+          <a-button type="default" @click="showExportModal = true" :disabled="filteredApplications.length === 0">
+            <template #icon><DownloadOutlined /></template>
+            导出Excel
+          </a-button>
           <a-button @click="fetchData">
             <template #icon><ReloadOutlined /></template>
             刷新
@@ -21,22 +25,15 @@
         </a-space>
       </template>
 
-      <!-- 快速统计 -->
+      <!-- 快速统计（基于筛选结果） -->
       <div class="stats-row" v-if="filteredApplications.length > 0">
-        <a-row :gutter="16">
-          <a-col :xs="12" :sm="6">
-            <a-statistic title="筛选结果" :value="filteredApplications.length" />
-          </a-col>
-          <a-col :xs="12" :sm="6">
-            <a-statistic title="面试中" :value="interviewingCount" />
-          </a-col>
-          <a-col :xs="12" :sm="6">
-            <a-statistic title="已拒绝" :value="rejectedCount" />
-          </a-col>
-          <a-col :xs="12" :sm="6">
-            <a-statistic title="已收offer" :value="offerCount" />
-          </a-col>
-        </a-row>
+        <div class="stats-grid">
+          <a-statistic title="总投递数" :value="totalApplicationsCount" />
+          <a-statistic title="笔试中" :value="writtenCount" />
+          <a-statistic title="面试中" :value="interviewingCount" />
+          <a-statistic title="已挂" :value="failedSumCount" />
+          <a-statistic title="已接offer" :value="acceptedOfferCount" />
+        </div>
       </div>
 
       <a-divider />
@@ -78,18 +75,6 @@
             <div class="timeline-actions">
               <a-space>
                 <a-button size="small" @click="editApplication(app)">编辑</a-button>
-                <a-dropdown>
-                  <template #overlay>
-                    <a-menu @click="updateStatus(app, $event)">
-                      <a-menu-item v-for="status in getNextStatuses(app.status)" :key="status" :value="status">
-                        {{ status }}
-                      </a-menu-item>
-                    </a-menu>
-                  </template>
-                  <a-button size="small">
-                    更新状态 <DownOutlined />
-                  </a-button>
-                </a-dropdown>
                 <a-popconfirm title="确定要删除这条记录吗？" @confirm="deleteApp(app.id)">
                   <a-button size="small" danger>删除</a-button>
                 </a-popconfirm>
@@ -125,6 +110,14 @@
       v-model:visible="showImportModal"
       @success="handleImportSuccess"
     />
+
+    <!-- Excel导出弹窗 -->
+    <ExportDialog
+      v-model:visible="showExportModal"
+      :applications="filteredApplications"
+      :current-filters="currentFilters"
+      @success="handleExportSuccess"
+    />
   </div>
 </template>
 
@@ -133,14 +126,15 @@ import { ref, computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { 
   PlusOutlined, ReloadOutlined, CalendarOutlined, DollarOutlined, 
-  EnvironmentOutlined, FileTextOutlined, DownOutlined,
+  EnvironmentOutlined, FileTextOutlined,
   CheckCircleOutlined, ClockCircleOutlined, ExclamationCircleOutlined,
-  UploadOutlined
+  UploadOutlined, DownloadOutlined
 } from '@ant-design/icons-vue'
 import { useJobApplicationStore } from '../stores/jobApplication'
 import { ApplicationStatus, StatusHelper, type JobApplication } from '../types'
 import NewApplicationForm from '../components/NewApplicationForm.vue'
 import BatchImport from '../components/BatchImport.vue'
+import ExportDialog from '../components/ExportDialog.vue'
 import FilterBar from '../components/FilterBar.vue'
 import dayjs from 'dayjs'
 
@@ -150,6 +144,7 @@ const { applications, loading } = storeToRefs(jobStore)
 // 响应式数据
 const showCreateModal = ref(false)
 const showImportModal = ref(false)
+const showExportModal = ref(false)
 const editingApplication = ref<JobApplication | null>(null)
 const currentPage = ref(1)
 const pageSize = ref(20)
@@ -249,6 +244,10 @@ const hasFilters = computed(() => {
 })
 
 // 统计数据
+const writtenCount = computed(() => 
+  filteredApplications.value.filter(app => app.status === ApplicationStatus.WRITTEN_TEST).length
+)
+
 const interviewingCount = computed(() => 
   filteredApplications.value.filter(app => {
     const interviewStatuses: ApplicationStatus[] = [
@@ -261,19 +260,24 @@ const interviewingCount = computed(() =>
   }).length
 )
 
-const rejectedCount = computed(() => 
-  filteredApplications.value.filter(app => app.status === ApplicationStatus.REJECTED).length
-)
-
-const offerCount = computed(() => 
+const failedSumCount = computed(() => 
   filteredApplications.value.filter(app => {
-    const offerStatuses: ApplicationStatus[] = [
-      ApplicationStatus.OFFER_RECEIVED, 
-      ApplicationStatus.OFFER_ACCEPTED
+    const failedStatuses: ApplicationStatus[] = [
+      ApplicationStatus.RESUME_SCREENING_FAIL,
+      ApplicationStatus.WRITTEN_TEST_FAIL,
+      ApplicationStatus.FIRST_FAIL,
+      ApplicationStatus.SECOND_FAIL,
+      ApplicationStatus.THIRD_FAIL
     ]
-    return offerStatuses.includes(app.status)
+    return failedStatuses.includes(app.status)
   }).length
 )
+
+const acceptedOfferCount = computed(() => 
+  filteredApplications.value.filter(app => app.status === ApplicationStatus.OFFER_ACCEPTED).length
+)
+
+const totalApplicationsCount = computed(() => applications.value.length)
 
 // 方法
 const fetchData = () => jobStore.fetchApplications()
@@ -297,28 +301,6 @@ const getStatusIcon = (status: ApplicationStatus) => {
     return ExclamationCircleOutlined
   }
   return ClockCircleOutlined
-}
-
-const getNextStatuses = (currentStatus: ApplicationStatus) => {
-  const statusFlow: Record<ApplicationStatus, ApplicationStatus[]> = {
-    [ApplicationStatus.APPLIED]: [ApplicationStatus.WRITTEN_TEST, ApplicationStatus.FIRST_INTERVIEW, ApplicationStatus.REJECTED],
-    [ApplicationStatus.WRITTEN_TEST]: [ApplicationStatus.WRITTEN_TEST_PASS, ApplicationStatus.REJECTED],
-    [ApplicationStatus.WRITTEN_TEST_PASS]: [ApplicationStatus.FIRST_INTERVIEW, ApplicationStatus.REJECTED],
-    [ApplicationStatus.FIRST_INTERVIEW]: [ApplicationStatus.FIRST_PASS, ApplicationStatus.REJECTED],
-    [ApplicationStatus.FIRST_PASS]: [ApplicationStatus.SECOND_INTERVIEW, ApplicationStatus.HR_INTERVIEW, ApplicationStatus.OFFER_WAITING, ApplicationStatus.REJECTED],
-    [ApplicationStatus.SECOND_INTERVIEW]: [ApplicationStatus.SECOND_PASS, ApplicationStatus.REJECTED],
-    [ApplicationStatus.SECOND_PASS]: [ApplicationStatus.THIRD_INTERVIEW, ApplicationStatus.HR_INTERVIEW, ApplicationStatus.OFFER_WAITING, ApplicationStatus.REJECTED],
-    [ApplicationStatus.THIRD_INTERVIEW]: [ApplicationStatus.THIRD_PASS, ApplicationStatus.REJECTED],
-    [ApplicationStatus.THIRD_PASS]: [ApplicationStatus.HR_INTERVIEW, ApplicationStatus.OFFER_WAITING, ApplicationStatus.REJECTED],
-    [ApplicationStatus.HR_INTERVIEW]: [ApplicationStatus.HR_PASS, ApplicationStatus.REJECTED],
-    [ApplicationStatus.HR_PASS]: [ApplicationStatus.OFFER_WAITING, ApplicationStatus.REJECTED],
-    [ApplicationStatus.OFFER_WAITING]: [ApplicationStatus.OFFER_RECEIVED, ApplicationStatus.REJECTED],
-    [ApplicationStatus.OFFER_RECEIVED]: [ApplicationStatus.OFFER_ACCEPTED, ApplicationStatus.REJECTED],
-    [ApplicationStatus.OFFER_ACCEPTED]: [ApplicationStatus.PROCESS_FINISHED],
-    [ApplicationStatus.REJECTED]: [],
-    [ApplicationStatus.PROCESS_FINISHED]: []
-  }
-  return statusFlow[currentStatus] || []
 }
 
 // 高亮关键词
@@ -356,10 +338,6 @@ const editApplication = (app: JobApplication) => {
   showCreateModal.value = true
 }
 
-const updateStatus = async (app: JobApplication, { key }: { key: ApplicationStatus }) => {
-  await jobStore.updateApplication(app.id, { status: key })
-}
-
 const deleteApp = async (id: number) => {
   await jobStore.deleteApplication(id)
 }
@@ -373,6 +351,11 @@ const handleFormSuccess = () => {
 const handleImportSuccess = () => {
   showImportModal.value = false
   fetchData()
+}
+
+const handleExportSuccess = () => {
+  showExportModal.value = false
+  // 导出成功后可以显示成功提示，但不需要刷新数据
 }
 
 onMounted(() => {
@@ -393,6 +376,22 @@ onMounted(() => {
 
 .timeline-item {
   padding: 12px 0;
+}
+
+/* 统计行：五等分一行展示 */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  gap: 16px;
+  align-items: center;
+}
+
+.stats-grid :deep(.ant-statistic-title) {
+  color: #8c8c8c;
+}
+
+.stats-grid :deep(.ant-statistic-content) {
+  font-weight: 600;
 }
 
 .timeline-header {

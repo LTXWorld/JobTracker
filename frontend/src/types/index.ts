@@ -453,3 +453,153 @@ export interface StatusFilterOptions {
   sort_by?: 'date' | 'company' | 'status' | 'duration';
   sort_order?: 'asc' | 'desc';
 }
+
+// ======== Excel 导出功能类型定义 ========
+
+// 可导出的字段列表
+export const ExportableFields = {
+  COMPANY_NAME: 'company_name',
+  POSITION_TITLE: 'position_title',
+  APPLICATION_DATE: 'application_date',
+  STATUS: 'status',
+  SALARY_RANGE: 'salary_range',
+  WORK_LOCATION: 'work_location',
+  INTERVIEW_TIME: 'interview_time',
+  INTERVIEW_LOCATION: 'interview_location',
+  INTERVIEW_TYPE: 'interview_type',
+  HR_NAME: 'hr_name',
+  HR_PHONE: 'hr_phone',
+  HR_EMAIL: 'hr_email',
+  REMINDER_TIME: 'reminder_time',
+  FOLLOW_UP_DATE: 'follow_up_date',
+  JOB_DESCRIPTION: 'job_description',
+  CONTACT_INFO: 'contact_info',
+  NOTES: 'notes',
+  CREATED_AT: 'created_at',
+  UPDATED_AT: 'updated_at'
+} as const
+
+export type ExportableField = typeof ExportableFields[keyof typeof ExportableFields]
+
+// 字段显示名称映射
+export const FieldDisplayNames: Record<ExportableField, string> = {
+  [ExportableFields.COMPANY_NAME]: '公司名称',
+  [ExportableFields.POSITION_TITLE]: '职位标题',
+  [ExportableFields.APPLICATION_DATE]: '投递日期',
+  [ExportableFields.STATUS]: '当前状态',
+  [ExportableFields.SALARY_RANGE]: '薪资范围',
+  [ExportableFields.WORK_LOCATION]: '工作地点',
+  [ExportableFields.INTERVIEW_TIME]: '面试时间',
+  [ExportableFields.INTERVIEW_LOCATION]: '面试地点',
+  [ExportableFields.INTERVIEW_TYPE]: '面试类型',
+  [ExportableFields.HR_NAME]: 'HR姓名',
+  [ExportableFields.HR_PHONE]: 'HR电话',
+  [ExportableFields.HR_EMAIL]: 'HR邮箱',
+  [ExportableFields.REMINDER_TIME]: '提醒时间',
+  [ExportableFields.FOLLOW_UP_DATE]: '跟进日期',
+  [ExportableFields.JOB_DESCRIPTION]: '职位描述',
+  [ExportableFields.CONTACT_INFO]: '联系信息',
+  [ExportableFields.NOTES]: '备注',
+  [ExportableFields.CREATED_AT]: '创建时间',
+  [ExportableFields.UPDATED_AT]: '更新时间'
+}
+
+// 导出格式
+export type ExportFormat = 'xlsx' | 'csv'
+
+// 导出筛选条件
+export interface ExportFilters {
+  status?: ApplicationStatus[]
+  date_range?: {
+    start: string
+    end: string
+  }
+  company_names?: string[]
+  keyword?: string
+}
+
+// 导出选项
+export interface ExportOptions {
+  include_statistics?: boolean
+  include_status_history?: boolean
+  filename?: string
+}
+
+// 导出请求
+export interface ExportRequest {
+  format: ExportFormat
+  fields: ExportableField[]
+  filters?: ExportFilters
+  options?: ExportOptions
+}
+
+// 任务状态
+export type TaskStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'expired'
+
+// 导出任务
+export interface ExportTask {
+  task_id: string
+  status: TaskStatus
+  progress: number
+  processed_records: number
+  total_records: number
+  download_url?: string
+  file_size?: string
+  expires_at?: string
+  error_message?: string
+  estimated_time?: number
+}
+
+// 导出响应
+export interface ExportResponse {
+  success: boolean
+  message: string
+  data: ExportTask
+}
+
+// 导出历史项目
+export interface ExportHistoryItem {
+  task_id: string
+  created_at: string
+  status: TaskStatus
+  filename: string
+  file_size?: string
+  record_count: number
+  download_url?: string
+  expires_at?: string
+  error_message?: string
+}
+
+// 导出历史响应
+export interface ExportHistoryResponse {
+  success: boolean
+  data: {
+    exports: ExportHistoryItem[]
+    pagination: {
+      current_page: number
+      total_pages: number
+      total_count: number
+      page_size: number
+    }
+  }
+}
+
+// 支持的导出格式信息
+export interface ExportFormatInfo {
+  format: ExportFormat
+  name: string
+  description: string
+  extension: string
+  mime_type: string
+}
+
+// 导出字段分组
+export interface ExportFieldGroup {
+  group: string
+  label: string
+  fields: Array<{
+    field: ExportableField
+    label: string
+    required?: boolean
+  }>
+}

@@ -4,6 +4,26 @@
     <div class="kanban-header">
       <h2>求职看板</h2>
       <div class="header-right">
+        <!-- 搜索定位 -->
+        <div class="kanban-search">
+          <a-auto-complete
+            v-model:value="searchText"
+            :options="searchOptions"
+            :filter-option="false"
+            style="width: 320px"
+            @select="onSearchSelect"
+          >
+            <a-input
+              :placeholder="'搜索公司/职位... (回车定位)'"
+              allow-clear
+              @pressEnter="onSearchEnter"
+            >
+              <template #prefix>
+                <SearchOutlined />
+              </template>
+            </a-input>
+          </a-auto-complete>
+        </div>
         <!-- 状态切换标签 -->
         <div class="status-tabs">
           <a-button 
@@ -32,11 +52,6 @@
         
         <!-- 操作按钮 -->
         <div class="kanban-actions">
-          <!-- 新增状态跟踪按钮 -->
-          <a-button @click="$router.push('/status-tracking')">
-            <template #icon><DashboardOutlined /></template>
-            状态分析
-          </a-button>
           <a-button type="primary" @click="showCreateModal = true">
             <template #icon><PlusOutlined /></template>
             添加投递
@@ -44,6 +59,10 @@
           <a-button @click="showImportModal = true">
             <template #icon><UploadOutlined /></template>
             批量导入
+          </a-button>
+          <a-button @click="showExportModal = true">
+            <template #icon><DownloadOutlined /></template>
+            导出Excel
           </a-button>
           <a-button @click="fetchData">
             <template #icon><ReloadOutlined /></template>
@@ -75,10 +94,15 @@
             <template #item="{ element }">
               <div 
                 class="job-card"
+                :class="{ 'bounce': highlightedId === element.id }"
+                :tabindex="0"
+                :data-id="element.id"
+                :ref="(el) => registerCardRef(element.id, el as HTMLElement | null)"
+                @animationend="onBounceEnd(element.id)"
                 @click="openStatusDetail(element)"
               >
                 <div class="card-header">
-                  <h4>{{ element.company_name }}</h4>
+                  <h4 v-html="highlightText(element.company_name)"></h4>
                   <a-dropdown @click.stop>
                     <template #overlay>
                       <a-menu @click="handleCardAction($event, element)">
@@ -104,7 +128,7 @@
                 </div>
                 
                 <div class="card-body">
-                  <p class="position">{{ element.position_title }}</p>
+                  <p class="position" v-html="highlightText(element.position_title)"></p>
                   
                   <!-- 状态持续时间指示器 -->
                   <div class="status-duration" v-if="getStatusDuration(element)">
@@ -173,25 +197,34 @@
       @updated="handleStatusUpdated"
       @cancelled="showQuickUpdateModal = false"
     />
+
+    <!-- Excel导出弹窗 -->
+    <ExportDialog
+      v-model:visible="showExportModal"
+      :applications="applications"
+      @success="handleExportSuccess"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick, h } from 'vue'
 import { storeToRefs } from 'pinia'
 import draggable from 'vuedraggable'
 import { 
   PlusOutlined, ReloadOutlined, CalendarOutlined, DollarOutlined, 
   EnvironmentOutlined, MoreOutlined, EditOutlined, DeleteOutlined,
   UploadOutlined, BellOutlined, BellFilled, DownOutlined, UpOutlined,
-  ClockCircleOutlined, TrophyOutlined, CloseCircleOutlined, DashboardOutlined,
-  HistoryOutlined, SettingOutlined
+  ClockCircleOutlined, TrophyOutlined, CloseCircleOutlined,
+  SearchOutlined,
+  HistoryOutlined, SettingOutlined, DownloadOutlined
 } from '@ant-design/icons-vue'
 import { useJobApplicationStore } from '../stores/jobApplication'
 import { useStatusTrackingStore } from '../stores/statusTracking'
 import { ApplicationStatus, StatusHelper, type JobApplication, type ApplicationStatus as AppStatus } from '../types'
 import NewApplicationForm from '../components/NewApplicationForm.vue'
 import BatchImport from '../components/BatchImport.vue'
+import ExportDialog from '../components/ExportDialog.vue'
 import StatusDetailModal from '../components/StatusDetailModal.vue'
 import StatusQuickUpdate from '../components/StatusQuickUpdate.vue'
 import dayjs from 'dayjs'
@@ -210,6 +243,7 @@ const { applications, loading } = storeToRefs(jobStore)
 
 const showCreateModal = ref(false)
 const showImportModal = ref(false)
+const showExportModal = ref(false)
 const showStatusDetailModal = ref(false)
 const showQuickUpdateModal = ref(false)
 const editingApplication = ref<JobApplication | null>(null)
@@ -219,6 +253,134 @@ const selectedApplicationStatus = ref<AppStatus>('已投递')
 
 // 当前活跃的标签页
 const activeTab = ref<'in-progress' | 'failed'>('in-progress')
+
+// 搜索相关
+const searchText = ref('')
+const highlightedId = ref<number | null>(null)
+const cardRefs = new Map<number, HTMLElement>()
+
+const failedStatusSet = new Set([
+  ApplicationStatus.RESUME_SCREENING_FAIL,
+  ApplicationStatus.WRITTEN_TEST_FAIL,
+  ApplicationStatus.FIRST_FAIL,
+  ApplicationStatus.SECOND_FAIL,
+  ApplicationStatus.THIRD_FAIL,
+  ApplicationStatus.HR_FAIL,
+  ApplicationStatus.REJECTED
+])
+
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const renderHighlightedLabel = (label: string, keyword: string) => {
+  if (!keyword) return label
+  const rx = new RegExp(escapeRegExp(keyword), 'ig')
+  const nodes: any[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  // 为了性能，限制最多渲染10个高亮片段
+  let segments = 0
+  while ((match = rx.exec(label)) && segments < 10) {
+    const start = match.index
+    const end = start + match[0].length
+    if (start > lastIndex) nodes.push(label.slice(lastIndex, start))
+    nodes.push(h('mark', match[0]))
+    lastIndex = end
+    segments++
+  }
+  if (lastIndex < label.length) nodes.push(label.slice(lastIndex))
+  return h('span', nodes)
+}
+
+const highlightText = (text: string) => {
+  const kw = searchText.value.trim()
+  if (!kw) return text
+  const safe = (s: string) => s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  const rx = new RegExp(escapeRegExp(kw), 'ig')
+  return safe(text).replace(rx, (m) => `<mark>${m}</mark>`)
+}
+
+const searchOptions = computed(() => {
+  const list = Array.isArray(applications.value) ? applications.value : []
+  const keyword = searchText.value.trim().toLowerCase()
+  // 生成选项并按关键字过滤（前端过滤，避免额外请求）
+  const items = list.map(app => {
+    const rawLabel = `${app.company_name} - ${app.position_title}`
+    return {
+      value: String(app.id),
+      label: renderHighlightedLabel(rawLabel, searchText.value.trim()) as any,
+      _plain: rawLabel.toLowerCase(),
+    }
+  })
+  if (!keyword) return items.slice(0, 50)
+  return items.filter(o => o._plain.includes(keyword)).slice(0, 50)
+})
+
+const onSearchEnter = async () => {
+  const opt = searchOptions.value.find(o => o.label.toLowerCase().includes(searchText.value.trim().toLowerCase()))
+  if (opt) {
+    await locateCardById(Number(opt.value))
+  } else if (searchText.value.trim()) {
+    message.warning('未找到匹配的投递记录')
+  }
+}
+
+const onSearchSelect = async (value: string) => {
+  await locateCardById(Number(value))
+}
+
+const registerCardRef = (id: number, el: HTMLElement | null) => {
+  if (el) {
+    cardRefs.set(id, el)
+  } else {
+    cardRefs.delete(id)
+  }
+}
+
+const onBounceEnd = (id: number) => {
+  if (highlightedId.value === id) {
+    highlightedId.value = null
+  }
+}
+
+const locateCardById = async (id: number) => {
+  const list = Array.isArray(applications.value) ? applications.value : []
+  const app = list.find(a => a.id === id)
+  if (!app) {
+    message.warning('记录不存在或未加载')
+    return
+  }
+
+  // 切换到对应分组标签（进行中/失败），以确保卡片渲染出来
+  const targetTab: 'in-progress' | 'failed' = failedStatusSet.has(app.status) ? 'failed' : 'in-progress'
+  if (activeTab.value !== targetTab) {
+    activeTab.value = targetTab
+    await nextTick()
+  }
+
+  // 等待DOM渲染并获取卡片引用
+  await nextTick()
+  let el = cardRefs.get(id)
+  if (!el) {
+    // 再次等待一次（拖拽列表渲染可能稍有延迟）
+    await new Promise(r => setTimeout(r, 50))
+    el = cardRefs.get(id)
+  }
+  if (!el) {
+    message.warning('未能定位到卡片')
+    return
+  }
+
+  // 滚动并聚焦
+  el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
+  // 短暂延时，待滚动生效后再聚焦与动画
+  setTimeout(() => {
+    try { el?.focus({ preventScroll: true }) } catch {}
+    highlightedId.value = id
+  }, 220)
+}
 
 // 定义进行中状态列
 const inProgressColumns = [
@@ -231,13 +393,15 @@ const inProgressColumns = [
   { status: ApplicationStatus.HR_INTERVIEW, title: 'HR面中', color: '#fa541c' }
 ]
 
-// 定义失败状态列
+// 定义失败状态列（与统计页一致：包含已拒绝、HR面未通过）
 const failedColumns = [
   { status: ApplicationStatus.RESUME_SCREENING_FAIL, title: '简历挂', color: '#ff7875' },
   { status: ApplicationStatus.WRITTEN_TEST_FAIL, title: '笔试挂', color: '#ff7875' },
   { status: ApplicationStatus.FIRST_FAIL, title: '一面挂', color: '#ff7875' },
   { status: ApplicationStatus.SECOND_FAIL, title: '二面挂', color: '#ff7875' },
-  { status: ApplicationStatus.THIRD_FAIL, title: '三面挂', color: '#ff7875' }
+  { status: ApplicationStatus.THIRD_FAIL, title: '三面挂', color: '#ff7875' },
+  { status: ApplicationStatus.HR_FAIL, title: 'HR面挂', color: '#ff7875' },
+  { status: ApplicationStatus.REJECTED, title: '已拒绝', color: '#ff4d4f' }
 ]
 
 // 切换标签页
@@ -262,7 +426,7 @@ const inProgressCount = computed(() => {
   }, 0)
 })
 
-// 计算失败状态数量  
+// 计算失败状态数量（包含 HR面未通过、已拒绝）  
 const failedCount = computed(() => {
   if (!Array.isArray(applications.value)) return 0
   return failedColumns.reduce((total, col) => {
@@ -290,16 +454,33 @@ const fetchData = () => jobStore.fetchApplications()
 
 // 处理拖拽变化
 const handleDragChange = async (evt: any, newStatus: ApplicationStatus) => {
-  if (evt.added) {
-    const app = evt.added.element as JobApplication
-    try {
-      await jobStore.updateApplication(app.id, { status: newStatus })
-      message.success(`已更新状态为: ${newStatus}`)
-    } catch (error) {
-      message.error('状态更新失败')
-      // 失败时重新加载数据以恢复原状态
+  if (!evt.added) return
+  const app = evt.added.element as JobApplication
+
+  // 预检合法流转（若配置了限制，则前端先挡住无效拖拽）
+  try {
+    const rules = await statusTrackingStore.getAvailableTransitions(app.status)
+    const allowed = rules?.some(r => (r.to || []).includes(newStatus)) ?? true
+    if (!allowed) {
+      message.warning(`不允许从「${app.status}」到「${newStatus}」`)
       await fetchData()
+      return
     }
+  } catch {
+    // 若获取失败，不阻断操作，交由后端校验
+  }
+
+  try {
+    // 使用状态跟踪接口以保证合法流转并记录历史
+    await statusTrackingStore.updateApplicationStatus(app.id, { status: newStatus })
+    message.success(`已更新状态为: ${newStatus}`)
+    // 刷新应用列表，确保列分组一致
+    await fetchData()
+  } catch (error: any) {
+    const msg = (error?.message as string) || '状态更新失败'
+    message.error(msg)
+    // 恢复原数据
+    await fetchData()
   }
 }
 
@@ -405,6 +586,11 @@ const handleImportSuccess = () => {
   message.success('批量导入成功')
 }
 
+const handleExportSuccess = () => {
+  showExportModal.value = false
+  // 导出成功后不需要刷新数据
+}
+
 onMounted(() => {
   fetchData()
 })
@@ -422,6 +608,11 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
+}
+
+.kanban-search {
+  display: flex;
+  align-items: center;
 }
 
 .kanban-header h2 {
@@ -882,6 +1073,23 @@ onMounted(() => {
   position: relative;
 }
 
+/* 聚焦/定位视觉强化 */
+.job-card:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(24, 144, 255, 0.35);
+}
+
+/* 弹跳动画 */
+@keyframes bounceOnce {
+  0%, 20%, 53%, 80%, 100% { transform: translate3d(0,0,0); }
+  40%, 43% { transform: translate3d(0, -10px, 0); }
+  70% { transform: translate3d(0, -6px, 0); }
+  90% { transform: translate3d(0, -2px, 0); }
+}
+.bounce {
+  animation: bounceOnce 0.9s ease;
+}
+
 .job-card::after {
   content: '';
   position: absolute;
@@ -914,5 +1122,13 @@ onMounted(() => {
 
 .progress-indicator :deep(.ant-progress-outer) {
   padding-right: 0;
+}
+
+/* 搜索匹配高亮样式 */
+.kanban-board :deep(mark) {
+  background: #ffe58f;
+  color: inherit;
+  padding: 0 2px;
+  border-radius: 2px;
 }
 </style>

@@ -32,14 +32,6 @@
           <template #icon><ReloadOutlined /></template>
           刷新
         </a-button>
-        <a-button
-          type="primary"
-          size="small"
-          @click="showUpdateModal = true"
-        >
-          <template #icon><EditOutlined /></template>
-          更新状态
-        </a-button>
       </div>
     </div>
 
@@ -168,21 +160,6 @@
       </a-row>
     </div>
 
-    <!-- 状态更新弹窗 -->
-    <a-modal
-      v-model:visible="showUpdateModal"
-      title="更新状态"
-      width="500px"
-      :footer="null"
-    >
-      <StatusQuickUpdate
-        :application-id="applicationId"
-        :current-status="currentStatus || '已投递'"
-        mode="inline"
-        @updated="handleStatusUpdated"
-        @cancelled="showUpdateModal = false"
-      />
-    </a-modal>
   </div>
 </template>
 
@@ -191,7 +168,6 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { 
   HistoryOutlined, 
   ReloadOutlined, 
-  EditOutlined,
   ClockCircleOutlined,
   CalendarOutlined,
   FileTextOutlined,
@@ -211,7 +187,6 @@ import {
 } from '@ant-design/icons-vue'
 import { useStatusTrackingStore } from '../stores/statusTracking'
 import { type ApplicationStatus, type StatusTimelineItem, type StatusHistory } from '../types'
-import StatusQuickUpdate from './StatusQuickUpdate.vue'
 import dayjs from 'dayjs'
 
 // Props
@@ -237,7 +212,6 @@ const statusTrackingStore = useStatusTrackingStore()
 
 // 响应式数据
 const loading = ref(false)
-const showUpdateModal = ref(false)
 const statusHistory = ref<StatusHistory | null>(null)
 
 // 计算属性

@@ -32,8 +32,8 @@
         <a-col :xs="12" :sm="12" :md="6" :lg="6" :xl="6">
           <a-card :bordered="false" class="stat-card">
             <a-statistic
-              title="已通过"
-              :value="statisticsData?.passed || offerCount"
+              title="已OC"
+              :value="ocCount"
               :value-style="{ color: '#52c41a' }"
             >
               <template #prefix>
@@ -62,8 +62,8 @@
         <a-col :xs="12" :sm="12" :md="8" :lg="8" :xl="8">
           <a-card :bordered="false" class="stat-card">
             <a-statistic
-              title="总通过率"
-              :value="statisticsData?.pass_rate || `${successRate}%`"
+              title="OC率"
+              :value="`${ocRate}%`"
               :value-style="{ color: '#722ed1' }"
             >
               <template #prefix>
@@ -107,35 +107,51 @@
         <!-- 状态分布饼图 -->
         <a-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
           <a-card title="投递状态分布" :bordered="false" class="chart-card">
-            <v-chart class="chart" :option="statusPieOption" />
+            <component :is="VChart" class="chart" :option="statusPieOption" />
           </a-card>
         </a-col>
 
         <!-- 投递趋势折线图 -->
         <a-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
           <a-card title="投递趋势（最近30天）" :bordered="false" class="chart-card">
-            <v-chart class="chart" :option="trendLineOption" />
+            <component :is="VChart" class="chart" :option="trendLineOption" />
           </a-card>
         </a-col>
 
         <!-- 各阶段通过率 -->
         <a-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
           <a-card title="各阶段通过率" :bordered="false" class="chart-card">
-            <v-chart class="chart" :option="stageBarOption" />
+            <component :is="VChart" class="chart" :option="stageBarOption" />
           </a-card>
         </a-col>
 
         <!-- 公司和薪资分布 -->
         <a-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
           <a-card title="薪资分布" :bordered="false" class="chart-card">
-            <v-chart class="chart" :option="salaryBarOption" />
+            <component :is="VChart" class="chart" :option="salaryBarOption" />
           </a-card>
         </a-col>
       </a-row>
     </div>
 
     <!-- 详细数据表格 -->
-    <a-card title="投递详情统计" :bordered="false" class="detail-card">
+    <a-card :bordered="false" class="detail-card">
+      <template #title>
+        <span>投递详情统计</span>
+      </template>
+      <template #extra>
+        <a-space>
+          <a-button type="default" @click="showExportHistoryModal = true">
+            <template #icon><HistoryOutlined /></template>
+            导出历史
+          </a-button>
+          <a-button type="primary" @click="showExportModal = true">
+            <template #icon><DownloadOutlined /></template>
+            导出统计报告
+          </a-button>
+        </a-space>
+      </template>
+      
       <a-table 
         :columns="tableColumns" 
         :data-source="tableData"
@@ -143,54 +159,86 @@
         size="middle"
       />
     </a-card>
+
+    <!-- 导出历史弹窗 -->
+    <ExportHistory
+      v-model:visible="showExportHistoryModal"
+    />
+
+    <!-- 导出统计报告弹窗 -->
+    <ExportDialog
+      v-model:visible="showExportModal"
+      :applications="applications"
+      @success="handleExportSuccess"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, defineAsyncComponent } from 'vue'
 import { storeToRefs } from 'pinia'
-import VChart from 'vue-echarts'
-import { use } from 'echarts/core'
-import {
-  CanvasRenderer
-} from 'echarts/renderers'
-import {
-  PieChart,
-  LineChart,
-  BarChart
-} from 'echarts/charts'
-import {
-  TitleComponent,
-  TooltipComponent,
-  LegendComponent,
-  GridComponent
-} from 'echarts/components'
+// 延迟加载图表相关依赖，避免首次进入时动态导入失败导致整页加载失败
+const VChart = defineAsyncComponent(async () => {
+  try {
+    const [{ default: Comp }, core, renderers, charts, comps] = await Promise.all([
+      import('vue-echarts'),
+      import('echarts/core'),
+      import('echarts/renderers'),
+      import('echarts/charts'),
+      import('echarts/components')
+    ])
+    // 运行时按需注册
+    const { use } = core as any
+    const { CanvasRenderer } = renderers as any
+    const { PieChart, LineChart, BarChart } = charts as any
+    const { TitleComponent, TooltipComponent, LegendComponent, GridComponent } = comps as any
+    use([
+      CanvasRenderer,
+      PieChart,
+      LineChart,
+      BarChart,
+      TitleComponent,
+      TooltipComponent,
+      LegendComponent,
+      GridComponent
+    ])
+    return (Comp as any)
+  } catch (e) {
+    console.error('VChart load failed:', e)
+    // 返回空渲染组件，保证页面其余部分可用
+    return {
+      name: 'ChartFallback',
+      render() { return null }
+    } as any
+  }
+})
 import {
   SendOutlined,
   ClockCircleOutlined,
   TrophyOutlined,
   RiseOutlined,
   CloseCircleOutlined,
-  CalendarOutlined
+  CalendarOutlined,
+  HistoryOutlined,
+  DownloadOutlined
 } from '@ant-design/icons-vue'
 import { useJobApplicationStore } from '../stores/jobApplication'
+import { useStatusTrackingStore } from '../stores/statusTracking'
 import { ApplicationStatus, StatusHelper } from '../types'
+import ExportHistory from '../components/ExportHistory.vue'
+import ExportDialog from '../components/ExportDialog.vue'
 import dayjs from 'dayjs'
 
-// 注册ECharts组件
-use([
-  CanvasRenderer,
-  PieChart,
-  LineChart,
-  BarChart,
-  TitleComponent,
-  TooltipComponent,
-  LegendComponent,
-  GridComponent
-])
+// 由 defineAsyncComponent 内部在运行时注册 ECharts 依赖
 
 const jobStore = useJobApplicationStore()
+const statusTrackingStore = useStatusTrackingStore()
+const { analytics: analyticsData } = storeToRefs(statusTrackingStore)
 const { applications, loading, statistics: statisticsData, statisticsLoading } = storeToRefs(jobStore)
+
+// 弹窗状态
+const showExportHistoryModal = ref(false)
+const showExportModal = ref(false)
 
 // 统计数据计算
 const totalApplications = computed(() => applications.value.length)
@@ -200,8 +248,14 @@ const inProgressCount = computed(() => {
   return applications.value.filter(app => StatusHelper.isInProgressStatus(app.status)).length
 })
 
+// 已通过（旧口径）仍保留用于 successRate 计算
 const offerCount = computed(() => {
   return applications.value.filter(app => StatusHelper.isPassedStatus(app.status)).length
+})
+
+// 已OC：仅统计“已收到offer”
+const ocCount = computed(() => {
+  return applications.value.filter(app => app.status === ApplicationStatus.OFFER_RECEIVED).length
 })
 
 const failedCount = computed(() => {
@@ -212,6 +266,13 @@ const successRate = computed(() => {
   const total = applications.value.length
   if (total === 0) return 0
   return (offerCount.value / total) * 100
+})
+
+// OC率：仅以“已收到offer”占比计算
+const ocRate = computed(() => {
+  const total = applications.value.length
+  if (total === 0) return 0
+  return Number(((ocCount.value / total) * 100).toFixed(1))
 })
 
 // 本月投递数
@@ -342,63 +403,79 @@ const trendLineOption = computed(() => {
   }
 })
 
-// 各阶段通过率柱状图配置
+// 各阶段通过率柱状图配置（优先使用后端StageAnalysis；若无则用前端推断，考虑“直通”场景）
 const stageBarOption = computed(() => {
+  // 优先后端口径
+  const sa: any = analyticsData.value?.StageAnalysis || (analyticsData.value as any)?.stage_analysis
+  if (sa && Object.keys(sa).length > 0) {
+    const order = ['written', 'first', 'second', 'third', 'hr']
+    const names = order
+      .filter(k => sa[k])
+      .map(k => ({ key: k, name: k === 'written' ? '笔试' : k === 'first' ? '一面' : k === 'second' ? '二面' : k === 'third' ? '三面' : 'HR面' }))
+    const rates = names.map(n => Number((sa[n.key].success_rate || sa[n.key].SuccessRate || 0).toFixed?.(1) ?? sa[n.key].success_rate ?? 0))
+    return {
+      tooltip: { trigger: 'axis', formatter: '{b}: {c}%' },
+      grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+      xAxis: { type: 'category', data: names.map(n => n.name) },
+      yAxis: { type: 'value', max: 100, axisLabel: { formatter: '{value}%' } },
+      series: [{ type: 'bar', data: rates, itemStyle: { color: '#52c41a' } }]
+    }
+  }
+  const S = ApplicationStatus
   const stages = [
-    { name: '笔试', total: ApplicationStatus.WRITTEN_TEST, pass: ApplicationStatus.WRITTEN_TEST_PASS },
-    { name: '一面', total: ApplicationStatus.FIRST_INTERVIEW, pass: ApplicationStatus.FIRST_PASS },
-    { name: '二面', total: ApplicationStatus.SECOND_INTERVIEW, pass: ApplicationStatus.SECOND_PASS },
-    { name: '三面', total: ApplicationStatus.THIRD_INTERVIEW, pass: ApplicationStatus.THIRD_PASS },
-    { name: 'HR面', total: ApplicationStatus.HR_INTERVIEW, pass: ApplicationStatus.HR_PASS }
+    {
+      name: '笔试',
+      entry: S.WRITTEN_TEST,
+      pass: [S.WRITTEN_TEST_PASS],
+      next: [S.FIRST_INTERVIEW, S.FIRST_PASS, S.SECOND_INTERVIEW, S.SECOND_PASS, S.THIRD_INTERVIEW, S.THIRD_PASS, S.HR_INTERVIEW, S.HR_PASS, S.OFFER_WAITING, S.OFFER_RECEIVED, S.OFFER_ACCEPTED]
+    },
+    {
+      name: '一面',
+      entry: S.FIRST_INTERVIEW,
+      pass: [S.FIRST_PASS],
+      next: [S.SECOND_INTERVIEW, S.SECOND_PASS, S.THIRD_INTERVIEW, S.THIRD_PASS, S.HR_INTERVIEW, S.HR_PASS, S.OFFER_WAITING, S.OFFER_RECEIVED, S.OFFER_ACCEPTED]
+    },
+    {
+      name: '二面',
+      entry: S.SECOND_INTERVIEW,
+      pass: [S.SECOND_PASS],
+      next: [S.THIRD_INTERVIEW, S.THIRD_PASS, S.HR_INTERVIEW, S.HR_PASS, S.OFFER_WAITING, S.OFFER_RECEIVED, S.OFFER_ACCEPTED]
+    },
+    {
+      name: '三面',
+      entry: S.THIRD_INTERVIEW,
+      pass: [S.THIRD_PASS],
+      next: [S.HR_INTERVIEW, S.HR_PASS, S.OFFER_WAITING, S.OFFER_RECEIVED, S.OFFER_ACCEPTED]
+    },
+    {
+      name: 'HR面',
+      entry: S.HR_INTERVIEW,
+      pass: [S.HR_PASS],
+      next: [S.OFFER_WAITING, S.OFFER_RECEIVED, S.OFFER_ACCEPTED]
+    }
   ]
 
+  const inSet = (st: ApplicationStatus, list: ApplicationStatus[]) => list.includes(st)
   const names = stages.map(s => s.name)
   const rates = stages.map(stage => {
-    const totalCount = applications.value.filter(app => 
-      app.status === stage.total || app.status === stage.pass
-    ).length
-    const passCount = applications.value.filter(app => app.status === stage.pass).length
-    return totalCount > 0 ? ((passCount / totalCount) * 100).toFixed(1) : 0
+    const totalCount = applications.value.filter(app => inSet(app.status as ApplicationStatus, [stage.entry, ...stage.pass, ...stage.next])).length
+    const passCount = applications.value.filter(app => inSet(app.status as ApplicationStatus, [...stage.pass, ...stage.next])).length
+    return totalCount > 0 ? Number(((passCount / totalCount) * 100).toFixed(1)) : 0
   })
 
   return {
-    tooltip: {
-      trigger: 'axis',
-      formatter: '{b}: {c}%'
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      data: names
-    },
-    yAxis: {
-      type: 'value',
-      max: 100,
-      axisLabel: {
-        formatter: '{value}%'
-      }
-    },
+    tooltip: { trigger: 'axis', formatter: '{b}: {c}%' },
+    grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+    xAxis: { type: 'category', data: names },
+    yAxis: { type: 'value', max: 100, axisLabel: { formatter: '{value}%' } },
     series: [
       {
         type: 'bar',
         data: rates,
         itemStyle: {
           color: {
-            type: 'linear',
-            x: 0,
-            y: 0,
-            x2: 0,
-            y2: 1,
-            colorStops: [{
-              offset: 0, color: '#52c41a'
-            }, {
-              offset: 1, color: '#a0d911'
-            }]
+            type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [{ offset: 0, color: '#52c41a' }, { offset: 1, color: '#a0d911' }]
           },
           borderRadius: [5, 5, 0, 0]
         }
@@ -541,9 +618,20 @@ const tableData = computed(() => {
   return Array.from(companyMap.values()).sort((a, b) => b.count - a.count)
 })
 
+// 导出成功处理函数
+const handleExportSuccess = () => {
+  showExportModal.value = false
+  // 导出成功后可以刷新导出历史
+}
+
 onMounted(async () => {
   await jobStore.fetchApplications()
-  await jobStore.fetchStatistics() // 获取服务器端统计数据
+  await jobStore.fetchStatistics() // 获取服务器端统计数据（通用）
+  try {
+    await statusTrackingStore.fetchAnalytics(true) // 获取带StageAnalysis的分析数据
+  } catch (e) {
+    console.warn('获取状态分析失败，使用前端推断通过率', e)
+  }
 })
 </script>
 

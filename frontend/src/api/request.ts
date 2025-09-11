@@ -121,14 +121,25 @@ request.interceptors.request.use(
 // 响应拦截器
 request.interceptors.response.use(
   (response: AxiosResponse) => {
-    const data: APIResponse = response.data
-    if (data.code === 200 || data.code === 201) {
+    // 对于文件下载（blob）响应，直接返回原始响应，避免按JSON格式解析
+    const respType = (response.request && response.request.responseType) || response.config.responseType
+    if (respType === 'blob') {
+      return response
+    }
+
+    const data: APIResponse = response.data as any
+    if (data && (data.code === 200 || data.code === 201)) {
+      // 转换后端响应格式为前端期望的格式
       return {
         ...response,
-        data: data
+        data: {
+          success: true,
+          message: data.message,
+          data: data.data
+        }
       }
     } else {
-      throw new Error(data.message || '请求失败')
+      throw new Error((data as any)?.message || '请求失败')
     }
   },
   async (error) => {

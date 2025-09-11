@@ -43,12 +43,19 @@ func main() {
 	authService := service.NewAuthService(db)
 	statusTrackingService := service.NewStatusTrackingService(db)
 	statusConfigService := service.NewStatusConfigService(db)
+	exportService := service.NewExportService(db, jobService)
 
-	// 初始化处理器
+    // 在创建处理器之前，确保默认模板包含直通规则（幂等补齐）
+    if err := statusConfigService.EnsureDirectTransitionsInDefaultTemplate(); err != nil {
+        log.Printf("Warning: ensure default flow transitions failed: %v", err)
+    }
+
+    // 初始化处理器
 	jobHandler := handler.NewJobApplicationHandler(jobService)
 	authHandler := handler.NewAuthHandler(authService)
 	statusTrackingHandler := handler.NewStatusTrackingHandler(statusTrackingService)
 	statusConfigHandler := handler.NewStatusConfigHandler(statusConfigService)
+	exportHandler := handler.NewExportHandler(exportService)
 
 	// 设置路由
 	router := mux.NewRouter()
@@ -127,6 +134,16 @@ func main() {
 	api.HandleFunc("/status-transitions/{status}", statusConfigHandler.GetAvailableStatusTransitions).Methods("GET")
 	api.HandleFunc("/status-definitions", statusConfigHandler.GetAllStatusDefinitions).Methods("GET")
 
+	// Excel导出相关路由
+	api.HandleFunc("/export/applications", exportHandler.StartExport).Methods("POST")
+	api.HandleFunc("/export/status/{task_id}", exportHandler.GetTaskStatus).Methods("GET")
+	api.HandleFunc("/export/download/{task_id}", exportHandler.DownloadFile).Methods("GET")
+	api.HandleFunc("/export/history", exportHandler.GetExportHistory).Methods("GET")
+	api.HandleFunc("/export/cancel/{task_id}", exportHandler.CancelExport).Methods("DELETE")
+	api.HandleFunc("/export/formats", exportHandler.GetSupportedFormats).Methods("GET")
+	api.HandleFunc("/export/fields", exportHandler.GetExportFields).Methods("GET")
+	api.HandleFunc("/export/template", exportHandler.GetExportTemplate).Methods("GET")
+
 	// 健康检查路由（无需认证）
 	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -158,6 +175,7 @@ func main() {
 	log.Printf("Job Applications: http://localhost%s/api/v1/applications/*", serverAddr)
 	log.Printf("Status Tracking: http://localhost%s/api/v1/job-applications/*/status*", serverAddr)
 	log.Printf("Status Config: http://localhost%s/api/v1/status-*", serverAddr)
+	log.Printf("Excel Export: http://localhost%s/api/v1/export/*", serverAddr)
 	log.Printf("=== Ready for connections ===")
 	
 	// 生产环境启用更多安全特性
@@ -179,7 +197,7 @@ func main() {
 		MaxHeaderBytes: 1 << 20, // 1MB
 	}
 
-	if err := server.ListenAndServe(); err != nil {
-		log.Fatalf("Server failed to start: %v", err)
-	}
+    if err := server.ListenAndServe(); err != nil {
+        log.Fatalf("Server failed to start: %v", err)
+    }
 }

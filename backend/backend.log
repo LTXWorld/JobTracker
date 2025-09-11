@@ -957,3 +957,100 @@
 2025/09/09 18:46:44 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
 2025/09/09 18:46:44 [DEBUG] Pagination params: page=0, page_size=1000
 2025/09/09 18:46:44 [HTTP] GET /api/v1/applications - 200 - 6.11225ms - 127.0.0.1
+2025/09/09 18:51:36 [AUTH] User 7 (apitest) accessing GET /api/auth/validate
+2025/09/09 18:51:36 [HTTP] GET /api/auth/validate - 200 - 3.177583ms - 127.0.0.1
+2025/09/09 18:51:36 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 18:51:36 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 18:51:36 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 18:51:36 [HTTP] GET /api/v1/applications - 200 - 43.867333ms - 127.0.0.1
+2025/09/09 18:51:40 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 18:51:40 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 18:51:40 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 18:51:40 [HTTP] GET /api/v1/applications - 200 - 7.767458ms - 127.0.0.1
+2025/09/09 18:51:40 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 18:51:40 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 18:51:40 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 18:51:40 [HTTP] GET /api/v1/applications - 200 - 3.299ms - 127.0.0.1
+2025/09/09 18:51:41 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 18:51:41 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 18:51:41 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 18:51:41 [HTTP] GET /api/v1/applications - 200 - 3.235458ms - 127.0.0.1
+2025/09/09 18:51:41 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/statistics
+2025/09/09 18:51:41 [HTTP] GET /api/v1/applications/statistics - 200 - 14.005125ms - 127.0.0.1
+2025/09/09 18:51:47 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 18:51:47 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 18:51:47 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 18:51:47 [HTTP] GET /api/v1/applications - 200 - 34.237208ms - 127.0.0.1
+2025/09/09 18:51:49 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 18:51:49 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 18:51:49 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 18:51:49 [HTTP] GET /api/v1/applications - 200 - 5.509625ms - 127.0.0.1
+[DB-HEALTH] 2025/09/09 22:25:47 health_checker.go:124: Database health check failed: pq: canceling statement due to user request (response time: 2m51.179022041s)
+[DB-HEALTH] 2025/09/09 22:25:47 health_checker.go:130: Slow database response: 2m51.179022041s
+[DB-HEALTH] 2025/09/09 22:25:47 health_checker.go:122: Database health recovered (response time: 89.383166ms)
+2025/09/09 23:09:26 [HTTP] GET /health - 200 - 1.809833ms - [::1]
+2025/09/09 23:09:45 [AUTH] Login JSON decode error: invalid character '!' in string escape code
+2025/09/09 23:09:45 [HTTP] POST /api/auth/login - 400 - 1.950583ms - [::1]
+2025/09/09 23:09:59 [AUTH] Login JSON decode error: invalid character '!' in string escape code
+2025/09/09 23:09:59 [HTTP] POST /api/auth/login - 400 - 1.116167ms - [::1]
+2025/09/09 23:10:28 [AUTH] Login request received: username=testuser
+2025/09/09 23:10:28 [AUTH] Login attempt for username: testuser
+2025/09/09 23:10:28 [AUTH] Login failed for user: testuser - incorrect password
+2025/09/09 23:10:28 [HTTP] POST /api/auth/login - 401 - 305.200666ms - [::1]
+2025/09/09 23:10:28 [AUTH] Login request received: username=testuser
+2025/09/09 23:10:28 [AUTH] Login attempt for username: testuser
+2025/09/09 23:10:28 [AUTH] Login failed for user: testuser - incorrect password
+2025/09/09 23:10:28 [HTTP] POST /api/auth/login - 401 - 244.911916ms - [::1]
+2025/09/09 23:48:31 [AUTH] User 7 (apitest) accessing GET /api/auth/validate
+2025/09/09 23:48:31 [HTTP] GET /api/auth/validate - 200 - 7.212666ms - 127.0.0.1
+2025/09/09 23:48:32 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 23:48:32 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 23:48:32 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 23:48:32 [HTTP] GET /api/v1/applications - 200 - 112.168625ms - 127.0.0.1
+2025/09/09 23:48:34 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 23:48:34 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 23:48:34 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 23:48:34 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 23:48:34 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 23:48:34 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 23:48:34 [HTTP] GET /api/v1/applications - 200 - 21.725541ms - 127.0.0.1
+2025/09/09 23:48:34 [HTTP] GET /api/v1/applications - 200 - 48.493541ms - 127.0.0.1
+2025/09/09 23:48:39 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 23:48:39 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 23:48:39 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 23:48:39 [HTTP] GET /api/v1/applications - 200 - 21.172333ms - 127.0.0.1
+2025/09/09 23:48:39 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/statistics
+2025/09/09 23:48:39 [HTTP] GET /api/v1/applications/statistics - 200 - 7.830917ms - 127.0.0.1
+2025/09/09 23:48:48 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 23:48:48 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 23:48:48 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 23:48:48 [HTTP] GET /api/v1/applications - 200 - 15.448709ms - 127.0.0.1
+2025/09/09 23:48:50 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-analytics
+2025/09/09 23:48:50 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/dashboard
+2025/09/09 23:48:50 [HTTP] GET /api/v1/applications/dashboard - 200 - 23.493417ms - 127.0.0.1
+2025/09/09 23:48:50 [HTTP] GET /api/v1/job-applications/status-analytics - 200 - 31.949083ms - 127.0.0.1
+2025/09/09 23:48:50 [AUTH] User 7 (apitest) accessing GET /api/v1/job-applications/status-trends
+2025/09/09 23:48:50 [HTTP] GET /api/v1/job-applications/status-trends - 200 - 2.50375ms - 127.0.0.1
+2025/09/09 23:48:57 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 23:48:57 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 23:48:57 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 23:48:57 [HTTP] GET /api/v1/applications - 200 - 16.891875ms - 127.0.0.1
+2025/09/09 23:48:57 [AUTH] User 7 (apitest) accessing GET /api/v1/applications/statistics
+2025/09/09 23:48:57 [HTTP] GET /api/v1/applications/statistics - 200 - 4.178708ms - 127.0.0.1
+2025/09/09 23:48:58 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 23:48:58 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 23:48:58 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 23:48:58 [HTTP] GET /api/v1/applications - 200 - 7.413833ms - 127.0.0.1
+2025/09/09 23:48:58 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 23:48:58 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 23:48:58 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 23:48:58 [HTTP] GET /api/v1/applications - 200 - 5.355125ms - 127.0.0.1
+2025/09/09 23:48:59 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 23:48:59 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 23:48:59 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 23:48:59 [HTTP] GET /api/v1/applications - 200 - 4.931417ms - 127.0.0.1
+2025/09/09 23:49:02 [AUTH] User 7 (apitest) accessing GET /api/v1/applications
+2025/09/09 23:49:02 [DEBUG] User 7 requesting applications with URL: /api/v1/applications?page_size=1000
+2025/09/09 23:49:02 [DEBUG] Pagination params: page=0, page_size=1000
+2025/09/09 23:49:02 [HTTP] GET /api/v1/applications - 200 - 26.04475ms - 127.0.0.1
+signal: terminated

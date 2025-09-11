@@ -7,7 +7,7 @@ import (
 
 // RunMigrations 运行数据库迁移
 func (db *DB) RunMigrations() error {
-	log.Println("Running database migrations...")
+    log.Println("Running database migrations...")
 
 	// 首先创建用户表
 	createUsersTable := `
@@ -116,14 +116,79 @@ func (db *DB) RunMigrations() error {
 		}
 	}
 
+	// 兼容旧版数据库：如果使用了 PostgreSQL enum 类型 application_status，
+	// 确保枚举包含所有最新状态值，避免更新到新状态时报错 500（invalid input value for enum）。
+	if err := db.ensureApplicationStatusEnumValues(); err != nil {
+		// 不阻断启动流程，仅记录警告，避免在非 PostgreSQL 或未使用该 enum 的环境中失败
+		log.Printf("Warning: failed to ensure application_status enum values: %v", err)
+	}
+
 	// 检查是否需要创建默认用户（用于开发环境）
 	if err := db.createDefaultUserIfNeeded(); err != nil {
 		log.Printf("Warning: Failed to create default user: %v", err)
 		// 不返回错误，因为这不是关键功能
 	}
 
+	// 检查并创建 export_tasks 表
+	if err := db.createExportTasksTable(); err != nil {
+		return fmt.Errorf("failed to create export_tasks table: %w", err)
+	}
+
 	log.Println("Database migrations completed successfully")
 	return nil
+}
+
+// ensureApplicationStatusEnumValues 在数据库存在 application_status 枚举时，
+// 将缺失的状态值补齐（幂等）。
+func (db *DB) ensureApplicationStatusEnumValues() error {
+    // 检查是否存在名为 application_status 的枚举类型
+    var exists bool
+    checkEnumSQL := `
+        SELECT EXISTS (
+            SELECT 1
+            FROM pg_type t
+            WHERE t.typname = 'application_status'
+              AND t.typtype = 'e' -- enum type
+        )
+    `
+    if err := db.QueryRow(checkEnumSQL).Scan(&exists); err != nil {
+        return err
+    }
+    if !exists {
+        // 当前数据库不是使用 enum（例如使用 VARCHAR），无需处理
+        return nil
+    }
+
+    // 需要补齐的新增状态（与后端枚举保持一致）
+    values := []string{
+        "简历筛选未通过",
+        "笔试未通过",
+        "一面未通过",
+        "二面未通过",
+        "三面未通过",
+        "HR面未通过",
+    }
+
+    // 使用 DO $$ ... $$ + 条件判断，兼容低版本 PG（没有 ADD VALUE IF NOT EXISTS）
+    for _, v := range values {
+        stmt := fmt.Sprintf(`
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_enum e
+        JOIN pg_type t ON e.enumtypid = t.oid
+        WHERE t.typname = 'application_status' AND e.enumlabel = '%s'
+    ) THEN
+        ALTER TYPE application_status ADD VALUE '%s';
+    END IF;
+END $$;`, v, v)
+
+        if _, err := db.Exec(stmt); err != nil {
+            // 记录警告但不中断，以免影响应用启动
+            log.Printf("Warning: failed adding enum value '%s' to application_status: %v", v, err)
+        }
+    }
+    return nil
 }
 
 // checkTableExists 检查表是否存在
@@ -187,5 +252,75 @@ func (db *DB) createDefaultUserIfNeeded() error {
 		log.Println("Created default test user: username=testuser, password=TestPass123!")
 	}
 	
+	return nil
+}
+
+// createExportTasksTable 创建导出任务表
+func (db *DB) createExportTasksTable() error {
+	// 检查 export_tasks 表是否存在
+	hasTable, err := db.checkTableExists("export_tasks")
+	if err != nil {
+		return fmt.Errorf("failed to check export_tasks table: %w", err)
+	}
+	
+	if hasTable {
+		return nil // 表已存在，跳过创建
+	}
+
+	// 创建 export_tasks 表的 SQL
+	createTableSQL := `
+		CREATE TABLE export_tasks (
+			id SERIAL PRIMARY KEY,
+			task_id VARCHAR(100) UNIQUE NOT NULL,
+			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			status VARCHAR(20) NOT NULL DEFAULT 'pending',
+			export_type VARCHAR(20) NOT NULL DEFAULT 'xlsx',
+			filename VARCHAR(255),
+			file_path VARCHAR(500),
+			file_size BIGINT,
+			total_records INTEGER,
+			processed_records INTEGER DEFAULT 0,
+			progress INTEGER DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
+			filters JSONB,
+			options JSONB,
+			error_message TEXT,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			started_at TIMESTAMP,
+			completed_at TIMESTAMP,
+			expires_at TIMESTAMP,
+			CONSTRAINT valid_status CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'cancelled', 'expired')),
+			CONSTRAINT valid_export_type CHECK (export_type IN ('xlsx', 'csv')),
+			CONSTRAINT valid_progress_range CHECK (progress >= 0 AND progress <= 100),
+			CONSTRAINT valid_records_count CHECK (
+				(total_records IS NULL OR total_records >= 0) AND
+				(processed_records >= 0) AND
+				(total_records IS NULL OR processed_records <= total_records)
+			)
+		);
+	`
+
+	if _, err := db.Exec(createTableSQL); err != nil {
+		return fmt.Errorf("failed to create export_tasks table: %w", err)
+	}
+
+	// 创建索引
+	indexes := []string{
+		"CREATE INDEX idx_export_tasks_user_id ON export_tasks(user_id);",
+		"CREATE INDEX idx_export_tasks_status ON export_tasks(status);",
+		"CREATE INDEX idx_export_tasks_created_at ON export_tasks(created_at);",
+		"CREATE INDEX idx_export_tasks_task_id ON export_tasks(task_id);",
+		"CREATE INDEX idx_export_tasks_expires_at ON export_tasks(expires_at) WHERE expires_at IS NOT NULL;",
+		"CREATE INDEX idx_export_tasks_user_status ON export_tasks(user_id, status);",
+		"CREATE INDEX IF NOT EXISTS idx_export_tasks_filters_gin ON export_tasks USING GIN (filters);",
+		"CREATE INDEX IF NOT EXISTS idx_export_tasks_options_gin ON export_tasks USING GIN (options);",
+	}
+
+	for _, indexSQL := range indexes {
+		if _, err := db.Exec(indexSQL); err != nil {
+			log.Printf("Warning: Failed to create export_tasks index: %v", err)
+		}
+	}
+
+	log.Println("Created export_tasks table and indexes")
 	return nil
 }
