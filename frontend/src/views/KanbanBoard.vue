@@ -598,9 +598,11 @@ onMounted(() => {
 
 <style scoped>
 .kanban-board {
-  height: calc(100vh - 48px - 56px - 70px);
-  padding: 24px;
+  /* 让页面可以根据内容自然增高，避免与页脚重叠 */
+  min-height: calc(100vh - 48px - 56px - 70px);
+  padding: 24px 24px 120px; /* 底部预留空间，与页脚错开 */
   background: #f0f2f5;
+  box-sizing: border-box;
 }
 
 .kanban-header {
@@ -636,8 +638,7 @@ onMounted(() => {
 .kanban-main {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 48px - 56px - 100px);
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* 状态切换标签 - 头部水平布局 */
@@ -687,7 +688,7 @@ onMounted(() => {
   gap: 18px;
   flex: 1;
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: visible;
   padding: 0 4px;
 }
 
@@ -699,7 +700,6 @@ onMounted(() => {
   flex-direction: column;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
   border: 1px solid #f0f0f0;
-  height: calc(100vh - 180px);
 }
 
 .column-header {
@@ -724,6 +724,8 @@ onMounted(() => {
   padding: 12px; /* 从16px减少到12px */
   overflow-y: auto;
   min-height: 200px;
+  /* 限制单列最大高度，防止撑到页脚；留出顶部标题和内边距高度约 220px */
+  max-height: calc(100vh - 220px);
 }
 
 .job-card {
@@ -889,9 +891,7 @@ onMounted(() => {
 
 /* 响应式设计 */
 @media (max-width: 1200px) {
-  .kanban-main {
-    height: calc(100vh - 48px - 56px - 120px);
-  }
+  .kanban-main { /* 自适应 */ }
   
   .kanban-columns {
     gap: 16px;
@@ -899,7 +899,6 @@ onMounted(() => {
   
   .kanban-column {
     flex: 0 0 220px;
-    height: calc(100vh - 200px);
   }
   
   .status-tabs {
@@ -914,7 +913,6 @@ onMounted(() => {
 @media (max-width: 992px) {
   .kanban-main {
     flex-direction: column;
-    height: calc(100vh - 48px - 56px - 140px);
   }
   
   .status-tabs {
@@ -941,7 +939,6 @@ onMounted(() => {
   
   .kanban-column {
     flex: 0 0 200px;
-    height: calc(100vh - 260px);
   }
 }
 
@@ -950,9 +947,7 @@ onMounted(() => {
     padding: 16px;
   }
   
-  .kanban-main {
-    height: calc(100vh - 48px - 56px - 160px);
-  }
+  .kanban-main { /* 自适应 */ }
   
   .kanban-columns {
     gap: 12px;
@@ -961,7 +956,6 @@ onMounted(() => {
   
   .kanban-column {
     flex: 0 0 180px;
-    height: calc(100vh - 280px);
   }
   
   .job-card {

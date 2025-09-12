@@ -359,26 +359,44 @@ const handleLogout = () => {
 }
 
 .main-tabs :deep(.ant-tabs-tab) {
+  position: relative;
   padding: 12px 16px;
   font-size: 14px;
   border: none;
   background: transparent;
-  border-radius: 6px 6px 0 0;
-  transition: all 0.3s;
+  border-radius: 10px;
+  transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 
 .main-tabs :deep(.ant-tabs-tab:hover) {
-  background: #e6f7ff;
+  background: rgba(24, 144, 255, 0.08);
   color: #1890ff;
 }
 
 .main-tabs :deep(.ant-tabs-tab-active) {
-  background: #1890ff;
-  color: #fff;
+  background: transparent;
+  color: #1890ff;
 }
 
 .main-tabs :deep(.ant-tabs-tab-active .anticon) {
-  color: #fff;
+  color: #1890ff;
+}
+
+.main-tabs :deep(.ant-tabs-tab-active .ant-tabs-tab-btn) {
+  color: #1890ff;
+  font-weight: 600;
+}
+
+.main-tabs :deep(.ant-tabs-tab-active)::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 4px;
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #69c0ff, #1890ff);
+  box-shadow: 0 2px 6px rgba(24, 144, 255, 0.35);
 }
 
 .main-tabs :deep(.ant-tabs-tab span) {
@@ -558,19 +576,38 @@ const handleLogout = () => {
 }
 
 .main-tabs :deep(.ant-tabs-tab) {
+  position: relative;
   padding: 12px 16px;
   font-size: 14px;
   border: none;
   background: transparent;
+  border-radius: 10px;
 }
 
 .main-tabs :deep(.ant-tabs-tab-active) {
-  background: #1890ff;
-  color: #fff;
+  background: transparent;
+  color: #1890ff;
 }
 
 .main-tabs :deep(.ant-tabs-tab-active .anticon) {
-  color: #fff;
+  color: #1890ff;
+}
+
+.main-tabs :deep(.ant-tabs-tab-active .ant-tabs-tab-btn) {
+  color: #1890ff;
+  font-weight: 600;
+}
+
+.main-tabs :deep(.ant-tabs-tab-active)::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 4px;
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #69c0ff, #1890ff);
+  box-shadow: 0 2px 6px rgba(24, 144, 255, 0.35);
 }
 
 .main-tabs :deep(.ant-tabs-tab span) {
