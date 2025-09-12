@@ -390,6 +390,25 @@ watch(() => props.applicationId, (newId) => {
   border-left: 2px solid #f0f0f0;
 }
 
+/* 放大自定义圆点并为内容留出空间，避免遮挡“当前状态/状态标签” */
+.status-timeline-wrapper :deep(.ant-timeline-item-head),
+.status-timeline-wrapper :deep(.ant-timeline-item-head-custom) {
+  width: 32px;
+  height: 32px;
+  left: 8px;
+  inset-inline-start: 8px;
+}
+
+.status-timeline-wrapper :deep(.ant-timeline-item-tail) {
+  left: 23px; /* 32/2 + 8 - 1 对齐圆点中心 */
+  inset-inline-start: 23px;
+}
+
+.status-timeline-wrapper :deep(.ant-timeline-item-content) {
+  margin-left: 56px; /* 为内容增加左侧余量，避免覆盖圆点 */
+  margin-inline-start: 56px;
+}
+
 .timeline-dot {
   width: 28px;
   height: 28px;
@@ -400,6 +419,7 @@ watch(() => props.applicationId, (newId) => {
   background: #d9d9d9;
   border: 2px solid #fff;
   box-shadow: 0 0 0 2px #f0f0f0;
+  z-index: 2;
 }
 
 .timeline-dot.current-dot {
@@ -446,6 +466,7 @@ watch(() => props.applicationId, (newId) => {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap; /* 文本过长时换行，避免被遮挡 */
 }
 
 .status-tag {

@@ -80,6 +80,15 @@ const router = createRouter({
       }
     },
     {
+      path: '/resume',
+      name: 'resume',
+      component: () => import('../views/Resume.vue'),
+      meta: {
+        title: '我的简历',
+        requiresAuth: true
+      }
+    },
+    {
       path: '/application/:id',
       name: 'application-detail',
       component: () => import('../views/ApplicationDetail.vue'),

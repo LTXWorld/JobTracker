@@ -149,6 +149,11 @@ func (db *DB) RunMigrations() error {
 		return fmt.Errorf("failed to create export_tasks table: %w", err)
 	}
 
+	// 创建简历相关表
+	if err := db.createResumeTables(); err != nil {
+		return fmt.Errorf("failed to create resume tables: %w", err)
+	}
+
 	log.Println("Database migrations completed successfully")
 	return nil
 }
@@ -338,4 +343,86 @@ func (db *DB) createExportTasksTable() error {
 
 	log.Println("Created export_tasks table and indexes")
 	return nil
+}
+
+// createResumeTables 创建简历相关表
+func (db *DB) createResumeTables() error {
+    // resumes
+    hasResumes, err := db.checkTableExists("resumes")
+    if err != nil { return fmt.Errorf("failed to check resumes table: %w", err) }
+    if !hasResumes {
+        create := `
+            CREATE TABLE resumes (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                title VARCHAR(100) DEFAULT '默认简历',
+                summary TEXT,
+                privacy VARCHAR(20) DEFAULT 'private',
+                current_version INTEGER DEFAULT 1,
+                is_completed BOOLEAN DEFAULT FALSE,
+                completeness INTEGER DEFAULT 0,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+        `
+        if _, err := db.Exec(create); err != nil {
+            return fmt.Errorf("failed to create resumes table: %w", err)
+        }
+        log.Println("Created table resumes")
+    }
+
+    // resume_sections
+    hasSections, err := db.checkTableExists("resume_sections")
+    if err != nil { return fmt.Errorf("failed to check resume_sections table: %w", err) }
+    if !hasSections {
+        create := `
+            CREATE TABLE resume_sections (
+                id SERIAL PRIMARY KEY,
+                resume_id INTEGER NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
+                type VARCHAR(30) NOT NULL,
+                sort_order INTEGER DEFAULT 0,
+                content JSONB NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+        `
+        if _, err := db.Exec(create); err != nil {
+            return fmt.Errorf("failed to create resume_sections table: %w", err)
+        }
+        log.Println("Created table resume_sections")
+    }
+
+    // resume_attachments
+    hasAtt, err := db.checkTableExists("resume_attachments")
+    if err != nil { return fmt.Errorf("failed to check resume_attachments table: %w", err) }
+    if !hasAtt {
+        create := `
+            CREATE TABLE resume_attachments (
+                id SERIAL PRIMARY KEY,
+                resume_id INTEGER NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
+                file_name VARCHAR(255) NOT NULL,
+                file_path VARCHAR(500) NOT NULL,
+                mime_type VARCHAR(100),
+                file_size BIGINT,
+                etag VARCHAR(64),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+        `
+        if _, err := db.Exec(create); err != nil {
+            return fmt.Errorf("failed to create resume_attachments table: %w", err)
+        }
+        log.Println("Created table resume_attachments")
+    }
+
+    // indexes
+    idx := []string{
+        "CREATE INDEX IF NOT EXISTS idx_resumes_user_id ON resumes(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_sections_resume_type ON resume_sections(resume_id, type)",
+    }
+    for _, s := range idx {
+        if _, err := db.Exec(s); err != nil {
+            log.Printf("Warning: failed to create resume index: %v", err)
+        }
+    }
+    return nil
 }

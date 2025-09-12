@@ -44,6 +44,7 @@ func main() {
 	statusTrackingService := service.NewStatusTrackingService(db)
 	statusConfigService := service.NewStatusConfigService(db)
 	exportService := service.NewExportService(db, jobService)
+	resumeService := service.NewResumeService(db)
 
     // 在创建处理器之前，确保默认模板包含直通规则（幂等补齐）
     if err := statusConfigService.EnsureDirectTransitionsInDefaultTemplate(); err != nil {
@@ -56,6 +57,7 @@ func main() {
 	statusTrackingHandler := handler.NewStatusTrackingHandler(statusTrackingService)
 	statusConfigHandler := handler.NewStatusConfigHandler(statusConfigService)
 	exportHandler := handler.NewExportHandler(exportService)
+	resumeHandler := handler.NewResumeHandler(resumeService)
 
 	// 设置路由
 	router := mux.NewRouter()
@@ -144,6 +146,17 @@ func main() {
 	api.HandleFunc("/export/formats", exportHandler.GetSupportedFormats).Methods("GET")
 	api.HandleFunc("/export/fields", exportHandler.GetExportFields).Methods("GET")
 	api.HandleFunc("/export/template", exportHandler.GetExportTemplate).Methods("GET")
+
+	// 简历相关路由
+	api.HandleFunc("/resumes/me", resumeHandler.GetMyResume).Methods("GET", "OPTIONS")
+	api.HandleFunc("/resumes", resumeHandler.Create).Methods("POST", "OPTIONS")
+	api.HandleFunc("/resumes/{id}", resumeHandler.GetByID).Methods("GET", "OPTIONS")
+	api.HandleFunc("/resumes/{id}", resumeHandler.Update).Methods("PUT", "OPTIONS")
+	api.HandleFunc("/resumes/{id}", resumeHandler.Delete).Methods("DELETE", "OPTIONS")
+	api.HandleFunc("/resumes/{id}/sections", resumeHandler.ListSections).Methods("GET", "OPTIONS")
+	api.HandleFunc("/resumes/{id}/sections/{type}", resumeHandler.UpsertSection).Methods("PUT", "OPTIONS")
+    api.HandleFunc("/resumes/{id}/attachments", resumeHandler.UploadAttachment).Methods("POST", "OPTIONS")
+    api.HandleFunc("/resumes/{id}/attachments", resumeHandler.ListAttachments).Methods("GET", "OPTIONS")
 
 	// 健康检查路由（无需认证）
 

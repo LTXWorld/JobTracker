@@ -104,6 +104,14 @@
             </span>
           </template>
         </a-tab-pane>
+        <a-tab-pane key="resume" tab="我的简历">
+          <template #tab>
+            <span>
+              <BarChartOutlined />
+              我的简历
+            </span>
+          </template>
+        </a-tab-pane>
       </a-tabs>
       <div class="tab-actions">
         <a-button type="primary" ghost :icon="h(ReloadOutlined)" @click="handleRefresh" :loading="refreshing">
@@ -199,7 +207,8 @@ onMounted(() => {
 
 // 标签切换处理
 const handleTabChange = (key: string) => {
-  router.push({ name: key })
+  const routeMap: Record<string, string> = { kanban: '/kanban', timeline: '/timeline', reminders: '/reminders', statistics: '/statistics', resume: '/resume' }
+  router.push(routeMap[key] || '/kanban')
 }
 
 // 刷新数据
