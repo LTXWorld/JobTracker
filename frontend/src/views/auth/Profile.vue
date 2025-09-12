@@ -342,8 +342,16 @@ import {
   UserOutlined, 
   MailOutlined, 
   LockOutlined,
-  CalendarOutlined
+  CalendarOutlined,
+  CameraOutlined,
+  IdcardOutlined,
+  PhoneOutlined,
+  EnvironmentOutlined,
+  GlobalOutlined,
+  ClockCircleOutlined
 } from '@ant-design/icons-vue'
+import { AuthAPI } from '../../api/auth'
+import type { UploadRequestOption as UploadRequest } from 'ant-design-vue/es/upload/interface'
 import { useAuthStore } from '../../stores/auth'
 import { useJobApplicationStore } from '../../stores/jobApplication'
 import type { UpdateProfileData } from '../../types/auth'
@@ -370,10 +378,21 @@ const userStats = ref({
   successRate: '0%'
 })
 
-// 用户头像（使用默认的 Gravatar 或初始字符）
+// 头像预览与显示
+const avatarPreview = ref<string | null>(null)
+const revokePreview = () => {
+  if (avatarPreview.value && avatarPreview.value.startsWith('blob:')) {
+    URL.revokeObjectURL(avatarPreview.value)
+  }
+}
 const userAvatar = computed(() => {
-  // 可以后续实现头像上传功能
-  return null
+  const raw = avatarPreview.value || authStore.user?.avatar || null
+  if (!raw) return null
+  if (typeof raw === 'string' && raw.startsWith('/')) {
+    // 后端返回相对路径时，补全后端基地址
+    return `http://localhost:8010${raw}`
+  }
+  return raw
 })
 
 // 个人资料表单
@@ -500,6 +519,52 @@ const resetPasswordForm = () => {
   passwordForm.newPassword = ''
   passwordForm.confirmPassword = ''
   newPasswordStrength.value = 0
+}
+
+// 上传头像前校验
+const beforeAvatarUpload = (file: File) => {
+  const isImage = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)
+  if (!isImage) {
+    message.error('只能上传 JPG/PNG/WebP/GIF 格式的图片')
+    return false
+  }
+  const isLt2M = file.size / 1024 / 1024 < 2
+  if (!isLt2M) {
+    message.error('图片大小不能超过 2MB')
+    return false
+  }
+  return true
+}
+
+// 自定义上传：先本地预览，再调用后端保存
+const handleAvatarUpload = async (options: UploadRequest) => {
+  const file = options.file as File
+  if (!beforeAvatarUpload(file)) {
+    options.onError?.(new Error('invalid file'))
+    return
+  }
+  // 本地预览
+  revokePreview()
+  avatarPreview.value = URL.createObjectURL(file)
+  try {
+    const resp = await AuthAPI.uploadAvatar(file)
+    if (resp?.avatar_url) {
+      avatarPreview.value = resp.avatar_url
+    }
+    // 更新用户信息缓存
+    if (authStore.user) {
+      authStore.user = { ...authStore.user, avatar: avatarPreview.value || authStore.user.avatar }
+      localStorage.setItem('user', JSON.stringify(authStore.user))
+    }
+    message.success('头像更新成功')
+    options.onSuccess?.({}, file as any)
+  } catch (e: any) {
+    // 失败时回滚预览
+    revokePreview()
+    avatarPreview.value = authStore.user?.avatar || null
+    message.error('头像上传失败: ' + (e?.message || '请稍后再试'))
+    options.onError?.(e)
+  }
 }
 
 // 更新个人资料
@@ -642,6 +707,37 @@ onMounted(() => {
 .user-avatar {
   margin-bottom: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.avatar-upload-container {
+  position: relative;
+  display: inline-block;
+}
+
+.avatar-uploader {
+  display: inline-block;
+}
+
+.avatar-upload-overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #fff;
+  background: rgba(0,0,0,0.45);
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.avatar-upload-container:hover .avatar-upload-overlay {
+  opacity: 1;
 }
 
 .user-basic-info {

@@ -87,8 +87,8 @@ export class AuthAPI {
    * 修改密码
    */
   static async changePassword(currentPassword: string, newPassword: string): Promise<void> {
-    // 与后端路由保持一致: /api/auth/change-password
-    const response = await request.put(`${this.AUTH_BASE_URL}/change-password`, {
+    // 与后端路由保持一致: /api/auth/password
+    const response = await request.put(`${this.AUTH_BASE_URL}/password`, {
       current_password: currentPassword,
       new_password: newPassword
     })

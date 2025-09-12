@@ -116,6 +116,21 @@ func (db *DB) RunMigrations() error {
 		}
 	}
 
+	// 为用户表添加头像相关字段（如果不存在）
+	avatarCols := []string{
+		"ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_path VARCHAR(255);",
+		"ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_etag VARCHAR(64);",
+		"ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_version INTEGER DEFAULT 0;",
+		"ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_updated_at TIMESTAMP WITH TIME ZONE;",
+	}
+	for _, stmt := range avatarCols {
+		if _, err := db.Exec(stmt); err != nil {
+			log.Printf("Warning: Failed to add user avatar column: %v", err)
+		}
+	}
+
+
+
 	// 兼容旧版数据库：如果使用了 PostgreSQL enum 类型 application_status，
 	// 确保枚举包含所有最新状态值，避免更新到新状态时报错 500（invalid input value for enum）。
 	if err := db.ensureApplicationStatusEnumValues(); err != nil {

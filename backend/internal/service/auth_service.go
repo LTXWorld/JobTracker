@@ -5,16 +5,22 @@
 package service
 
 import (
-	"database/sql"
-	"fmt"
-	"jobView-backend/internal/auth"
-	"jobView-backend/internal/database"
-	"jobView-backend/internal/model"
-	"jobView-backend/internal/utils"
-	"log"
-	"time"
+    "database/sql"
+    "fmt"
+    "jobView-backend/internal/auth"
+    "jobView-backend/internal/database"
+    "jobView-backend/internal/model"
+    "jobView-backend/internal/utils"
+    "log"
+    "io"
+    "mime/multipart"
+    "net/http"
+    "os"
+    "path/filepath"
+    "strings"
+    "time"
 
-	"golang.org/x/crypto/bcrypt"
+    "golang.org/x/crypto/bcrypt"
 )
 
 type AuthService struct {
@@ -290,6 +296,76 @@ func (s *AuthService) ChangePassword(userID uint, req *model.ChangePasswordReque
 	log.Printf("[AUTH] Password changed for user: ID=%d", userID)
 	
 	return nil
+}
+
+// UpdateAvatar 保存用户头像并更新数据库记录
+// 返回可访问的URL（/static 前缀）与版本号
+func (s *AuthService) UpdateAvatar(userID uint, file multipart.File, header *multipart.FileHeader) (string, int, error) {
+    // 探测类型
+    var buf [512]byte
+    n, _ := file.Read(buf[:])
+    contentType := http.DetectContentType(buf[:n])
+    // 支持常见图片
+    allowed := map[string]string{
+        "image/jpeg": ".jpg",
+        "image/png":  ".png",
+        "image/webp": ".webp",
+        "image/gif":  ".gif",
+    }
+    ext, ok := allowed[contentType]
+    if !ok {
+        // 从文件名后缀兜底
+        ext = strings.ToLower(filepath.Ext(header.Filename))
+        if ext == "" {
+            ext = ".jpg"
+        }
+    }
+    // 复位读指针
+    if _, err := file.Seek(0, 0); err != nil {
+        return "", 0, fmt.Errorf("failed to seek: %w", err)
+    }
+
+    // 读取当前版本
+    var currentVersion int
+    _ = s.db.QueryRow("SELECT COALESCE(avatar_version,0) FROM users WHERE id=$1", userID).Scan(&currentVersion)
+    newVersion := currentVersion + 1
+
+    // 目录与文件名
+    baseDir := "./uploads"
+    relDir := filepath.Join("avatars", fmt.Sprintf("%d", userID))
+    if err := os.MkdirAll(filepath.Join(baseDir, relDir), 0o755); err != nil {
+        return "", 0, fmt.Errorf("failed to create dir: %w", err)
+    }
+    filename := fmt.Sprintf("avatar_v%d%s", newVersion, ext)
+    absPath := filepath.Join(baseDir, relDir, filename)
+
+    // 原子写入：先写临时文件，再重命名
+    tmp := absPath + ".tmp"
+    out, err := os.Create(tmp)
+    if err != nil {
+        return "", 0, fmt.Errorf("failed to create file: %w", err)
+    }
+    if _, err := io.Copy(out, file); err != nil {
+        out.Close()
+        os.Remove(tmp)
+        return "", 0, fmt.Errorf("failed to write file: %w", err)
+    }
+    out.Close()
+    if err := os.Rename(tmp, absPath); err != nil {
+        os.Remove(tmp)
+        return "", 0, fmt.Errorf("failed to rename file: %w", err)
+    }
+
+    relPath := filepath.ToSlash(filepath.Join(relDir, filename))
+
+    // 更新数据库
+    _, err = s.db.Exec(`UPDATE users SET avatar_path=$1, avatar_version=$2, avatar_updated_at=NOW(), updated_at=NOW() WHERE id=$3`, relPath, newVersion, userID)
+    if err != nil {
+        return "", 0, fmt.Errorf("failed to update user avatar: %w", err)
+    }
+
+    url := "/static/" + relPath + fmt.Sprintf("?v=%d", newVersion)
+    return url, newVersion, nil
 }
 
 // validateRegisterRequest 验证注册请求

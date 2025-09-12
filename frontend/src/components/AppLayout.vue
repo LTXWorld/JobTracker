@@ -41,7 +41,7 @@
                 </a-menu>
               </template>
               <a-button type="text" class="user-avatar-btn">
-                <a-avatar :size="32" class="user-avatar">
+                <a-avatar :size="32" class="user-avatar" :src="formatAvatar(authStore.user?.avatar)">
                   <template #icon>
                     <UserOutlined />
                   </template>
@@ -158,6 +158,14 @@ const router = useRouter()
 const route = useRoute()
 const jobStore = useJobApplicationStore()
 const authStore = useAuthStore()
+
+const formatAvatar = (raw?: string) => {
+  if (!raw) return undefined
+  if (raw.startsWith('/')) {
+    return `http://localhost:8010${raw}`
+  }
+  return raw
+}
 
 const refreshing = ref(false)
 

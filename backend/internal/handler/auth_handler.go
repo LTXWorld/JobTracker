@@ -11,6 +11,7 @@ import (
 	"jobView-backend/internal/service"
 	"log"
 	"net/http"
+	"strings"
 	"regexp"
 	"time"
 )
@@ -36,13 +37,17 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[AUTH] Registration attempt for username: %s, email: %s", 
 		req.Username, req.Email)
 	
-	response, err := h.service.Register(&req)
-	if err != nil {
+    response, err := h.service.Register(&req)
+    if err != nil {
 		log.Printf("[AUTH] Registration failed for username: %s - %v", req.Username, err)
 		h.writeErrorResponse(w, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 	
+    // 统一绝对URL
+    if response != nil && response.User != nil {
+        response.User.Avatar = makeAbsoluteURL(response.User.Avatar, r)
+    }
 	h.writeSuccessResponse(w, http.StatusCreated, "注册成功", response)
 }
 
@@ -60,13 +65,16 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	// 记录登录尝试（不记录密码）
 	log.Printf("[AUTH] Login attempt for username: %s", req.Username)
 	
-	response, err := h.service.Login(&req)
-	if err != nil {
+    response, err := h.service.Login(&req)
+    if err != nil {
 		// 登录失败不暴露具体错误信息给客户端
 		h.writeErrorResponse(w, http.StatusUnauthorized, "用户名或密码错误", nil)
 		return
 	}
 	
+    if response != nil && response.User != nil {
+        response.User.Avatar = makeAbsoluteURL(response.User.Avatar, r)
+    }
 	h.writeSuccessResponse(w, http.StatusOK, "登录成功", response)
 }
 
@@ -78,12 +86,15 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	response, err := h.service.RefreshToken(&req)
-	if err != nil {
+    response, err := h.service.RefreshToken(&req)
+    if err != nil {
 		h.writeErrorResponse(w, http.StatusUnauthorized, "刷新token失败", nil)
 		return
 	}
 	
+    if response != nil && response.User != nil {
+        response.User.Avatar = makeAbsoluteURL(response.User.Avatar, r)
+    }
 	h.writeSuccessResponse(w, http.StatusOK, "刷新token成功", response)
 }
 
@@ -95,12 +106,15 @@ func (h *AuthHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	profile, err := h.service.GetProfile(userID)
-	if err != nil {
+    profile, err := h.service.GetProfile(userID)
+    if err != nil {
 		h.writeErrorResponse(w, http.StatusInternalServerError, "获取用户信息失败", err)
 		return
 	}
 	
+    if profile != nil {
+        profile.Avatar = makeAbsoluteURL(profile.Avatar, r)
+    }
 	h.writeSuccessResponse(w, http.StatusOK, "获取用户信息成功", profile)
 }
 
@@ -118,12 +132,15 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	profile, err := h.service.UpdateProfile(userID, &req)
-	if err != nil {
+    profile, err := h.service.UpdateProfile(userID, &req)
+    if err != nil {
 		h.writeErrorResponse(w, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 	
+    if profile != nil {
+        profile.Avatar = makeAbsoluteURL(profile.Avatar, r)
+    }
 	h.writeSuccessResponse(w, http.StatusOK, "更新用户信息成功", profile)
 }
 
@@ -148,6 +165,55 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	h.writeSuccessResponse(w, http.StatusOK, "密码修改成功", nil)
+}
+
+// UploadAvatar 上传并更新用户头像
+func (h *AuthHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
+    userID, ok := auth.GetUserIDFromContext(r.Context())
+    if !ok {
+        h.writeErrorResponse(w, http.StatusUnauthorized, "用户未认证", nil)
+        return
+    }
+
+    if err := r.ParseMultipartForm(5 << 20); err != nil { // 5MB 上限
+        h.writeErrorResponse(w, http.StatusBadRequest, "无法解析上传表单", err)
+        return
+    }
+    file, header, err := r.FormFile("avatar")
+    if err != nil {
+        h.writeErrorResponse(w, http.StatusBadRequest, "缺少头像文件", err)
+        return
+    }
+    defer file.Close()
+
+    url, version, err := h.service.UpdateAvatar(uint(userID), file, header)
+    if err != nil {
+        h.writeErrorResponse(w, http.StatusInternalServerError, "保存头像失败", err)
+        return
+    }
+    // 如果返回的是相对路径，拼接为绝对URL（使用后端Host，避免前端端口不同导致404）
+    if strings.HasPrefix(url, "/static/") {
+        scheme := "http"
+        if r.TLS != nil { scheme = "https" }
+        url = scheme + "://" + r.Host + url
+    }
+    h.writeSuccessResponse(w, http.StatusOK, "头像上传成功", map[string]interface{}{
+        "avatar_url": url,
+        "version":    version,
+    })
+}
+
+// makeAbsoluteURL 将以 / 开头的相对地址拼接为绝对URL
+func makeAbsoluteURL(raw string, r *http.Request) string {
+    if raw == "" || strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
+        return raw
+    }
+    if strings.HasPrefix(raw, "/") {
+        scheme := "http"
+        if r.TLS != nil { scheme = "https" }
+        return scheme + "://" + r.Host + raw
+    }
+    return raw
 }
 
 // Logout 用户登出（主要是清除客户端token）

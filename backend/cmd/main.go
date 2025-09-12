@@ -85,6 +85,7 @@ func main() {
 	protectedAuthRouter.HandleFunc("/profile", authHandler.GetProfile).Methods("GET", "OPTIONS")
 	protectedAuthRouter.HandleFunc("/profile", authHandler.UpdateProfile).Methods("PUT", "OPTIONS")
 	protectedAuthRouter.HandleFunc("/password", authHandler.ChangePassword).Methods("PUT", "OPTIONS")
+	protectedAuthRouter.HandleFunc("/avatar", authHandler.UploadAvatar).Methods("POST", "OPTIONS")
 	protectedAuthRouter.HandleFunc("/logout", authHandler.Logout).Methods("POST", "OPTIONS")
 	protectedAuthRouter.HandleFunc("/validate", authHandler.ValidateToken).Methods("GET", "OPTIONS")
 	protectedAuthRouter.HandleFunc("/stats", authHandler.GetUserStats).Methods("GET", "OPTIONS")
@@ -145,6 +146,9 @@ func main() {
 	api.HandleFunc("/export/template", exportHandler.GetExportTemplate).Methods("GET")
 
 	// 健康检查路由（无需认证）
+
+	// 静态文件服务：/static/* -> ./uploads
+	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./uploads"))))
 	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "application/json")

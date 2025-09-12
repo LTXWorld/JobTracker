@@ -12,12 +12,16 @@ import (
 
 // User 用户模型
 type User struct {
-	ID        uint      `json:"id" db:"id"`
-	Username  string    `json:"username" db:"username"`
-	Email     string    `json:"email" db:"email"`
-	Password  string    `json:"-" db:"password"` // 不在JSON中暴露密码
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
+    ID        uint      `json:"id" db:"id"`
+    Username  string    `json:"username" db:"username"`
+    Email     string    `json:"email" db:"email"`
+    Password  string    `json:"-" db:"password"` // 不在JSON中暴露密码
+    AvatarPath string   `json:"-" db:"avatar_path"`
+    AvatarETag string   `json:"-" db:"avatar_etag"`
+    AvatarVersion int   `json:"-" db:"avatar_version"`
+    AvatarUpdatedAt *time.Time `json:"-" db:"avatar_updated_at"`
+    CreatedAt time.Time `json:"created_at" db:"created_at"`
+    UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // RegisterRequest 用户注册请求
@@ -43,11 +47,12 @@ type LoginResponse struct {
 
 // UserProfile 用户信息（不包含密码）
 type UserProfile struct {
-	ID        uint      `json:"id"`
-	Username  string    `json:"username"`
-	Email     string    `json:"email"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+    ID        uint      `json:"id"`
+    Username  string    `json:"username"`
+    Email     string    `json:"email"`
+    Avatar    string    `json:"avatar,omitempty"`
+    CreatedAt time.Time `json:"created_at"`
+    UpdatedAt time.Time `json:"updated_at"`
 }
 
 // UpdateUserRequest 更新用户信息请求
@@ -98,13 +103,22 @@ func (u *User) Scan(value interface{}) error {
 
 // ToProfile 转换为用户信息（不包含密码）
 func (u *User) ToProfile() *UserProfile {
-	return &UserProfile{
-		ID:        u.ID,
-		Username:  u.Username,
-		Email:     u.Email,
-		CreatedAt: u.CreatedAt,
-		UpdatedAt: u.UpdatedAt,
-	}
+    var avatarURL string
+    if u.AvatarPath != "" {
+        // 统一的静态前缀，使用 /static 访问 uploads 根目录
+        avatarURL = "/static/" + u.AvatarPath
+        if u.AvatarVersion > 0 {
+            avatarURL = fmt.Sprintf("%s?v=%d", avatarURL, u.AvatarVersion)
+        }
+    }
+    return &UserProfile{
+        ID:        u.ID,
+        Username:  u.Username,
+        Email:     u.Email,
+        Avatar:    avatarURL,
+        CreatedAt: u.CreatedAt,
+        UpdatedAt: u.UpdatedAt,
+    }
 }
 
 // ValidatePassword 验证密码强度

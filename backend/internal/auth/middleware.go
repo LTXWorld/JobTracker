@@ -27,9 +27,14 @@ const (
 
 // AuthMiddleware 认证中间件
 func AuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 从请求头获取Authorization
-		authHeader := r.Header.Get("Authorization")
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        // 放行预检请求，避免被认证拦截导致 CORS 失败
+        if r.Method == http.MethodOptions {
+            next.ServeHTTP(w, r)
+            return
+        }
+        // 从请求头获取Authorization
+        authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			writeErrorResponse(w, http.StatusUnauthorized, "Authorization header is required", nil)
 			return
