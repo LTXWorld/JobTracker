@@ -387,6 +387,8 @@ export interface UpdateStatusRequest {
   note?: string;
   metadata?: Record<string, any>;
   interview_scheduled?: string;
+  // 回退确认标记：当进行回退操作时，前端需显式传 true
+  confirm_backward?: boolean;
 }
 
 // 批量状态更新请求

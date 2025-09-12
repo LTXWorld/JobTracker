@@ -1,8 +1,8 @@
 package database
 
 import (
-	"fmt"
-	"log"
+    "fmt"
+    "log"
 )
 
 // RunMigrations 运行数据库迁移
@@ -154,8 +154,13 @@ func (db *DB) RunMigrations() error {
 		return fmt.Errorf("failed to create resume tables: %w", err)
 	}
 
-	log.Println("Database migrations completed successfully")
-	return nil
+    // 确保状态流转校验函数存在且支持应用层放行回退（基于GUC）
+    if err := db.ensureStatusTransitionFunctions(); err != nil {
+        log.Printf("Warning: failed to ensure status transition functions: %v", err)
+    }
+
+    log.Println("Database migrations completed successfully")
+    return nil
 }
 
 // ensureApplicationStatusEnumValues 在数据库存在 application_status 枚举时，
@@ -207,6 +212,233 @@ END $$;`, v, v)
             // 记录警告但不中断，以免影响应用启动
             log.Printf("Warning: failed adding enum value '%s' to application_status: %v", v, err)
         }
+    }
+    return nil
+}
+
+// ensureStatusTransitionFunctions 确保存在 validate_status_transition 函数，
+// 并内置基于会话GUC变量 jobview.allow_backward 的回退放行能力。
+func (db *DB) ensureStatusTransitionFunctions() error {
+    // 检查 job_applications 是否存在
+    hasJA, err := db.checkTableExists("job_applications")
+    if err != nil {
+        return err
+    }
+    if !hasJA {
+        return nil
+    }
+
+    // 使用 VARCHAR 版本的函数定义，兼容未创建 enum 的环境
+    stmt := `
+CREATE OR REPLACE FUNCTION validate_status_transition(
+    p_user_id INTEGER,
+    p_old_status VARCHAR,
+    p_new_status VARCHAR,
+    p_flow_template_id INTEGER DEFAULT NULL
+) RETURNS BOOLEAN AS $$
+DECLARE
+    v_allowed_transitions JSONB;
+    v_flow_config JSONB;
+    v_allow TEXT;
+BEGIN
+    -- 应用层放行：当会话设置 jobview.allow_backward = 'on' 时，直接允许
+    v_allow := current_setting('jobview.allow_backward', true);
+    IF COALESCE(v_allow, '') = 'on' THEN
+        RETURN TRUE;
+    END IF;
+
+    -- 初始状态允许
+    IF p_old_status IS NULL THEN
+        RETURN TRUE;
+    END IF;
+
+    -- 相同状态不允许
+    IF p_old_status = p_new_status THEN
+        RETURN FALSE;
+    END IF;
+
+    -- 读取默认模板
+    SELECT flow_config::jsonb INTO v_flow_config
+    FROM status_flow_templates 
+    WHERE (p_flow_template_id IS NOT NULL AND id = p_flow_template_id)
+       OR (p_flow_template_id IS NULL AND is_default = TRUE)
+    LIMIT 1;
+
+    -- 无配置则放行
+    IF v_flow_config IS NULL THEN
+        RETURN TRUE;
+    END IF;
+
+    -- 检查转换列表（按旧状态键取出允许的目标数组）
+    v_allowed_transitions := v_flow_config->'transitions'->(p_old_status);
+    IF v_allowed_transitions IS NULL THEN
+        RETURN TRUE;
+    END IF;
+
+    IF v_allowed_transitions ? p_new_status THEN
+        RETURN TRUE;
+    END IF;
+
+    -- 内置直通规则补充：笔试中->一面中->二面中->三面中->HR面中
+    IF p_old_status = '笔试中' AND p_new_status = '一面中' THEN
+        RETURN TRUE;
+    ELSIF p_old_status = '一面中' AND p_new_status = '二面中' THEN
+        RETURN TRUE;
+    ELSIF p_old_status = '二面中' AND p_new_status = '三面中' THEN
+        RETURN TRUE;
+    ELSIF p_old_status = '三面中' AND p_new_status = 'HR面中' THEN
+        RETURN TRUE;
+    END IF;
+
+    RETURN FALSE;
+END;
+$$ LANGUAGE plpgsql;
+`
+
+    if _, err := db.Exec(stmt); err != nil {
+        return err
+    }
+
+    // 如果存在 application_status 枚举类型，则再创建一个重载版本以匹配触发器定义
+    var hasEnum bool
+    if err := db.QueryRow(`SELECT EXISTS (
+        SELECT 1 FROM pg_type t WHERE t.typname = 'application_status' AND t.typtype = 'e'
+    )`).Scan(&hasEnum); err == nil && hasEnum {
+        stmtEnum := `
+CREATE OR REPLACE FUNCTION validate_status_transition(
+    p_user_id INTEGER,
+    p_old_status application_status,
+    p_new_status application_status,
+    p_flow_template_id INTEGER DEFAULT NULL
+) RETURNS BOOLEAN AS $$
+DECLARE
+    v_allowed_transitions JSONB;
+    v_flow_config JSONB;
+    v_allow TEXT;
+BEGIN
+    v_allow := current_setting('jobview.allow_backward', true);
+    IF COALESCE(v_allow, '') = 'on' THEN
+        RETURN TRUE;
+    END IF;
+
+    IF p_old_status IS NULL THEN
+        RETURN TRUE;
+    END IF;
+
+    IF p_old_status = p_new_status THEN
+        RETURN FALSE;
+    END IF;
+
+    SELECT flow_config::jsonb INTO v_flow_config
+    FROM status_flow_templates 
+    WHERE (p_flow_template_id IS NOT NULL AND id = p_flow_template_id)
+       OR (p_flow_template_id IS NULL AND is_default = TRUE)
+    LIMIT 1;
+
+    IF v_flow_config IS NULL THEN
+        RETURN TRUE;
+    END IF;
+
+    v_allowed_transitions := v_flow_config->'transitions'->(p_old_status::text);
+    IF v_allowed_transitions IS NOT NULL AND v_allowed_transitions ? p_new_status::text THEN
+        RETURN TRUE;
+    END IF;
+
+    -- 内置直通规则补充
+    IF p_old_status::text = '笔试中' AND p_new_status::text = '一面中' THEN
+        RETURN TRUE;
+    ELSIF p_old_status::text = '一面中' AND p_new_status::text = '二面中' THEN
+        RETURN TRUE;
+    ELSIF p_old_status::text = '二面中' AND p_new_status::text = '三面中' THEN
+        RETURN TRUE;
+    ELSIF p_old_status::text = '三面中' AND p_new_status::text = 'HR面中' THEN
+        RETURN TRUE;
+    END IF;
+
+    RETURN FALSE;
+END;
+$$ LANGUAGE plpgsql;`
+        if _, err := db.Exec(stmtEnum); err != nil {
+            // 不阻断启动
+            log.Printf("Warning: failed to create enum overload for validate_status_transition: %v", err)
+        }
+    }
+
+    // 覆盖触发器函数：支持基于 GUC 跳过写历史（jobview.skip_history='on'）
+    triggerFn := `
+CREATE OR REPLACE FUNCTION trigger_job_status_change() 
+RETURNS TRIGGER AS $$
+DECLARE
+    v_old_status VARCHAR;
+    v_duration_minutes INTEGER;
+    v_status_history JSONB;
+    v_history_entry JSONB;
+    v_skip TEXT;
+BEGIN
+    v_old_status := OLD.status;
+
+    -- 跳过：当设置跳过历史时，不做任何改动（不更新 last_status_change/version/历史）
+    v_skip := current_setting('jobview.skip_history', true);
+    IF COALESCE(v_skip, '') = 'on' THEN
+        RETURN NEW;
+    END IF;
+
+    IF NEW.status = OLD.status THEN
+        RETURN NEW;
+    END IF;
+
+    -- 若未通过 validate_status_transition 放行则拒绝
+    IF NOT validate_status_transition(NEW.user_id, v_old_status, NEW.status) THEN
+        RAISE EXCEPTION '不允许的状态转换: % -> %', v_old_status, NEW.status;
+    END IF;
+
+    -- 计算停留时长
+    IF OLD.last_status_change IS NOT NULL THEN
+        v_duration_minutes := EXTRACT(EPOCH FROM (NOW() - OLD.last_status_change)) / 60;
+    ELSE
+        v_duration_minutes := EXTRACT(EPOCH FROM (NOW() - OLD.created_at)) / 60;
+    END IF;
+
+    -- 更新 last_status_change 与版本
+    NEW.last_status_change := NOW();
+    NEW.status_version := COALESCE(OLD.status_version, 0) + 1;
+
+    -- 记录历史
+    INSERT INTO job_status_history (
+        job_application_id, user_id, old_status, new_status, status_changed_at, duration_minutes, metadata
+    ) VALUES (
+        NEW.id, NEW.user_id, v_old_status, NEW.status, NOW(), v_duration_minutes,
+        COALESCE(NEW.status_history->'current_metadata', '{}')
+    );
+
+    -- 更新 status_history JSONB 摘要
+    v_status_history := COALESCE(NEW.status_history, '{"history": [], "summary": {}}'::jsonb);
+    v_history_entry := jsonb_build_object(
+        'timestamp', extract(epoch from NOW()),
+        'old_status', v_old_status,
+        'new_status', NEW.status,
+        'duration_minutes', v_duration_minutes,
+        'changed_at', NOW()::text
+    );
+    v_status_history := jsonb_set(v_status_history, '{history}', (v_status_history->'history') || v_history_entry);
+    v_status_history := jsonb_set(
+        v_status_history,
+        '{summary}',
+        jsonb_build_object(
+            'total_changes', jsonb_array_length(v_status_history->'history'),
+            'current_status', NEW.status,
+            'last_changed', NOW()::text,
+            'total_duration_minutes', COALESCE((v_status_history->'summary'->>'total_duration_minutes')::INTEGER, 0) + v_duration_minutes
+        )
+    );
+    NEW.status_history := v_status_history;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;`
+
+    if _, err := db.Exec(triggerFn); err != nil {
+        log.Printf("Warning: failed to ensure trigger_job_status_change(): %v", err)
     }
     return nil
 }

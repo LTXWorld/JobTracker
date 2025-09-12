@@ -430,10 +430,12 @@ type UserStatusPreferences struct {
 
 // StatusUpdateRequest 状态更新请求
 type StatusUpdateRequest struct {
-	Status    ApplicationStatus      `json:"status" binding:"required"`
-	Note      *string                `json:"note,omitempty"`
-	Metadata  map[string]interface{} `json:"metadata,omitempty"`
-	Version   *int                   `json:"version,omitempty"` // 乐观锁版本控制
+    Status    ApplicationStatus      `json:"status" binding:"required"`
+    Note      *string                `json:"note,omitempty"`
+    Metadata  map[string]interface{} `json:"metadata,omitempty"`
+    Version   *int                   `json:"version,omitempty"` // 乐观锁版本控制
+    // ConfirmBackward 当进行回退操作（将状态从后往前调整）时需要显式确认
+    ConfirmBackward *bool                 `json:"confirm_backward,omitempty"`
 }
 
 // StatusHistoryResponse 状态历史响应

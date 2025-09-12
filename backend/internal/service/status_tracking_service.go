@@ -6,13 +6,14 @@
 package service
 
 import (
-	"database/sql"
-	"encoding/json"
-	"fmt"
-	"jobView-backend/internal/database"
-	"jobView-backend/internal/model"
-	"strings"
-	"time"
+    "database/sql"
+    "encoding/json"
+    "fmt"
+    "jobView-backend/internal/database"
+    "jobView-backend/internal/model"
+    "os"
+    "strings"
+    "time"
 )
 
 type StatusTrackingService struct {
@@ -194,48 +195,102 @@ func (s *StatusTrackingService) UpdateJobStatus(userID uint, jobApplicationID in
 		return &currentJob, nil // 状态未变化，直接返回
 	}
 
-	// 验证状态转换合法性
-	if err := s.validateStatusTransition(userID, currentJob.Status, request.Status); err != nil {
-		return nil, err
-	}
+    // 先按模板/内置规则验证；若失败且为回退操作且已确认，则放行
+    validateErr := s.validateStatusTransition(userID, currentJob.Status, request.Status)
 
-	// 计算状态持续时间
-	now := time.Now()
-	var durationMinutes *int
+    isBackward := s.isBackwardTransition(currentJob.Status, request.Status)
+    if validateErr != nil {
+        if isBackward {
+            // 是否允许回退（默认允许，可用环境变量控制）
+            allowBackward := true
+            if v := os.Getenv("ALLOW_BACKWARD_STATUS"); v != "" {
+                allowBackward = strings.EqualFold(v, "true") || v == "1"
+            }
+            if !allowBackward {
+                return nil, fmt.Errorf("BACKWARD_DISABLED")
+            }
+            // 必须确认
+            if request.ConfirmBackward == nil || !*request.ConfirmBackward {
+                return nil, fmt.Errorf("BACKWARD_CONFIRM_REQUIRED")
+            }
+            // 终态回退必须填写备注（流程结束/已拒绝/各阶段未通过）
+            if s.isTerminalStatus(currentJob.Status) {
+                if request.Note == nil || strings.TrimSpace(*request.Note) == "" {
+                    return nil, fmt.Errorf("NOTE_REQUIRED_FOR_BACKWARD")
+                }
+            }
+            // 放行（不再返回 validateErr）
+        } else {
+            return nil, validateErr
+        }
+    }
+
+    // 会话级GUC：一律禁用触发器写历史，由应用层统一维护；
+    // 回退+确认时额外允许回退。
+    _, _ = tx.Exec("SET LOCAL jobview.skip_history = 'on'")
+    suppressHistory := isBackward && request.ConfirmBackward != nil && *request.ConfirmBackward
+    if suppressHistory {
+        _, _ = tx.Exec("SET LOCAL jobview.allow_backward = 'on'")
+    }
+
+    // 计算状态持续时间
+    now := time.Now()
+    var durationMinutes *int
 	if lastStatusChange.Valid {
 		duration := int(now.Sub(lastStatusChange.Time).Minutes())
 		durationMinutes = &duration
 	}
 
-	// 创建历史记录
-	insertHistoryQuery := `
-		INSERT INTO job_status_history (job_application_id, user_id, old_status, new_status, 
-		                               status_changed_at, duration_minutes, metadata)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING id
-	`
+    // 是否交由数据库触发器记录历史
+    // 注意：回退场景下我们选择不更新历史（suppressHistory=true）
+    useDBTriggerForHistory := false
 
-	// 准备metadata，确保是有效的JSON对象
-	var metadataBytes []byte
-	if request.Metadata != nil && len(request.Metadata) > 0 {
-		metadataBytes, _ = json.Marshal(request.Metadata)
-	} else {
-		metadataBytes = []byte("{}")
-	}
-	var historyID int64
-	err = tx.QueryRow(insertHistoryQuery, jobApplicationID, userID, currentJob.Status,
-		request.Status, now, durationMinutes, metadataBytes).Scan(&historyID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to insert status history: %w", err)
-	}
+    var statusHistoryBytes []byte
+    var durationStatsBytes []byte
+    if !useDBTriggerForHistory && !suppressHistory {
+        // 创建历史记录（应用层）
+	    insertHistoryQuery := `
+		    INSERT INTO job_status_history (job_application_id, user_id, old_status, new_status, 
+		                                   status_changed_at, duration_minutes, metadata)
+		    VALUES ($1, $2, $3, $4, $5, $6, $7)
+		    RETURNING id
+	    `
 
-	// 更新状态历史JSON
-	statusHistory := s.updateStatusHistoryJSON(currentStatusHistory.String, currentJob.Status, request.Status, now, durationMinutes)
-	statusHistoryBytes, _ := json.Marshal(statusHistory)
+	    // 准备metadata，确保是有效的JSON对象
+        // 准备metadata，标记回退等信息
+        var metadata map[string]interface{}
+        if request.Metadata != nil {
+            metadata = make(map[string]interface{}, len(request.Metadata)+4)
+            for k, v := range request.Metadata {
+                metadata[k] = v
+            }
+        } else {
+            metadata = map[string]interface{}{}
+        }
+        if isBackward {
+            metadata["backward"] = true
+            metadata["from"] = string(currentJob.Status)
+            metadata["to"] = string(request.Status)
+            if request.Note != nil && strings.TrimSpace(*request.Note) != "" {
+                metadata["note"] = strings.TrimSpace(*request.Note)
+            }
+        }
+        metadataBytes, _ := json.Marshal(metadata)
+	    var historyID int64
+	    err = tx.QueryRow(insertHistoryQuery, jobApplicationID, userID, currentJob.Status,
+		    request.Status, now, durationMinutes, metadataBytes).Scan(&historyID)
+	    if err != nil {
+		    return nil, fmt.Errorf("failed to insert status history: %w", err)
+	    }
 
-	// 更新持续时间统计
-	durationStats := s.updateDurationStats(currentDurationStats.String, currentJob.Status, durationMinutes)
-	durationStatsBytes, _ := json.Marshal(durationStats)
+	    // 更新状态历史JSON（应用层）
+	    statusHistory := s.updateStatusHistoryJSON(currentStatusHistory.String, currentJob.Status, request.Status, now, durationMinutes)
+	    statusHistoryBytes, _ = json.Marshal(statusHistory)
+
+	    // 更新持续时间统计（应用层）
+	    durationStats := s.updateDurationStats(currentDurationStats.String, currentJob.Status, durationMinutes)
+	    durationStatsBytes, _ = json.Marshal(durationStats)
+    }
 
 	// 更新主记录
 	newVersion := 1
@@ -243,22 +298,101 @@ func (s *StatusTrackingService) UpdateJobStatus(userID uint, jobApplicationID in
 		newVersion = int(currentVersion.Int32) + 1
 	}
 
-	updateQuery := `
-		UPDATE job_applications 
-		SET status = $1, last_status_change = $2, status_version = $3, 
-		    status_history = $4, status_duration_stats = $5, updated_at = $6
-		WHERE id = $7 AND user_id = $8
-		RETURNING id, user_id, company_name, position_title, application_date, status,
-		          job_description, salary_range, work_location, contact_info, notes,
-		          interview_time, reminder_time, reminder_enabled, follow_up_date,
-		          hr_name, hr_phone, hr_email, interview_location, interview_type,
-		          created_at, updated_at
-	`
-
 	var updatedJob model.JobApplication
-	err = tx.QueryRow(updateQuery, request.Status, now, newVersion,
-		string(statusHistoryBytes), string(durationStatsBytes), now,
-		jobApplicationID, userID).Scan(
+    if suppressHistory {
+        // 仅更新状态与更新时间，不影响 last_status_change / 版本 / 历史
+        updateQuery := `
+            UPDATE job_applications 
+            SET status = $1, updated_at = $2
+            WHERE id = $3 AND user_id = $4
+            RETURNING id, user_id, company_name, position_title, application_date, status,
+                      job_description, salary_range, work_location, contact_info, notes,
+                      interview_time, reminder_time, reminder_enabled, follow_up_date,
+                      hr_name, hr_phone, hr_email, interview_location, interview_type,
+                      created_at, updated_at
+        `
+        err = tx.QueryRow(updateQuery, request.Status, now, jobApplicationID, userID).Scan(
+            &updatedJob.ID,
+            &updatedJob.UserID,
+            &updatedJob.CompanyName,
+            &updatedJob.PositionTitle,
+            &updatedJob.ApplicationDate,
+            &updatedJob.Status,
+            &updatedJob.JobDescription,
+            &updatedJob.SalaryRange,
+            &updatedJob.WorkLocation,
+            &updatedJob.ContactInfo,
+            &updatedJob.Notes,
+            &updatedJob.InterviewTime,
+            &updatedJob.ReminderTime,
+            &updatedJob.ReminderEnabled,
+            &updatedJob.FollowUpDate,
+            &updatedJob.HRName,
+            &updatedJob.HRPhone,
+            &updatedJob.HREmail,
+            &updatedJob.InterviewLocation,
+            &updatedJob.InterviewType,
+            &updatedJob.CreatedAt,
+            &updatedJob.UpdatedAt,
+        )
+        if err != nil {
+            return nil, fmt.Errorf("failed to update job application: %w", err)
+        }
+    } else if useDBTriggerForHistory {
+        // 交由触发器维护 last_status_change/status_version/历史
+        updateQuery := `
+            UPDATE job_applications 
+            SET status = $1, updated_at = $2
+            WHERE id = $3 AND user_id = $4
+			RETURNING id, user_id, company_name, position_title, application_date, status,
+			          job_description, salary_range, work_location, contact_info, notes,
+			          interview_time, reminder_time, reminder_enabled, follow_up_date,
+			          hr_name, hr_phone, hr_email, interview_location, interview_type,
+			          created_at, updated_at
+		`
+		err = tx.QueryRow(updateQuery, request.Status, now, jobApplicationID, userID).Scan(
+			&updatedJob.ID,
+			&updatedJob.UserID,
+			&updatedJob.CompanyName,
+			&updatedJob.PositionTitle,
+			&updatedJob.ApplicationDate,
+			&updatedJob.Status,
+			&updatedJob.JobDescription,
+			&updatedJob.SalaryRange,
+			&updatedJob.WorkLocation,
+			&updatedJob.ContactInfo,
+			&updatedJob.Notes,
+			&updatedJob.InterviewTime,
+			&updatedJob.ReminderTime,
+			&updatedJob.ReminderEnabled,
+			&updatedJob.FollowUpDate,
+			&updatedJob.HRName,
+			&updatedJob.HRPhone,
+			&updatedJob.HREmail,
+			&updatedJob.InterviewLocation,
+			&updatedJob.InterviewType,
+			&updatedJob.CreatedAt,
+			&updatedJob.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update job application: %w", err)
+		}
+    } else {
+        updateQuery := `
+            UPDATE job_applications 
+            SET status = $1, last_status_change = $2, status_version = $3, 
+                status_history = $4::jsonb, status_duration_stats = $5::jsonb, updated_at = $6
+            WHERE id = $7 AND user_id = $8
+            RETURNING id, user_id, company_name, position_title, application_date, status,
+                      job_description, salary_range, work_location, contact_info, notes,
+                      interview_time, reminder_time, reminder_enabled, follow_up_date,
+                      hr_name, hr_phone, hr_email, interview_location, interview_type,
+                      created_at, updated_at
+        `
+
+		err = tx.QueryRow(updateQuery, request.Status, now, newVersion,
+			string(statusHistoryBytes), string(durationStatsBytes), now,
+			jobApplicationID, userID).Scan(
 		&updatedJob.ID,
 		&updatedJob.UserID,
 		&updatedJob.CompanyName,
@@ -281,10 +415,11 @@ func (s *StatusTrackingService) UpdateJobStatus(userID uint, jobApplicationID in
 		&updatedJob.InterviewType,
 		&updatedJob.CreatedAt,
 		&updatedJob.UpdatedAt,
-	)
+		)
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to update job application: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update job application: %w", err)
+		}
 	}
 
 	// 提交事务
@@ -417,10 +552,14 @@ func (s *StatusTrackingService) BatchUpdateStatus(userID uint, updates []model.B
 			continue
 		}
 
-		// 验证状态转换
-		if err := s.validateStatusTransition(userID, currentStatus, update.Status); err != nil {
-			return fmt.Errorf("invalid transition for ID %d: %w", update.ID, err)
-		}
+        // 选项A：批量更新不允许回退
+        if s.isBackwardTransition(currentStatus, update.Status) {
+            return fmt.Errorf("backward transitions are not allowed in batch updates (ID %d: %s -> %s)", update.ID, currentStatus, update.Status)
+        }
+        // 验证状态转换（前进方向仍按模板/直通规则校验）
+        if err := s.validateStatusTransition(userID, currentStatus, update.Status); err != nil {
+            return fmt.Errorf("invalid transition for ID %d: %w", update.ID, err)
+        }
 
 		// 计算持续时间
 		var durationMinutes *int
@@ -674,6 +813,51 @@ func (s *StatusTrackingService) isImplicitDirectTransitionAllowed(oldStatus, new
         return next == newStatus
     }
     return false
+}
+
+// isBackwardTransition 判断是否为回退（将状态从后往前调整）
+func (s *StatusTrackingService) isBackwardTransition(oldStatus, newStatus model.ApplicationStatus) bool {
+    rank := func(st model.ApplicationStatus) int {
+        // 主阶段等级：忽略通过/未通过细分，聚类到阶段
+        switch st {
+        case model.StatusApplied:
+            return 0
+        case model.StatusResumeScreening, model.StatusResumeScreeningFail:
+            return 10
+        case model.StatusWrittenTest, model.StatusWrittenTestPass, model.StatusWrittenTestFail:
+            return 20
+        case model.StatusFirstInterview, model.StatusFirstPass, model.StatusFirstFail:
+            return 30
+        case model.StatusSecondInterview, model.StatusSecondPass, model.StatusSecondFail:
+            return 40
+        case model.StatusThirdInterview, model.StatusThirdPass, model.StatusThirdFail:
+            return 50
+        case model.StatusHRInterview, model.StatusHRPass, model.StatusHRFail:
+            return 60
+        case model.StatusOfferWaiting:
+            return 70
+        case model.StatusOfferReceived:
+            return 80
+        case model.StatusOfferAccepted, model.StatusRejected:
+            return 90
+        case model.StatusProcessFinished:
+            return 100
+        default:
+            return 0
+        }
+    }
+    return rank(newStatus) < rank(oldStatus)
+}
+
+// isTerminalStatus 判断是否为“终态”以用于回退必填备注
+// 这里限定为：流程结束、已拒绝、各阶段未通过
+func (s *StatusTrackingService) isTerminalStatus(st model.ApplicationStatus) bool {
+    if st == model.StatusProcessFinished || st == model.StatusRejected {
+        return true
+    }
+    return st == model.StatusResumeScreeningFail || st == model.StatusWrittenTestFail ||
+        st == model.StatusFirstFail || st == model.StatusSecondFail ||
+        st == model.StatusThirdFail || st == model.StatusHRFail
 }
 
 // updateStatusHistoryJSON 更新状态历史JSON

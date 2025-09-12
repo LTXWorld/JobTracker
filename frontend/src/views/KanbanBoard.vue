@@ -453,6 +453,38 @@ const formatDateTime = (datetime: string) => dayjs(datetime).format('MM-DD HH:mm
 const fetchData = () => jobStore.fetchApplications()
 
 // 处理拖拽变化
+// 主阶段排序用于判断回退
+const stageRank = (status: ApplicationStatus): number => {
+  switch (status) {
+    case '已投递': return 0
+    case '简历筛选中':
+    case '简历筛选未通过': return 10
+    case '笔试中':
+    case '笔试通过':
+    case '笔试未通过': return 20
+    case '一面中':
+    case '一面通过':
+    case '一面未通过': return 30
+    case '二面中':
+    case '二面通过':
+    case '二面未通过': return 40
+    case '三面中':
+    case '三面通过':
+    case '三面未通过': return 50
+    case 'HR面中':
+    case 'HR面通过':
+    case 'HR面未通过': return 60
+    case '待发offer': return 70
+    case '已收到offer': return 80
+    case '已接受offer':
+    case '已拒绝': return 90
+    case '流程结束': return 100
+    default: return 0
+  }
+}
+const isBackward = (from: ApplicationStatus, to: ApplicationStatus) => stageRank(to) < stageRank(from)
+const isTerminal = (status: ApplicationStatus) => ['流程结束','已拒绝','简历筛选未通过','笔试未通过','一面未通过','二面未通过','三面未通过','HR面未通过'].includes(status)
+
 const handleDragChange = async (evt: any, newStatus: ApplicationStatus) => {
   if (!evt.added) return
   const app = evt.added.element as JobApplication
@@ -470,17 +502,83 @@ const handleDragChange = async (evt: any, newStatus: ApplicationStatus) => {
     // 若获取失败，不阻断操作，交由后端校验
   }
 
+  // 若为回退，先确认
+  const backward = isBackward(app.status, newStatus)
+  let payload: any = { status: newStatus }
+  if (backward) {
+    // 终态回退提示必须备注
+    let note: string | undefined
+    if (isTerminal(app.status)) {
+      note = window.prompt(`将 ${app.company_name} - ${app.position_title} 从「${app.status}」回退到「${newStatus}」需要填写备注，请输入原因：`) || ''
+      if (!note.trim()) {
+        message.warning('已取消：终态回退必须填写备注')
+        await fetchData()
+        return
+      }
+    }
+    const content = `确定将【${app.company_name}】 【${app.position_title}】的状态从「${app.status}」改为「${newStatus}」吗？`
+    const confirmed = await new Promise<boolean>((resolve) => {
+      Modal.confirm({
+        title: '确认回退状态',
+        content,
+        okText: '确认回退',
+        cancelText: '取消',
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false)
+      })
+    })
+    if (!confirmed) {
+      await fetchData()
+      return
+    }
+    payload.confirm_backward = true
+    if (note && note.trim()) payload.note = note.trim()
+  }
+
   try {
-    // 使用状态跟踪接口以保证合法流转并记录历史
-    await statusTrackingStore.updateApplicationStatus(app.id, { status: newStatus })
+    await statusTrackingStore.updateApplicationStatus(app.id, payload)
     message.success(`已更新状态为: ${newStatus}`)
-    // 刷新应用列表，确保列分组一致
     await fetchData()
   } catch (error: any) {
     const msg = (error?.message as string) || '状态更新失败'
-    message.error(msg)
-    // 恢复原数据
-    await fetchData()
+    if (msg === 'BACKWARD_CONFIRM_REQUIRED') {
+      // 后端要求确认，补充确认并重试
+      const content = `确定将【${app.company_name}】 【${app.position_title}】的状态从「${app.status}」改为「${newStatus}」吗？`
+      const confirmed = await new Promise<boolean>((resolve) => {
+        Modal.confirm({
+          title: '确认回退状态',
+          content,
+          okText: '确认回退',
+          cancelText: '取消',
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false)
+        })
+      })
+      if (confirmed) {
+        const retry: any = { status: newStatus, confirm_backward: true }
+        if (isTerminal(app.status)) {
+          const note = window.prompt('该回退操作需要备注，请输入原因：') || ''
+          if (!note.trim()) {
+            message.warning('已取消：终态回退必须填写备注')
+            await fetchData()
+            return
+          }
+          retry.note = note.trim()
+        }
+        try {
+          await statusTrackingStore.updateApplicationStatus(app.id, retry)
+          message.success(`已更新状态为: ${newStatus}`)
+        } catch (e: any) {
+          message.error((e?.message as string) || '状态更新失败')
+        } finally {
+          await fetchData()
+        }
+        return
+      }
+    } else {
+      message.error(msg)
+      await fetchData()
+    }
   }
 }
 

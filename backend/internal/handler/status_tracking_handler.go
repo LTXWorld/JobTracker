@@ -118,17 +118,25 @@ func (h *StatusTrackingHandler) UpdateJobStatus(w http.ResponseWriter, r *http.R
 	}
 
 	// 调用服务更新状态
-	updatedJob, err := h.statusService.UpdateJobStatus(uint(userID), jobID, &req)
-	if err != nil {
-		if err.Error() == "job application not found" {
-			h.writeErrorResponse(w, http.StatusNotFound, "job application not found", nil)
-		} else if err.Error() == "version conflict" {
-			h.writeErrorResponse(w, http.StatusConflict, "version conflict, please refresh and try again", nil)
-		} else {
-			h.writeErrorResponse(w, http.StatusInternalServerError, "failed to update job status", err)
-		}
-		return
-	}
+    updatedJob, err := h.statusService.UpdateJobStatus(uint(userID), jobID, &req)
+    if err != nil {
+        if err.Error() == "job application not found" {
+            h.writeErrorResponse(w, http.StatusNotFound, "job application not found", nil)
+        } else if err.Error() == "version conflict" {
+            h.writeErrorResponse(w, http.StatusConflict, "version conflict, please refresh and try again", nil)
+        } else if err.Error() == "BACKWARD_CONFIRM_REQUIRED" {
+            // 回退操作需要确认
+            h.writeErrorResponse(w, http.StatusConflict, "BACKWARD_CONFIRM_REQUIRED", nil)
+        } else if err.Error() == "NOTE_REQUIRED_FOR_BACKWARD" {
+            // 终态回退必须备注
+            h.writeErrorResponse(w, http.StatusBadRequest, "NOTE_REQUIRED_FOR_BACKWARD", nil)
+        } else if err.Error() == "BACKWARD_DISABLED" {
+            h.writeErrorResponse(w, http.StatusForbidden, "BACKWARD_DISABLED", nil)
+        } else {
+            h.writeErrorResponse(w, http.StatusInternalServerError, "failed to update job status", err)
+        }
+        return
+    }
 
 	h.writeSuccessResponse(w, http.StatusOK, "job status updated successfully", updatedJob)
 }

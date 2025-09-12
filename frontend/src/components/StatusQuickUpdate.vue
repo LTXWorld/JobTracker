@@ -125,7 +125,7 @@ import { useStatusTrackingStore } from '../stores/statusTracking'
 import { StatusHelper, type ApplicationStatus } from '../types'
 import StatusTimeline from './StatusTimeline.vue'
 import StatusUpdateContent from './StatusUpdateContent.vue'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 
 // Props
 interface Props {
@@ -137,6 +137,8 @@ interface Props {
   buttonText?: string // 按钮文字
   buttonSize?: 'large' | 'middle' | 'small'
   autoFetch?: boolean // 是否自动获取可用状态
+  companyName?: string // 公司名称（用于确认弹窗增强确认感）
+  positionTitle?: string // 岗位名称（用于确认弹窗增强确认感）
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -178,14 +180,22 @@ const fetchAvailableStatuses = async () => {
   
   try {
     const transitions = await statusTrackingStore.getAvailableTransitions(props.currentStatus)
-    availableStatuses.value = transitions.reduce((acc: ApplicationStatus[], rule) => {
+    const forward = transitions.reduce((acc: ApplicationStatus[], rule) => {
       acc.push(...rule.to)
       return acc
     }, [])
+    const backward = getBackwardStatuses(props.currentStatus)
+    const set = new Set<ApplicationStatus>([...forward, ...backward])
+    set.delete(props.currentStatus)
+    availableStatuses.value = Array.from(set)
   } catch (error) {
     console.error('获取可用状态失败:', error)
     // 降级到默认状态列表
-    availableStatuses.value = getDefaultNextStatuses(props.currentStatus)
+    const forward = getDefaultNextStatuses(props.currentStatus)
+    const backward = getBackwardStatuses(props.currentStatus)
+    const set = new Set<ApplicationStatus>([...forward, ...backward])
+    set.delete(props.currentStatus)
+    availableStatuses.value = Array.from(set)
   }
 }
 
@@ -222,6 +232,80 @@ const getDefaultNextStatuses = (currentStatus: ApplicationStatus): ApplicationSt
   return statusFlow[currentStatus] || []
 }
 
+// 计算主阶段等级（用于判断回退）
+const stageRank = (status: ApplicationStatus): number => {
+  switch (status) {
+    case '已投递':
+      return 0
+    case '简历筛选中':
+    case '简历筛选未通过':
+      return 10
+    case '笔试中':
+    case '笔试通过':
+    case '笔试未通过':
+      return 20
+    case '一面中':
+    case '一面通过':
+    case '一面未通过':
+      return 30
+    case '二面中':
+    case '二面通过':
+    case '二面未通过':
+      return 40
+    case '三面中':
+    case '三面通过':
+    case '三面未通过':
+      return 50
+    case 'HR面中':
+    case 'HR面通过':
+    case 'HR面未通过':
+      return 60
+    case '待发offer':
+      return 70
+    case '已收到offer':
+      return 80
+    case '已接受offer':
+    case '已拒绝':
+      return 90
+    case '流程结束':
+      return 100
+    default:
+      return 0
+  }
+}
+
+const isBackward = (from: ApplicationStatus, to: ApplicationStatus) => stageRank(to) < stageRank(from)
+
+const isTerminal = (status: ApplicationStatus) => {
+  return [
+    '流程结束',
+    '已拒绝',
+    '简历筛选未通过',
+    '笔试未通过',
+    '一面未通过',
+    '二面未通过',
+    '三面未通过',
+    'HR面未通过'
+  ].includes(status)
+}
+
+// 回退备选：所有处于更早主阶段的状态
+const getBackwardStatuses = (currentStatus: ApplicationStatus): ApplicationStatus[] => {
+  const all: ApplicationStatus[] = [
+    '已投递',
+    '简历筛选中', '简历筛选未通过',
+    '笔试中', '笔试通过', '笔试未通过',
+    '一面中', '一面通过', '一面未通过',
+    '二面中', '二面通过', '二面未通过',
+    '三面中', '三面通过', '三面未通过',
+    'HR面中', 'HR面通过', 'HR面未通过',
+    '待发offer', '已收到offer', '已接受offer',
+    '已拒绝', '流程结束'
+  ]
+  const currRank = stageRank(currentStatus)
+  return all.filter(st => stageRank(st) < currRank)
+}
+
 const handleQuickUpdate = async () => {
   if (!selectedStatus.value || selectedStatus.value === props.currentStatus) {
     message.warning('请选择不同的状态')
@@ -238,6 +322,35 @@ const handleQuickUpdate = async () => {
     // 如果是面试相关状态且设置了面试时间
     if (interviewTime.value && isInterviewStatus(selectedStatus.value)) {
       updateData.interview_scheduled = interviewTime.value
+    }
+
+    const backward = isBackward(props.currentStatus, selectedStatus.value)
+    if (backward) {
+      // 终态回退必须填写备注
+      if (isTerminal(props.currentStatus) && !note.value.trim()) {
+        message.warning('终态回退必须填写备注')
+        loading.value = false
+        return
+      }
+      // 弹出确认
+      const company = props.companyName ? `【${props.companyName}】` : ''
+      const position = props.positionTitle ? `【${props.positionTitle}】` : ''
+      const context = [company, position].filter(Boolean).join(' ')
+      const content = context
+        ? `确定将 ${context} 的状态从「${props.currentStatus}」改为「${selectedStatus.value}」吗？`
+        : `确定将状态从「${props.currentStatus}」改为「${selectedStatus.value}」吗？`
+
+      await new Promise<void>((resolve, reject) => {
+        Modal.confirm({
+          title: '确认回退状态',
+          content,
+          okText: '确认回退',
+          cancelText: '取消',
+          onOk: () => resolve(),
+          onCancel: () => reject(new Error('cancelled'))
+        })
+      })
+      updateData.confirm_backward = true
     }
 
     await statusTrackingStore.updateApplicationStatus(props.applicationId, updateData)
