@@ -269,6 +269,26 @@ func (s *ExportService) processAsyncExport(task *model.ExportTask, request *mode
 
 // GetTaskStatus 获取任务状态
 func (s *ExportService) GetTaskStatus(taskID string, userID uint) (*model.TaskStatusResponse, error) {
+    if s.db != nil && s.db.UseGorm && s.db.ORM != nil {
+        query := `SELECT task_id, status, progress, processed_records, total_records, file_size, expires_at, error_message, created_at, completed_at, filename FROM export_tasks WHERE task_id=$1 AND user_id=$2`
+        var task model.TaskStatusResponse
+        var fileSize sql.NullInt64
+        var expiresAt, completedAt sql.NullTime
+        var errorMessage, filename sql.NullString
+        var totalRecords sql.NullInt32
+        row := s.db.ORM.Raw(query, taskID, userID).Row()
+        if err := row.Scan(&task.TaskID,&task.Status,&task.Progress,&task.ProcessedRecords,&totalRecords,&fileSize,&expiresAt,&errorMessage,&task.CreatedAt,&completedAt,&filename); err != nil {
+            if err == sql.ErrNoRows { return nil, fmt.Errorf("导出任务不存在或无访问权限") }
+            return nil, fmt.Errorf("查询任务状态失败: %v", err)
+        }
+        if totalRecords.Valid { tr := int(totalRecords.Int32); task.TotalRecords = &tr }
+        if fileSize.Valid { fs := formatFileSize(fileSize.Int64); task.FileSize = &fs }
+        if expiresAt.Valid { task.ExpiresAt = &expiresAt.Time }
+        if completedAt.Valid { task.CompletedAt = &completedAt.Time }
+        if errorMessage.Valid { task.ErrorMessage = &errorMessage.String }
+        if task.Status == model.TaskStatusCompleted { d := fmt.Sprintf("/api/v1/export/download/%s", taskID); task.DownloadURL = &d }
+        return &task, nil
+    }
 	query := `
 		SELECT task_id, status, progress, processed_records, total_records,
 			   file_size, expires_at, error_message, created_at, completed_at, filename
@@ -338,6 +358,22 @@ func (s *ExportService) GetTaskStatus(taskID string, userID uint) (*model.TaskSt
 
 // DownloadFile 获取下载文件
 func (s *ExportService) DownloadFile(taskID string, userID uint) (string, string, error) {
+    if s.db != nil && s.db.UseGorm && s.db.ORM != nil {
+        query := `SELECT file_path, filename, status, expires_at FROM export_tasks WHERE task_id=$1 AND user_id=$2`
+        var filePath, filename sql.NullString
+        var status model.TaskStatus
+        var expiresAt sql.NullTime
+        row := s.db.ORM.Raw(query, taskID, userID).Row()
+        if err := row.Scan(&filePath,&filename,&status,&expiresAt); err != nil {
+            if err == sql.ErrNoRows { return "", "", fmt.Errorf("文件不存在或无访问权限") }
+            return "", "", fmt.Errorf("查询文件信息失败: %v", err)
+        }
+        if status != model.TaskStatusCompleted { return "", "", fmt.Errorf("文件尚未生成完成") }
+        if expiresAt.Valid && time.Now().After(expiresAt.Time) { return "", "", fmt.Errorf("文件已过期") }
+        if !filePath.Valid || !filename.Valid { return "", "", fmt.Errorf("文件路径或文件名无效") }
+        if _, err := os.Stat(filePath.String); os.IsNotExist(err) { return "", "", fmt.Errorf("文件不存在") }
+        return filePath.String, filename.String, nil
+    }
 	query := `
 		SELECT file_path, filename, status, expires_at 
 		FROM export_tasks 
@@ -394,7 +430,8 @@ func (s *ExportService) GetExportHistory(userID uint, page, limit int) (*model.E
 	// 查询总数
 	countQuery := `SELECT COUNT(*) FROM export_tasks WHERE user_id = $1`
 	var totalCount int64
-	err := s.db.QueryRow(countQuery, userID).Scan(&totalCount)
+    var err error
+    if s.db != nil && s.db.UseGorm && s.db.ORM != nil { err = s.db.ORM.Raw(countQuery, userID).Row().Scan(&totalCount) } else { err = s.db.QueryRow(countQuery, userID).Scan(&totalCount) }
 	if err != nil {
 		return nil, fmt.Errorf("查询总数失败: %v", err)
 	}
@@ -408,10 +445,11 @@ func (s *ExportService) GetExportHistory(userID uint, page, limit int) (*model.E
 		LIMIT $2 OFFSET $3
 	`
 
-	rows, err := s.db.Query(query, userID, limit, offset)
-	if err != nil {
-		return nil, fmt.Errorf("查询导出历史失败: %v", err)
-	}
+    var rows *sql.Rows
+    if s.db != nil && s.db.UseGorm && s.db.ORM != nil { rows, err = s.db.ORM.Raw(query, userID, limit, offset).Rows() } else { rows, err = s.db.Query(query, userID, limit, offset) }
+    if err != nil {
+        return nil, fmt.Errorf("查询导出历史失败: %v", err)
+    }
 	defer rows.Close()
 
 	var exports []model.ExportHistoryItem
@@ -495,7 +533,8 @@ func (s *ExportService) checkUserExportLimits(userID uint) error {
 	`
 	
 	var dailyCount int
-	err := s.db.QueryRow(query, userID, today).Scan(&dailyCount)
+    var err error
+    if s.db != nil && s.db.UseGorm && s.db.ORM != nil { err = s.db.ORM.Raw(query, userID, today).Row().Scan(&dailyCount) } else { err = s.db.QueryRow(query, userID, today).Scan(&dailyCount) }
 	if err != nil {
 		return fmt.Errorf("检查日导出次数失败: %v", err)
 	}
@@ -511,7 +550,7 @@ func (s *ExportService) checkUserExportLimits(userID uint) error {
 	`
 	
 	var activeCount int
-	err = s.db.QueryRow(query, userID, model.TaskStatusProcessing).Scan(&activeCount)
+    if s.db != nil && s.db.UseGorm && s.db.ORM != nil { err = s.db.ORM.Raw(query, userID, model.TaskStatusProcessing).Row().Scan(&activeCount) } else { err = s.db.QueryRow(query, userID, model.TaskStatusProcessing).Scan(&activeCount) }
 	if err != nil {
 		return fmt.Errorf("检查并发导出数失败: %v", err)
 	}
@@ -525,25 +564,36 @@ func (s *ExportService) checkUserExportLimits(userID uint) error {
 
 // getExportDataCount 获取导出数据总数
 func (s *ExportService) getExportDataCount(userID uint, filters *model.ExportFilters) (int, error) {
-	query, args := s.buildCountQuery(userID, filters)
-	
-	var count int
-	err := s.db.QueryRow(query, args...).Scan(&count)
-	if err != nil {
-		return 0, fmt.Errorf("查询数据总数失败: %v", err)
-	}
-	
-	return count, nil
+    query, args := s.buildCountQuery(userID, filters)
+    
+    var count int
+    var err error
+    if s.db != nil && s.db.UseGorm && s.db.ORM != nil {
+        err = s.db.ORM.Raw(query, args...).Row().Scan(&count)
+    } else {
+        err = s.db.QueryRow(query, args...).Scan(&count)
+    }
+    if err != nil {
+        return 0, fmt.Errorf("查询数据总数失败: %v", err)
+    }
+    
+    return count, nil
 }
 
 // getExportData 获取导出数据
 func (s *ExportService) getExportData(userID uint, filters *model.ExportFilters, offset, limit int) ([]model.JobApplication, error) {
-	query, args := s.buildDataQuery(userID, filters, offset, limit)
-	
-	rows, err := s.db.Query(query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("查询导出数据失败: %v", err)
-	}
+    query, args := s.buildDataQuery(userID, filters, offset, limit)
+    
+    var rows *sql.Rows
+    var err error
+    if s.db != nil && s.db.UseGorm && s.db.ORM != nil {
+        rows, err = s.db.ORM.Raw(query, args...).Rows()
+    } else {
+        rows, err = s.db.Query(query, args...)
+    }
+    if err != nil {
+        return nil, fmt.Errorf("查询导出数据失败: %v", err)
+    }
 	defer rows.Close()
 
 	var applications []model.JobApplication
@@ -760,54 +810,33 @@ func (s *ExportService) handleExportError(task *model.ExportTask, errorMsg strin
 
 // saveExportTask 保存导出任务
 func (s *ExportService) saveExportTask(task *model.ExportTask) error {
-	query := `
-		INSERT INTO export_tasks (
-			task_id, user_id, status, export_type, total_records, 
-			processed_records, progress, filters, options, created_at, expires_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-	`
-
-	_, err := s.db.Exec(query,
-		task.TaskID,
-		task.UserID,
-		task.Status,
-		task.ExportType,
-		task.TotalRecords,
-		task.ProcessedRecords,
-		task.Progress,
-		task.Filters,
-		task.Options,
-		task.CreatedAt,
-		task.ExpiresAt,
-	)
-
-	return err
+    query := `
+        INSERT INTO export_tasks (
+            task_id, user_id, status, export_type, total_records,
+            processed_records, progress, filters, options, created_at, expires_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`
+    if s.db != nil && s.db.UseGorm && s.db.ORM != nil {
+        res := s.db.ORM.Exec(query, task.TaskID, task.UserID, task.Status, task.ExportType, task.TotalRecords, task.ProcessedRecords, task.Progress, task.Filters, task.Options, task.CreatedAt, task.ExpiresAt)
+        return res.Error
+    }
+    _, err := s.db.Exec(query, task.TaskID, task.UserID, task.Status, task.ExportType, task.TotalRecords, task.ProcessedRecords, task.Progress, task.Filters, task.Options, task.CreatedAt, task.ExpiresAt)
+    return err
 }
 
 // updateExportTask 更新导出任务
 func (s *ExportService) updateExportTask(task *model.ExportTask) error {
-	query := `
-		UPDATE export_tasks SET 
-			status = $2, processed_records = $3, progress = $4, 
-			file_path = $5, file_size = $6, filename = $7,
-			error_message = $8, started_at = $9, completed_at = $10
-		WHERE task_id = $1
-	`
-
-	_, err := s.db.Exec(query,
-		task.TaskID,
-		task.Status,
-		task.ProcessedRecords,
-		task.Progress,
-		task.FilePath,
-		task.FileSize,
-		task.Filename,
-		task.ErrorMessage,
-		task.StartedAt,
-		task.CompletedAt,
-	)
-
-	return err
+    query := `
+        UPDATE export_tasks SET 
+            status = $2, processed_records = $3, progress = $4, 
+            file_path = $5, file_size = $6, filename = $7,
+            error_message = $8, started_at = $9, completed_at = $10
+        WHERE task_id = $1`
+    if s.db != nil && s.db.UseGorm && s.db.ORM != nil {
+        res := s.db.ORM.Exec(query, task.TaskID, task.Status, task.ProcessedRecords, task.Progress, task.FilePath, task.FileSize, task.Filename, task.ErrorMessage, task.StartedAt, task.CompletedAt)
+        return res.Error
+    }
+    _, err := s.db.Exec(query, task.TaskID, task.Status, task.ProcessedRecords, task.Progress, task.FilePath, task.FileSize, task.Filename, task.ErrorMessage, task.StartedAt, task.CompletedAt)
+    return err
 }
 
 // formatFileSize 格式化文件大小
@@ -826,15 +855,13 @@ func formatFileSize(bytes int64) string {
 
 // CleanupExpiredTasks 清理过期任务（可以通过定时任务调用）
 func (s *ExportService) CleanupExpiredTasks() error {
-	query := `
-		SELECT task_id, file_path FROM export_tasks 
-		WHERE expires_at < NOW() AND status = 'completed'
-	`
-
-	rows, err := s.db.Query(query)
-	if err != nil {
-		return err
-	}
+    query := `SELECT task_id, file_path FROM export_tasks WHERE expires_at < NOW() AND status = 'completed'`
+    var rows *sql.Rows
+    var err error
+    if s.db != nil && s.db.UseGorm && s.db.ORM != nil { rows, err = s.db.ORM.Raw(query).Rows() } else { rows, err = s.db.Query(query) }
+    if err != nil {
+        return err
+    }
 	defer rows.Close()
 
 	var expiredTasks []struct {
@@ -860,9 +887,13 @@ func (s *ExportService) CleanupExpiredTasks() error {
 			os.Remove(task.FilePath.String)
 		}
 
-		// 删除数据库记录
-		s.db.Exec("DELETE FROM export_tasks WHERE task_id = $1", task.TaskID)
-	}
+        // 删除数据库记录
+        if s.db != nil && s.db.UseGorm && s.db.ORM != nil {
+            s.db.ORM.Exec("DELETE FROM export_tasks WHERE task_id = $1", task.TaskID)
+        } else {
+            s.db.Exec("DELETE FROM export_tasks WHERE task_id = $1", task.TaskID)
+        }
+    }
 
 	return nil
 }

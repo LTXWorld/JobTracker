@@ -1,21 +1,27 @@
 package database
 
 import (
-	"database/sql"
-	"fmt"
-	"log"
-	"os"
-	"runtime"
-	"time"
-	"jobView-backend/internal/config"
+    "database/sql"
+    "fmt"
+    "log"
+    "os"
+    "runtime"
+    "time"
+    "jobView-backend/internal/config"
 
-	_ "github.com/lib/pq"
+    _ "github.com/lib/pq"
+    "gorm.io/driver/postgres"
+    "gorm.io/gorm"
+    glogger "gorm.io/gorm/logger"
+    "gorm.io/gorm/schema"
 )
 
 type DB struct {
-	*sql.DB
-	Monitor *QueryMonitor
-	Health  *DatabaseHealthChecker
+    *sql.DB
+    Monitor *QueryMonitor
+    Health  *DatabaseHealthChecker
+    ORM     *gorm.DB
+    UseGorm bool
 }
 
 func New(cfg *config.DatabaseConfig) (*DB, error) {
@@ -39,15 +45,31 @@ func New(cfg *config.DatabaseConfig) (*DB, error) {
 	logger := log.New(os.Stdout, "[DB-MONITOR] ", log.LstdFlags|log.Lshortfile)
 	monitor := NewQueryMonitor(100*time.Millisecond, logger)
 	
-	// 创建健康检查器
-	healthChecker := NewHealthChecker(&DB{DB: db}, 30*time.Second)
-	healthChecker.StartHealthCheck()
+    // 初始包装对象（为健康检查准备）
+    tmp := &DB{DB: db}
+    // 创建健康检查器
+    healthChecker := NewHealthChecker(tmp, 30*time.Second)
+    healthChecker.StartHealthCheck()
 
-	return &DB{
-		DB:      db,
-		Monitor: monitor,
-		Health:  healthChecker,
-	}, nil
+    wrapper := &DB{
+        DB:      db,
+        Monitor: monitor,
+        Health:  healthChecker,
+        UseGorm: cfg.UseGorm,
+    }
+    // 回填到健康检查器
+    tmp.Monitor = monitor
+    tmp.Health = healthChecker
+
+    // 初始化 GORM（可选）
+    if cfg.UseGorm {
+        orm, err := initGorm(db, cfg)
+        if err != nil {
+            return nil, fmt.Errorf("failed to init gorm: %w", err)
+        }
+        wrapper.ORM = orm
+    }
+    return wrapper, nil
 }
 
 // GetMonitoredDB 获取带监控的数据库连接
@@ -139,4 +161,34 @@ func optimizeConnectionPool(db *sql.DB, cfg *config.DatabaseConfig) {
 	fmt.Printf("  - ConnMaxIdleTime: %v\n", connMaxIdleTime)
 	fmt.Printf("  - CPU Cores: %d\n", cpuCores)
 	fmt.Printf("  - Environment: %s\n", os.Getenv("ENVIRONMENT"))
+}
+
+// initGorm 使用现有 *sql.DB 初始化 GORM，避免重复连接池
+func initGorm(std *sql.DB, cfg *config.DatabaseConfig) (*gorm.DB, error) {
+    // GORM 日志配置：默认慢查询 200ms
+    logger := glogger.New(
+        log.New(os.Stdout, "[GORM] ", log.LstdFlags),
+        glogger.Config{
+            SlowThreshold:             200 * time.Millisecond,
+            LogLevel:                  glogger.Warn,
+            IgnoreRecordNotFoundError: true,
+            Colorful:                  false,
+        },
+    )
+
+    dialector := postgres.New(postgres.Config{Conn: std})
+    orm, err := gorm.Open(dialector, &gorm.Config{
+        Logger: logger,
+        NamingStrategy: schema.NamingStrategy{
+            TablePrefix:   "",    // 保持现有表名
+            SingularTable: true,   // 禁止复数
+            NoLowerCase:   false,  // 使用 snake_case
+        },
+        DisableAutomaticPing: false,
+        SkipDefaultTransaction: false,
+    })
+    if err != nil {
+        return nil, err
+    }
+    return orm, nil
 }

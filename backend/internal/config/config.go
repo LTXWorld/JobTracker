@@ -16,14 +16,15 @@ type Config struct {
 }
 
 type DatabaseConfig struct {
-	Host            string
-	Port            string
-	User            string
-	Password        string
-	DBName          string
-	SSLMode         string
-	MaxOpenConns    int
-	MaxIdleConns    int
+    Host            string
+    Port            string
+    User            string
+    Password        string
+    DBName          string
+    SSLMode         string
+    MaxOpenConns    int
+    MaxIdleConns    int
+    UseGorm         bool
 }
 
 type ServerConfig struct {
@@ -48,16 +49,17 @@ func Load() *Config {
 	}
 
 	return &Config{
-		Database: DatabaseConfig{
-			Host:         getEnv("DB_HOST", "127.0.0.1"),
-			Port:         getEnv("DB_PORT", "5433"),
-			User:         getEnv("DB_USER", "ltx"),
-			Password:     getEnv("DB_PASSWORD", ""),  // 不提供默认值，强制使用环境变量
-			DBName:       getEnv("DB_NAME", "jobView_db"),
-			SSLMode:      getEnv("DB_SSLMODE", "disable"),
-			MaxOpenConns: getEnvAsInt("DB_MAX_OPEN_CONNS", 0), // 0 表示使用自动计算
-			MaxIdleConns: getEnvAsInt("DB_MAX_IDLE_CONNS", 0), // 0 表示使用自动计算
-		},
+        Database: DatabaseConfig{
+            Host:         getEnv("DB_HOST", "127.0.0.1"),
+            Port:         getEnv("DB_PORT", "5433"),
+            User:         getEnv("DB_USER", "ltx"),
+            Password:     getEnv("DB_PASSWORD", ""),  // 不提供默认值，强制使用环境变量
+            DBName:       getEnv("DB_NAME", "jobView_db"),
+            SSLMode:      getEnv("DB_SSLMODE", "disable"),
+            MaxOpenConns: getEnvAsInt("DB_MAX_OPEN_CONNS", 0), // 0 表示使用自动计算
+            MaxIdleConns: getEnvAsInt("DB_MAX_IDLE_CONNS", 0), // 0 表示使用自动计算
+            UseGorm:      getEnvAsBool("DB_USE_GORM", false),
+        },
 		Server: ServerConfig{
 			Port:        getEnv("SERVER_PORT", "8010"),
 			Environment: getEnv("ENVIRONMENT", "development"),
@@ -85,6 +87,19 @@ func getEnvAsInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+// getEnvAsBool 获取环境变量作为布尔值
+func getEnvAsBool(key string, defaultValue bool) bool {
+    if value := os.Getenv(key); value != "" {
+        switch value {
+        case "1", "true", "TRUE", "on", "ON", "yes", "YES":
+            return true
+        case "0", "false", "FALSE", "off", "OFF", "no", "NO":
+            return false
+        }
+    }
+    return defaultValue
 }
 
 // IsDevelopment 检查是否为开发环境

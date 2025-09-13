@@ -1,24 +1,37 @@
 package service
 
 import (
-	"database/sql"
-	"fmt"
-	"jobView-backend/internal/database"
-	"jobView-backend/internal/model"
-	"strings"
-	"time"
+    "database/sql"
+    "fmt"
+    "jobView-backend/internal/database"
+    "jobView-backend/internal/repository"
+    "jobView-backend/internal/model"
+    "strings"
+    "time"
 )
 
 type JobApplicationService struct {
-	db *database.DB
+    db *database.DB
+    repo repository.JobApplicationRepository
 }
 
 func NewJobApplicationService(db *database.DB) *JobApplicationService {
-	return &JobApplicationService{db: db}
+    var repo repository.JobApplicationRepository
+    if db != nil && db.UseGorm && db.ORM != nil {
+        repo = repository.NewJobApplicationRepository(db)
+    }
+    return &JobApplicationService{db: db, repo: repo}
 }
 
 // Create 创建新的投递记录
 func (s *JobApplicationService) Create(userID uint, req *model.CreateJobApplicationRequest) (*model.JobApplication, error) {
+    if s.db.UseGorm && s.repo != nil {
+        // 复用原有校验
+        status := req.Status
+        if status == "" { status = model.StatusApplied }
+        if !status.IsValid() { return nil, fmt.Errorf("invalid status: %s", status) }
+        return s.repo.Create(userID, req)
+    }
 	// 如果没有提供日期，使用当前日期
 	applicationDate := req.ApplicationDate
 	if applicationDate == "" {
@@ -105,6 +118,7 @@ func (s *JobApplicationService) Create(userID uint, req *model.CreateJobApplicat
 
 // GetByID 根据ID获取投递记录（带用户权限检查）
 func (s *JobApplicationService) GetByID(userID uint, id int) (*model.JobApplication, error) {
+    if s.db.UseGorm && s.repo != nil { return s.repo.GetByID(userID, id) }
 	query := `
 		SELECT id, user_id, company_name, position_title, application_date, status,
 			job_description, salary_range, work_location, contact_info, notes,
@@ -153,6 +167,7 @@ func (s *JobApplicationService) GetByID(userID uint, id int) (*model.JobApplicat
 
 // GetAllPaginated 获取用户的投递记录（分页版）
 func (s *JobApplicationService) GetAllPaginated(userID uint, req model.PaginationRequest) (*model.PaginationResponse, error) {
+    if s.db.UseGorm && s.repo != nil { return s.repo.GetAllPaginated(userID, req) }
 	// 验证并设置默认值
 	req.ValidateAndSetDefaults()
 
@@ -171,7 +186,12 @@ func (s *JobApplicationService) GetAllPaginated(userID uint, req model.Paginatio
 	// 1. 计数查询（使用索引优化）
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM job_applications %s", whereClause)
 	var total int64
-	err := s.db.QueryRow(countQuery, args...).Scan(&total)
+    var err error
+    if s.db.UseGorm && s.db.ORM != nil {
+        err = s.db.ORM.Raw(countQuery, args...).Row().Scan(&total)
+    } else {
+        err = s.db.QueryRow(countQuery, args...).Scan(&total)
+    }
 	if err != nil {
 		return nil, fmt.Errorf("failed to count job applications: %w", err)
 	}
@@ -219,7 +239,12 @@ func (s *JobApplicationService) GetAllPaginated(userID uint, req model.Paginatio
 	args = append(args, req.PageSize, req.GetOffset())
 
 	// 执行查询
-	rows, err := s.db.Query(dataQuery, args...)
+    var rows *sql.Rows
+    if s.db.UseGorm && s.db.ORM != nil {
+        rows, err = s.db.ORM.Raw(dataQuery, args...).Rows()
+    } else {
+        rows, err = s.db.Query(dataQuery, args...)
+    }
 	if err != nil {
 		return nil, fmt.Errorf("failed to get job applications: %w", err)
 	}
@@ -279,6 +304,7 @@ func (s *JobApplicationService) GetAllPaginated(userID uint, req model.Paginatio
 // 注意：这个方法保留以保持后向兼容，但建议使用 GetAllPaginated
 // 优化：使用复合索引 idx_job_applications_user_date 提升查询性能
 func (s *JobApplicationService) GetAll(userID uint) ([]model.JobApplication, error) {
+    if s.db.UseGorm && s.repo != nil { return s.repo.GetAll(userID) }
 	// 优化查询：显式使用复合索引，限制返回数量避免大数据集性能问题
 	query := `
 		SELECT id, user_id, company_name, position_title, application_date, status,
@@ -336,6 +362,7 @@ func (s *JobApplicationService) GetAll(userID uint) ([]model.JobApplication, err
 
 // Update 更新投递记录（带用户权限检查）- 优化版，避免N+1查询问题
 func (s *JobApplicationService) Update(userID uint, id int, req *model.UpdateJobApplicationRequest) (*model.JobApplication, error) {
+    if s.db.UseGorm && s.repo != nil { return s.repo.Update(userID, id, req) }
 	setParts := []string{}
 	args := []interface{}{}
 	argIndex := 1
@@ -515,6 +542,7 @@ func (s *JobApplicationService) Update(userID uint, id int, req *model.UpdateJob
 
 // Delete 删除投递记录（带用户权限检查）
 func (s *JobApplicationService) Delete(userID uint, id int) error {
+    if s.db.UseGorm && s.repo != nil { return s.repo.Delete(userID, id) }
 	query := "DELETE FROM job_applications WHERE id = $1 AND user_id = $2"
 	result, err := s.db.Exec(query, id, userID)
 	if err != nil {
@@ -536,6 +564,65 @@ func (s *JobApplicationService) Delete(userID uint, id int) error {
 // GetStatusStatistics 获取用户的状态统计信息 - 高度优化版本
 // 使用覆盖索引 idx_job_applications_status_stats 避免回表查询
 func (s *JobApplicationService) GetStatusStatistics(userID uint) (map[string]interface{}, error) {
+    if s.db.UseGorm && s.db.ORM != nil {
+        query := `
+            SELECT status, COUNT(*) as count
+            FROM job_applications
+            WHERE user_id = $1
+            GROUP BY status
+            ORDER BY count DESC
+        `
+        rows, err := s.db.ORM.Raw(query, userID).Rows()
+        if err != nil {
+            return nil, fmt.Errorf("failed to get status statistics: %w", err)
+        }
+        defer rows.Close()
+
+        statusCounts := make(map[string]int)
+        totalCount := 0
+        inProgressCount := 0
+        passedCount := 0
+        failedCount := 0
+
+        for rows.Next() {
+            var status string
+            var count int
+            if err := rows.Scan(&status, &count); err != nil {
+                return nil, fmt.Errorf("failed to scan status statistics: %w", err)
+            }
+
+            statusCounts[status] = count
+            totalCount += count
+
+            appStatus := model.ApplicationStatus(status)
+            if appStatus.IsInProgressStatus() {
+                inProgressCount += count
+            } else if appStatus.IsPassedStatus() {
+                passedCount += count
+            } else if appStatus.IsFailedStatus() {
+                failedCount += count
+            }
+        }
+
+        statistics := map[string]interface{}{
+            "user_id":            userID,
+            "total_applications": totalCount,
+            "in_progress":       inProgressCount,
+            "passed":           passedCount,
+            "failed":           failedCount,
+            "status_breakdown": statusCounts,
+        }
+
+        completedCount := passedCount + failedCount
+        if completedCount > 0 {
+            passRate := float64(passedCount) / float64(completedCount) * 100
+            statistics["pass_rate"] = fmt.Sprintf("%.1f%%", passRate)
+        } else {
+            statistics["pass_rate"] = "N/A"
+        }
+
+        return statistics, nil
+    }
 	// 高度优化的查询：使用覆盖索引，只访问索引页面，不需要访问表数据
 	query := `
 		SELECT status, COUNT(*) as count
@@ -685,10 +772,16 @@ func (s *JobApplicationService) BatchCreate(userID uint, applications []model.Cr
 		RETURNING id, created_at, updated_at
 	`, strings.Join(valueStrings, ", "))
 
-	rows, err := s.db.Query(query, valueArgs...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to batch create job applications: %w", err)
-	}
+    var rows *sql.Rows
+    var err error
+    if s.db.UseGorm && s.db.ORM != nil {
+        rows, err = s.db.ORM.Raw(query, valueArgs...).Rows()
+    } else {
+        rows, err = s.db.Query(query, valueArgs...)
+    }
+    if err != nil {
+        return nil, fmt.Errorf("failed to batch create job applications: %w", err)
+    }
 	defer rows.Close()
 
 	// 收集返回的ID和时间戳
@@ -791,7 +884,17 @@ func (s *JobApplicationService) BatchUpdateStatus(userID uint, updates []model.B
 	// 添加 userID 参数
 	valueArgs = append(valueArgs, userID)
 
-	result, err := s.db.Exec(query, valueArgs...)
+    if s.db.UseGorm && s.db.ORM != nil {
+        res := s.db.ORM.Exec(query, valueArgs...)
+        if res.Error != nil {
+            return fmt.Errorf("failed to batch update status: %w", res.Error)
+        }
+        if res.RowsAffected == 0 {
+            return fmt.Errorf("no job applications were updated (check user permissions and record existence)")
+        }
+        return nil
+    }
+    result, err := s.db.Exec(query, valueArgs...)
 	if err != nil {
 		return fmt.Errorf("failed to batch update status: %w", err)
 	}
@@ -838,7 +941,13 @@ func (s *JobApplicationService) BatchDelete(userID uint, ids []int) error {
 	// userID 作为第一个参数
 	allArgs := append([]interface{}{userID}, args...)
 
-	result, err := s.db.Exec(query, allArgs...)
+    if s.db.UseGorm && s.db.ORM != nil {
+        res := s.db.ORM.Exec(query, allArgs...)
+        if res.Error != nil { return fmt.Errorf("failed to batch delete job applications: %w", res.Error) }
+        if res.RowsAffected == 0 { return fmt.Errorf("no job applications were deleted (check user permissions and record existence)") }
+        return nil
+    }
+    result, err := s.db.Exec(query, allArgs...)
 	if err != nil {
 		return fmt.Errorf("failed to batch delete job applications: %w", err)
 	}
@@ -880,7 +989,12 @@ func (s *JobApplicationService) SearchApplications(userID uint, searchQuery stri
 	// 1. 计数查询
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM job_applications %s", whereClause)
 	var total int64
-	err := s.db.QueryRow(countQuery, args...).Scan(&total)
+    var err error
+    if s.db.UseGorm && s.db.ORM != nil {
+        err = s.db.ORM.Raw(countQuery, args...).Row().Scan(&total)
+    } else {
+        err = s.db.QueryRow(countQuery, args...).Scan(&total)
+    }
 	if err != nil {
 		return nil, fmt.Errorf("failed to count search results: %w", err)
 	}
@@ -930,7 +1044,12 @@ func (s *JobApplicationService) SearchApplications(userID uint, searchQuery stri
 	args = append(args, req.PageSize, req.GetOffset())
 
 	// 执行查询
-	rows, err := s.db.Query(dataQuery, args...)
+    var rows *sql.Rows
+    if s.db.UseGorm && s.db.ORM != nil {
+        rows, err = s.db.ORM.Raw(dataQuery, args...).Rows()
+    } else {
+        rows, err = s.db.Query(dataQuery, args...)
+    }
 	if err != nil {
 		return nil, fmt.Errorf("failed to search applications: %w", err)
 	}
@@ -1335,7 +1454,12 @@ func (s *JobApplicationService) GetDashboardData(userID uint) (map[string]interf
 		LIMIT 10
 	`
 
-	rows, err := s.db.Query(recentQuery, userID)
+    var rows *sql.Rows
+    if s.db.UseGorm && s.db.ORM != nil {
+        rows, err = s.db.ORM.Raw(recentQuery, userID).Rows()
+    } else {
+        rows, err = s.db.Query(recentQuery, userID)
+    }
 	if err != nil {
 		return nil, fmt.Errorf("failed to get recent applications: %w", err)
 	}
@@ -1370,7 +1494,12 @@ func (s *JobApplicationService) GetDashboardData(userID uint) (map[string]interf
 		LIMIT 5
 	`
 
-	upcomingRows, err := s.db.Query(upcomingQuery, userID)
+    var upcomingRows *sql.Rows
+    if s.db.UseGorm && s.db.ORM != nil {
+        upcomingRows, err = s.db.ORM.Raw(upcomingQuery, userID).Rows()
+    } else {
+        upcomingRows, err = s.db.Query(upcomingQuery, userID)
+    }
 	if err != nil {
 		return nil, fmt.Errorf("failed to get upcoming interviews: %w", err)
 	}
@@ -1411,7 +1540,12 @@ func (s *JobApplicationService) GetDashboardData(userID uint) (map[string]interf
 		ORDER BY date DESC
 	`
 
-	dailyRows, err := s.db.Query(dailyStatsQuery, userID)
+    var dailyRows *sql.Rows
+    if s.db.UseGorm && s.db.ORM != nil {
+        dailyRows, err = s.db.ORM.Raw(dailyStatsQuery, userID).Rows()
+    } else {
+        dailyRows, err = s.db.Query(dailyStatsQuery, userID)
+    }
 	if err != nil {
 		return nil, fmt.Errorf("failed to get daily stats: %w", err)
 	}
