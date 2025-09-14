@@ -543,7 +543,9 @@ watch(() => props.visible, (newVal) => {
 .template-hint {
   margin-top: 16px;
   padding: 12px;
-  background: #f5f5f5;
+  background: var(--bg-muted);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
 }
 

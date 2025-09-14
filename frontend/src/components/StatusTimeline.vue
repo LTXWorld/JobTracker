@@ -12,15 +12,39 @@
           总用时 {{ formatDuration(totalDuration) }}
         </span>
         <!-- 流转链路概览 -->
-        <div class="flow-chain" v-if="timelineData.length > 0">
+        <div class="flow-chain" v-if="timelineData.length > 0" ref="flowChainRef" :class="{ 'has-oc': showOcIndicator }">
           <span v-if="statusHistory?.metadata.initial_status" class="flow-item">
-            <a-tag :color="'#1890ff'" class="flow-tag">{{ statusHistory!.metadata.initial_status }}</a-tag>
+            <a-tag 
+              :color="'#1890ff'" 
+              class="flow-tag"
+              :ref="(el:any) => assignStatusRef(String(statusHistory!.metadata.initial_status), el)"
+            >
+              {{ statusHistory!.metadata.initial_status }}
+            </a-tag>
             <span class="flow-arrow">→</span>
           </span>
           <span v-for="(item, idx) in timelineData" :key="item.id + '_chain'" class="flow-item">
-            <a-tag :color="item.color" class="flow-tag">{{ item.status }}</a-tag>
+            <a-tag 
+              :color="item.color" 
+              class="flow-tag"
+              :ref="(el:any) => assignStatusRef(item.status, el)"
+            >
+              {{ item.status }}
+            </a-tag>
             <span v-if="idx < timelineData.length - 1" class="flow-arrow">→</span>
           </span>
+          <div v-if="showOcIndicator" class="oc-indicator" :style="ocStyle">
+            <div class="oc-track"></div>
+            <div 
+              class="oc-carrier" 
+              :key="ocAnimKey"
+              :class="{ traveling: !ocSettled && !ocPaused, paused: ocPaused }"
+              :style="carrierStyle"
+              @animationend="handleTravelEnd"
+            >
+              <div class="oc-ball" :class="{ paused: ocPaused }">OC</div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="header-actions">
@@ -164,7 +188,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { 
   HistoryOutlined, 
   ReloadOutlined, 
@@ -186,7 +210,7 @@ import {
   QuestionCircleOutlined
 } from '@ant-design/icons-vue'
 import { useStatusTrackingStore } from '../stores/statusTracking'
-import { type ApplicationStatus, type StatusTimelineItem, type StatusHistory } from '../types'
+import { StatusHelper, type ApplicationStatus, type StatusTimelineItem, type StatusHistory } from '../types'
 import dayjs from 'dayjs'
 
 // Props
@@ -213,6 +237,39 @@ const statusTrackingStore = useStatusTrackingStore()
 // 响应式数据
 const loading = ref(false)
 const statusHistory = ref<StatusHistory | null>(null)
+const flowChainRef = ref<HTMLElement | null>(null)
+// 关键锚点与通用映射
+const appliedTagEl = ref<HTMLElement | null>(null)
+const screeningTagEl = ref<HTMLElement | null>(null)
+const tagElMap = new Map<string, HTMLElement>()
+const firstChainTagEl = ref<HTMLElement | null>(null) // 兜底：链路首个标签
+const secondChainTagEl = ref<HTMLElement | null>(null) // 兜底：链路第二个标签
+const trackLeft = ref(0)
+const trackWidth = ref(0)
+
+// 兼容 antd-vue 组件实例与真实 DOM
+const unwrapEl = (node: any): HTMLElement | null => {
+  if (!node) return null
+  if (node instanceof HTMLElement) return node
+  if (node.$el && node.$el instanceof HTMLElement) return node.$el
+  if (node.$?.vnode?.el && node.$?.vnode?.el instanceof HTMLElement) return node.$?.vnode?.el as HTMLElement
+  return null
+}
+
+const assignStatusRef = (status: string, el: any) => {
+  const dom = unwrapEl(el)
+  if (!dom) return
+  if (status === '已投递') appliedTagEl.value = dom
+  if (status === '简历筛选中') screeningTagEl.value = dom
+  // 兜底：记录链路中前两个标签
+  if (!firstChainTagEl.value) {
+    firstChainTagEl.value = dom
+  } else if (!secondChainTagEl.value && dom !== firstChainTagEl.value) {
+    secondChainTagEl.value = dom
+  }
+  // 通用映射（覆盖为最新一次渲染）
+  tagElMap.set(status, dom)
+}
 
 // 计算属性
 const timelineData = computed((): StatusTimelineItem[] => {
@@ -223,6 +280,80 @@ const timelineData = computed((): StatusTimelineItem[] => {
 const totalDuration = computed((): number => {
   return statusHistory.value?.metadata.total_duration || 0
 })
+
+const offerReached = computed(() => {
+  const terminalNames = new Set(['已收到offer', '已接受offer', '待发offer', '流程结束', '已拒绝'])
+  return timelineData.value.some(i => terminalNames.has(i.status) || StatusHelper.isFailedStatus(i.status))
+})
+
+const showOcIndicator = computed(() => {
+  // 只要能定位到起点（已投递或链路第一个标签），就显示
+  return !!flowChainRef.value && (!!appliedTagEl.value || !!firstChainTagEl.value)
+})
+
+const ocPaused = computed(() => offerReached.value)
+const ocSettled = ref(false)
+const ocHasAnimated = ref(false)
+const ocAnimKey = ref(0)
+
+const ocStyle = computed(() => {
+  const w = Math.max(trackWidth.value || 0, 140)
+  return {
+    left: trackLeft.value + 'px',
+    width: w + 'px',
+    '--oc-size': '18px'
+  } as any
+})
+
+const carrierStyle = computed(() => {
+  const size = 18
+  const distance = Math.max((trackWidth.value || 0) - size, 0)
+  return ocSettled.value
+    ? { transform: `translateX(${distance}px)` }
+    : { ['--oc-distance' as any]: `${distance}px` }
+})
+
+const handleTravelEnd = () => {
+  ocSettled.value = true
+  ocHasAnimated.value = true
+}
+
+let resizeObs: ResizeObserver | null = null
+const updateOcTrack = () => {
+  const container = flowChainRef.value
+  // 起点：优先“已投递”，否则元数据 initial_status，再否则链路第一项
+  let startEl = appliedTagEl.value 
+    || (statusHistory.value?.metadata?.initial_status ? tagElMap.get(String(statusHistory.value?.metadata?.initial_status)) || null : null)
+    || firstChainTagEl.value
+  if (!container) return
+  // 兜底：如果没采集到 ref，尝试从 DOM 查询 ant-tag
+  if (!startEl) {
+    const tags = container.querySelectorAll('.ant-tag')
+    if (tags && tags.length > 0) startEl = tags[0] as HTMLElement
+    if (!startEl) return
+  }
+  const cRect = container.getBoundingClientRect()
+  const aRect = startEl.getBoundingClientRect()
+  let left = aRect.left - cRect.left
+  let width = Math.max(container.clientWidth * 0.3, 140)
+  // 终点：优先当前状态，其次“简历筛选中”，最后链路第二项
+  let endEl: HTMLElement | null | undefined = undefined
+  if (props.currentStatus) {
+    endEl = tagElMap.get(props.currentStatus) || undefined
+  }
+  if (!endEl) endEl = screeningTagEl.value
+  if (!endEl) endEl = secondChainTagEl.value
+  if (!endEl) {
+    const tags = container.querySelectorAll('.ant-tag')
+    if (tags && tags.length > 1) endEl = tags[1] as HTMLElement
+  }
+  if (endEl) {
+    const sRect = endEl.getBoundingClientRect()
+    width = Math.max(60, sRect.right - aRect.left)
+  }
+  trackLeft.value = Math.max(0, Math.round(left))
+  trackWidth.value = Math.round(width)
+}
 
 // 图标组件映射
 const iconComponents = {
@@ -314,19 +445,64 @@ const { formatDuration, formatTimestamp } = statusTrackingStore
 // 生命周期
 onMounted(() => {
   fetchStatusHistory()
+  nextTick(() => {
+    updateOcTrack()
+    if (flowChainRef.value && 'ResizeObserver' in window) {
+      resizeObs = new ResizeObserver(() => updateOcTrack())
+      resizeObs.observe(flowChainRef.value)
+    }
+    window.addEventListener('resize', updateOcTrack)
+  })
 })
 
 // 监听器
 watch(() => props.applicationId, (newId) => {
   if (newId) {
+    ocHasAnimated.value = false
+    ocSettled.value = false
+    ocAnimKey.value++
     fetchStatusHistory(true)
   }
 }, { immediate: false })
+
+watch([timelineData, () => statusHistory.value?.metadata?.initial_status], () => {
+  // 重置锚点，等待新渲染后重新采集
+  appliedTagEl.value = null
+  screeningTagEl.value = null
+  firstChainTagEl.value = null
+  secondChainTagEl.value = null
+  tagElMap.clear()
+  ocSettled.value = false
+  // 仅在本次会话首次动画时重启动画
+  if (!ocHasAnimated.value) {
+    ocAnimKey.value++
+  }
+  nextTick(() => updateOcTrack())
+})
+
+watch([appliedTagEl, screeningTagEl, firstChainTagEl, secondChainTagEl, () => props.currentStatus], () => {
+  if (!ocHasAnimated.value) ocAnimKey.value++
+  nextTick(() => updateOcTrack())
+})
+
+onBeforeUnmount(() => {
+  if (resizeObs) resizeObs.disconnect()
+  window.removeEventListener('resize', updateOcTrack)
+})
+
+// 当当前状态变化时，从起点再次滚到新的当前位置
+watch(() => props.currentStatus, (cur, prev) => {
+  if (cur !== prev) {
+    ocSettled.value = false
+    ocAnimKey.value++
+    nextTick(() => updateOcTrack())
+  }
+})
 </script>
 
 <style scoped>
 .status-timeline {
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -360,6 +536,11 @@ watch(() => props.applicationId, (newId) => {
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
+  position: relative;
+}
+
+.flow-chain.has-oc {
+  padding-bottom: 24px; /* 为OC指示器预留空间，仅在需要时添加 */
 }
 
 .flow-item {
@@ -369,6 +550,75 @@ watch(() => props.applicationId, (newId) => {
 
 .flow-tag {
   border-radius: 10px;
+}
+
+/* OC 动态指示器 */
+.oc-indicator {
+  position: absolute;
+  top: calc(100% + 8px);
+  height: 20px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.oc-track {
+  position: absolute;
+  left: 0; right: 0;
+  top: 50%;
+  height: 2px;
+  background: var(--border-color);
+  transform: translateY(-50%);
+  opacity: 0.6;
+  border-radius: 2px;
+}
+
+.oc-carrier {
+  position: absolute;
+  top: -7px;
+  left: 0;
+}
+
+.oc-carrier.traveling {
+  animation: oc-travel var(--oc-speed, 2.4s) linear forwards;
+}
+
+.oc-carrier.paused { animation-play-state: paused; }
+
+.oc-ball {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--oc-size, 18px);
+  height: var(--oc-size, 18px);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #69c0ff, #1890ff);
+  border: 1px solid rgba(255,255,255,0.25);
+  box-shadow: 0 2px 6px rgba(24, 144, 255, 0.4);
+  animation: oc-spin 0.9s linear infinite;
+  will-change: transform;
+  z-index: 1;
+}
+
+.oc-ball.paused { animation-play-state: paused; }
+
+@keyframes oc-travel {
+  from { transform: translateX(0); }
+  to { transform: translateX(var(--oc-distance)); }
+}
+
+@keyframes oc-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oc-ball { animation: none; }
 }
 
 .flow-arrow {
@@ -508,18 +758,18 @@ watch(() => props.applicationId, (newId) => {
 .status-note {
   color: #262626;
   font-style: italic;
-  background: #f8f8f8;
+  background: var(--bg-muted);
   padding: 4px 8px;
   border-radius: 4px;
-  border-left: 3px solid #d9d9d9;
+  border-left: 3px solid var(--border-color);
 }
 
 .time-progress {
   margin-top: 12px;
   padding: 12px;
-  background: #f8f9fa;
+  background: var(--bg-muted);
   border-radius: 6px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-color);
 }
 
 .progress-info {
@@ -543,7 +793,7 @@ watch(() => props.applicationId, (newId) => {
 .timeline-summary {
   margin-top: 24px;
   padding: 20px;
-  background: #fafafa;
+  background: var(--bg-muted);
   border-radius: 8px;
 }
 

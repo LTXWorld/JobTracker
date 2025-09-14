@@ -17,6 +17,11 @@
           <!-- 用户信息区域 -->
           <div class="user-section" v-if="authStore.isLoggedIn">
             <span class="welcome-text">欢迎，{{ authStore.userName }}</span>
+            <a-tooltip :title="isDark ? '切换为日间模式' : '切换为夜间模式'">
+              <a-button type="text" class="theme-btn" @click="toggleTheme">
+                <BulbOutlined />
+              </a-button>
+            </a-tooltip>
             <a-dropdown>
               <template #overlay>
                 <a-menu>
@@ -113,7 +118,7 @@
           </template>
         </a-tab-pane>
       </a-tabs>
-      <div class="tab-actions">
+      <div class="tab-actions" v-if="showGlobalRefresh">
         <a-button type="primary" ghost :icon="h(ReloadOutlined)" @click="handleRefresh" :loading="refreshing">
           刷新数据
         </a-button>
@@ -124,6 +129,7 @@
     <a-layout-content class="app-content" :class="{ 'no-tabs': !authStore.isLoggedIn }">
       <div class="content-wrapper">
         <router-view />
+        <AssistantWidget />
       </div>
     </a-layout-content>
 
@@ -157,9 +163,11 @@ import {
   ExportOutlined,
   SettingOutlined,
   LogoutOutlined,
-  GithubOutlined
+  GithubOutlined,
+  BulbOutlined
 } from '@ant-design/icons-vue'
 import { useJobApplicationStore } from '../stores/jobApplication'
+import AssistantWidget from './AssistantWidget.vue'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
@@ -176,6 +184,25 @@ const formatAvatar = (raw?: string) => {
 }
 
 const refreshing = ref(false)
+const showGlobalRefresh = computed(() => {
+  const name = route.name as string | undefined
+  // 这些页面自身已提供局部刷新按钮，避免重复
+  const routesWithOwnRefresh = new Set(['kanban', 'timeline'])
+  return authStore.isLoggedIn && !routesWithOwnRefresh.has(name || '')
+})
+
+// 主题切换（日/夜）
+const isDark = ref<boolean>(localStorage.getItem('theme') === 'dark')
+const applyTheme = () => {
+  const theme = isDark.value ? 'dark' : 'light'
+  document.documentElement.setAttribute('data-theme', theme)
+  localStorage.setItem('theme', theme)
+}
+const toggleTheme = () => {
+  isDark.value = !isDark.value
+  applyTheme()
+}
+applyTheme()
 
 // 当前激活的标签
 const activeTab = computed({
@@ -319,6 +346,11 @@ const handleLogout = () => {
   font-size: 14px;
 }
 
+.theme-btn {
+  color: rgba(255, 255, 255, 0.85);
+}
+.theme-btn:hover { color: #fff; background: rgba(255,255,255,0.1); }
+
 .user-avatar-btn {
   display: flex;
   align-items: center;
@@ -435,7 +467,7 @@ const handleLogout = () => {
 }
 
 .app-content {
-  background: #f0f2f5;
+  background: var(--bg-page);
   padding: 0;
   min-height: calc(100vh - 48px - 56px - 70px);
 }
@@ -451,7 +483,7 @@ const handleLogout = () => {
 }
 
 .app-footer {
-  background: #f0f2f5;
+  background: var(--bg-page);
   padding: 24px 0;
   border-top: 1px solid #d9d9d9;
   text-align: center;

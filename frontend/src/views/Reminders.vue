@@ -233,7 +233,7 @@ onMounted(() => {
 <style scoped>
 .reminder-page {
   padding: 24px;
-  background: #f0f2f5;
+  background: var(--bg-page);
   min-height: calc(100vh - 48px - 56px - 70px);
 }
 
@@ -241,5 +241,11 @@ onMounted(() => {
   .reminder-page {
     padding: 16px;
   }
+}
+
+.reminder-page :deep(.ant-empty) {
+  background: var(--bg-card);
+  padding: 24px;
+  border-radius: 8px;
 }
 </style>

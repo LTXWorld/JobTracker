@@ -366,7 +366,7 @@ onMounted(() => {
 <style scoped>
 .timeline-page {
   padding: 24px;
-  background: #f0f2f5;
+  background: var(--bg-page);
   min-height: calc(100vh - 48px - 56px - 70px);
 }
 
@@ -426,6 +426,8 @@ onMounted(() => {
 .empty-state {
   text-align: center;
   padding: 40px 0;
+  background: var(--bg-card);
+  border-radius: 8px;
 }
 
 .pagination {

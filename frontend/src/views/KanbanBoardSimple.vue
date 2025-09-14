@@ -169,7 +169,7 @@ onMounted(() => {
 <style scoped>
 .simple-kanban {
   padding: 24px;
-  background: #f0f2f5;
+  background: var(--bg-page);
   min-height: 100vh;
 }
 
@@ -192,7 +192,7 @@ onMounted(() => {
 }
 
 .test-info {
-  background: #fff;
+  background: var(--bg-card);
   padding: 16px;
   border-radius: 8px;
   margin-bottom: 24px;

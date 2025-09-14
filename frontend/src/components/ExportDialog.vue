@@ -673,7 +673,9 @@ initFieldSelections()
 }
 
 .export-progress {
-  background: #fafafa;
+  background: var(--bg-muted);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
   padding: 16px;
   border-radius: 6px;
   margin-top: 16px;
@@ -698,17 +700,17 @@ initFieldSelections()
 }
 
 .export-dialog::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--bg-muted);
   border-radius: 3px;
 }
 
 .export-dialog::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--border-color);
   border-radius: 3px;
 }
 
 .export-dialog::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--border-color);
 }
 
 /* 响应式设计 */

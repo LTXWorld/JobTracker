@@ -309,8 +309,10 @@ const searchOptions = computed(() => {
   const items = list.map(app => {
     const rawLabel = `${app.company_name} - ${app.position_title}`
     return {
-      value: String(app.id),
+      // 使用可读的 value，避免选择后输入框显示数字ID
+      value: rawLabel,
       label: renderHighlightedLabel(rawLabel, searchText.value.trim()) as any,
+      id: app.id,
       _plain: rawLabel.toLowerCase(),
     }
   })
@@ -319,16 +321,20 @@ const searchOptions = computed(() => {
 })
 
 const onSearchEnter = async () => {
-  const opt = searchOptions.value.find(o => o.label.toLowerCase().includes(searchText.value.trim().toLowerCase()))
+  const kw = searchText.value.trim().toLowerCase()
+  const opt = searchOptions.value.find(o => o._plain.includes(kw))
   if (opt) {
-    await locateCardById(Number(opt.value))
+    await locateCardById(Number(opt.id))
   } else if (searchText.value.trim()) {
     message.warning('未找到匹配的投递记录')
   }
 }
 
-const onSearchSelect = async (value: string) => {
-  await locateCardById(Number(value))
+const onSearchSelect = async (value: string, option: any) => {
+  const id = Number(option?.id)
+  if (!Number.isNaN(id)) {
+    await locateCardById(id)
+  }
 }
 
 const registerCardRef = (id: number, el: HTMLElement | null) => {
@@ -699,7 +705,7 @@ onMounted(() => {
   /* 让页面可以根据内容自然增高，避免与页脚重叠 */
   min-height: calc(100vh - 48px - 56px - 70px);
   padding: 24px 24px 120px; /* 底部预留空间，与页脚错开 */
-  background: #f0f2f5;
+  background: var(--bg-page);
   box-sizing: border-box;
 }
 
@@ -792,12 +798,12 @@ onMounted(() => {
 
 .kanban-column {
   flex: 0 0 240px;
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 8px;
   display: flex;
   flex-direction: column;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
-  border: 1px solid #f0f0f0;
+  border: 1px solid var(--border-color);
 }
 
 .column-header {
@@ -806,7 +812,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #fafafa;
+  background: var(--bg-muted);
   border-radius: 8px 8px 0 0;
 }
 
@@ -827,8 +833,8 @@ onMounted(() => {
 }
 
 .job-card {
-  background: #fff;
-  border: 1px solid #e8e8e8;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 8px;
   margin-bottom: 8px;
@@ -858,7 +864,7 @@ onMounted(() => {
   margin: 0;
   font-size: 13px;
   font-weight: 600;
-  color: #262626;
+  color: var(--text-color);
   flex: 1;
   line-height: 1.3;
   padding-right: 6px;
@@ -950,8 +956,8 @@ onMounted(() => {
 /* 折叠状态下的汇总信息 */
 .group-collapsed-summary {
   padding: 12px 20px;
-  background: #fafafa;
-  border-top: 1px solid #f0f0f0;
+  background: var(--bg-muted);
+  border-top: 1px solid var(--border-color);
 }
 
 .summary-stats {
@@ -970,7 +976,7 @@ onMounted(() => {
 
 .ghost-card {
   opacity: 0.5;
-  background: #f0f2f5;
+  background: var(--bg-page);
 }
 
 .empty-column {
@@ -978,6 +984,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--bg-muted);
+  border-radius: 0 0 8px 8px;
 }
 
 .loading-container {

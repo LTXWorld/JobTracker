@@ -589,7 +589,9 @@ onUnmounted(() => {
 .history-stats {
   margin-bottom: 16px;
   padding: 16px;
-  background: #fafafa;
+  background: var(--bg-muted);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
 }
 

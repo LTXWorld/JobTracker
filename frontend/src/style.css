@@ -5,6 +5,24 @@
   padding: 0;
 }
 
+:root {
+  --bg-page: #f0f2f5;
+  --bg-card: #ffffff;
+  --bg-muted: #fafafa;
+  --border-color: #e5e7eb;
+  --text-color: #213547;
+  --text-secondary: #5f6b7a; /* 次级文字/占位符 */
+}
+
+[data-theme="dark"] {
+  --bg-page: #0f1217;     /* 页面主背景 */
+  --bg-card: #14181f;     /* 卡片背景 */
+  --bg-muted: #1a1f27;    /* 次级块背景 */
+  --border-color: #2a2f3a;
+  --text-color: #e5e7eb;  /* 主要文字 */
+  --text-secondary: #b8c0cc; /* 次级文字/占位符，提高暗色可读性 */
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -12,8 +30,151 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.5;
-  color: #213547;
-  background-color: #ffffff;
+  color: var(--text-color);
+  background-color: var(--bg-page);
+}
+
+/* 全局适配 Ant Design 常用容器为可控变量背景 */
+.ant-card, .ant-card .ant-card-body { background: var(--bg-card) !important; color: var(--text-color); }
+.ant-card-bordered { border-color: var(--border-color) !important; }
+.ant-list, .ant-list-split .ant-list-item { background: var(--bg-card); color: var(--text-color); }
+.ant-empty, .ant-empty-description { color: var(--text-color); }
+/* 统一弹窗/抽屉/气泡的主题色，与页面保持一致 */
+.ant-modal-content, .ant-popover-inner, .ant-drawer-body, .ant-drawer-content { background: var(--bg-card) !important; color: var(--text-color) !important; }
+.ant-modal-header, .ant-modal-body, .ant-modal-footer { background: var(--bg-card) !important; color: var(--text-color) !important; }
+.ant-modal-content { border: 1px solid var(--border-color) !important; }
+.ant-modal-header { border-bottom: 1px solid var(--border-color) !important; }
+.ant-modal-footer { border-top: 1px solid var(--border-color) !important; }
+.ant-modal-title { color: var(--text-color) !important; }
+.ant-divider-inner-text { color: var(--text-color); }
+.ant-divider, .ant-divider-horizontal, .ant-divider-vertical { border-color: var(--border-color) !important; }
+.ant-descriptions-bordered .ant-descriptions-item-label,
+.ant-descriptions-bordered .ant-descriptions-item-content { border-color: var(--border-color) !important; }
+.ant-form-item-label > label { color: var(--text-color) !important; }
+.ant-modal-close { color: var(--text-color) !important; }
+
+/* 表单附加说明文字为次级色，提高暗色可读性 */
+.ant-form-item-extra { color: var(--text-secondary) !important; }
+
+/* 表单控件在暗色下的可读性优化 */
+.ant-input, 
+.ant-input-affix-wrapper, 
+.ant-input-number,
+.ant-input-number-input,
+.ant-select-selector,
+.ant-picker,
+.ant-picker-input > input,
+textarea.ant-input {
+  background: var(--bg-muted) !important;
+  color: var(--text-color) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* 占位符与次级文字颜色（增强对比度） */
+.ant-input::placeholder,
+.ant-input-affix-wrapper input::placeholder,
+textarea.ant-input::placeholder,
+.ant-picker-input > input::placeholder {
+  color: var(--text-secondary) !important;
+}
+.ant-select-selection-placeholder {
+  color: var(--text-secondary) !important;
+}
+.ant-select-single .ant-select-selector .ant-select-selection-item,
+.ant-select-selection-search-input {
+  color: var(--text-color) !important;
+}
+.ant-picker-suffix, .ant-picker-clear, .ant-picker-separator { color: var(--text-secondary) !important; }
+
+/* 禁用态也保持足够对比度 */
+.ant-input[disabled],
+.ant-input-affix-wrapper-disabled,
+.ant-select-disabled .ant-select-selector,
+.ant-picker-disabled {
+  background: var(--bg-muted) !important;
+  color: var(--text-secondary) !important;
+  border-color: var(--border-color) !important;
+}
+.ant-input[disabled]::placeholder,
+.ant-input-affix-wrapper-disabled input::placeholder,
+.ant-picker-disabled .ant-picker-input > input::placeholder {
+  color: var(--text-secondary) !important;
+}
+.ant-select-dropdown, 
+.ant-picker-dropdown .ant-picker-panel-container,
+.ant-dropdown-menu,
+.ant-popover-inner-content {
+  background: var(--bg-card) !important;
+  color: var(--text-color) !important;
+  border-color: var(--border-color) !important;
+}
+.ant-select-item,
+.ant-dropdown-menu-item,
+.ant-picker-cell,
+.ant-picker-time-panel-cell-inner {
+  color: var(--text-color);
+}
+.ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  background: var(--bg-muted) !important;
+}
+
+/* 表格在暗色主题下的适配 */
+.ant-table, .ant-table-container, .ant-table-content { background: var(--bg-card) !important; }
+.ant-table-thead > tr > th { background: var(--bg-muted) !important; color: var(--text-color) !important; border-color: var(--border-color) !important; }
+.ant-table-tbody > tr > td { background: var(--bg-card) !important; color: var(--text-color) !important; border-color: var(--border-color) !important; }
+.ant-table-tbody > tr:hover > td { background: var(--bg-muted) !important; }
+
+/* Alert 在暗色主题下 */
+.ant-alert {
+  background: var(--bg-muted) !important;
+  color: var(--text-color) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+/* Checkbox/Radio 文本与边框颜色（暗色可读性） */
+.ant-checkbox-wrapper,
+.ant-checkbox + span,
+.ant-radio-wrapper,
+.ant-radio + * {
+  color: var(--text-color) !important;
+}
+.ant-checkbox-inner,
+.ant-radio-inner {
+  background: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+}
+.ant-checkbox-disabled + span,
+.ant-radio-disabled + span {
+  color: var(--text-secondary) !important;
+}
+
+/* Collapse 折叠面板暗色适配 */
+.ant-collapse,
+.ant-collapse-item,
+.ant-collapse-content,
+.ant-collapse-header {
+  background: var(--bg-card) !important;
+  color: var(--text-color) !important;
+  border-color: var(--border-color) !important;
+}
+.ant-collapse-item > .ant-collapse-header .ant-collapse-arrow {
+  color: var(--text-secondary) !important;
+}
+
+/* Steps 组件标题/描述颜色 */
+.ant-steps .ant-steps-item-title,
+.ant-steps .ant-steps-item-description {
+  color: var(--text-color) !important;
+}
+
+/* Statistic 组件标题颜色更柔和 */
+.ant-statistic-title { color: var(--text-secondary) !important; }
+
+/* 标签颜色与边框在暗色下的对比度 */
+.ant-tag-default {
+  background: var(--bg-muted);
+  border-color: var(--border-color);
+  color: var(--text-color);
 }
 
 #app {
