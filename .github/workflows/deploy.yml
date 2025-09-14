@@ -60,6 +60,17 @@ jobs:
           npm ci
           npm run build
 
+      
+      # 在部署后端文件之前，先停止服务，避免 "Text file busy" 错误
+      - name: Stop Backend Service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            sudo systemctl stop jobview-backend    
+
       # 第六步：部署后端二进制文件
       - name: Deploy Backend
         uses: appleboy/scp-action@v0.1.7
