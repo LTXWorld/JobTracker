@@ -194,7 +194,7 @@ const formData = reactive({
     kanban_show_counts: true
   },
   auto_reminder_rules: [] as Array<{
-    status: string;
+    status: ApplicationStatus;
     delay_days: number;
     enabled: boolean;
   }>
@@ -217,9 +217,9 @@ const defaultPreferences = {
     kanban_show_counts: true
   },
   auto_reminder_rules: [
-    { status: '已投递', delay_days: 7, enabled: true },
-    { status: '简历筛选中', delay_days: 5, enabled: true },
-    { status: '一面中', delay_days: 3, enabled: true }
+    { status: ApplicationStatus.APPLIED, delay_days: 7, enabled: true },
+    { status: ApplicationStatus.RESUME_SCREENING, delay_days: 5, enabled: true },
+    { status: ApplicationStatus.FIRST_INTERVIEW, delay_days: 3, enabled: true }
   ]
 }
 

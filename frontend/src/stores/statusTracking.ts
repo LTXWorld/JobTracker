@@ -61,7 +61,7 @@ export const useStatusTrackingStore = defineStore('statusTracking', () => {
     // 简单估算平均周期（天）：基于平均阶段时长的总和
     const avgDurations = (analytics.value as any).average_durations || {}
     const avgMinutes = Object.values(avgDurations).reduce((sum: number, v: any) => sum + Number(v || 0), 0)
-    const avgDays = avgMinutes > 0 ? avgMinutes / 60 / 24 : 0
+    const avgDays = Number(avgMinutes) > 0 ? Number(avgMinutes) / 60 / 24 : 0
 
     return [
       {
@@ -217,7 +217,7 @@ export const useStatusTrackingStore = defineStore('statusTracking', () => {
         id: `${entry.timestamp}_${entry.status}`,
         status,
         timestamp: entry.timestamp,
-        duration: entry.duration,
+        duration: entry.duration ?? undefined,
         note: entry.note || undefined,
         is_current: isCurrentStatus,
         is_failed: StatusHelper.isFailedStatus(status),

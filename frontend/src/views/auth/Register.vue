@@ -101,6 +101,15 @@
               <span class="strength-text" :class="passwordStrengthClass">
                 {{ passwordStrengthText }}
               </span>
+              <!-- 额外密码要求提示（大写字母与特殊字符） -->
+              <div class="password-hints">
+                <span class="hint-item" :class="{ ok: hasUppercase }">
+                  {{ hasUppercase ? '已包含大写字母' : '需包含至少一个大写字母' }}
+                </span>
+                <span class="hint-item" :class="{ ok: hasSpecial }">
+                  {{ hasSpecial ? '已包含特殊字符' : '需包含至少一个特殊字符' }}
+                </span>
+              </div>
             </div>
           </a-form-item>
 
@@ -117,12 +126,13 @@
           </a-form-item>
 
           <!-- 服务条款 -->
-          <a-form-item name="agreement">
-            <a-checkbox v-model:checked="agreement">
+          <!-- 使用 valuePropName=checked 让表单正确读取复选框的布尔值，并在 change 上触发校验 -->
+          <a-form-item name="agreement" :value-prop-name="'checked'" :validate-trigger="'change'">
+            <a-checkbox v-model:checked="formData.agreement" class="agreement-checkbox">
               我已阅读并同意
-              <a href="#" @click.prevent="showTerms">《服务条款》</a>
+              <a href="#" @click.stop.prevent="showTerms">《服务条款》</a>
               和
-              <a href="#" @click.prevent="showPrivacy">《隐私政策》</a>
+              <a href="#" @click.stop.prevent="showPrivacy">《隐私政策》</a>
             </a-checkbox>
           </a-form-item>
 
@@ -218,15 +228,17 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 // 表单数据
-const formData = reactive<RegisterData>({
+interface FormData extends RegisterData {
+  agreement: boolean
+}
+
+const formData = reactive<FormData>({
   username: '',
   email: '',
   password: '',
-  confirmPassword: ''
+  confirmPassword: '',
+  agreement: false
 })
-
-// 服务条款同意状态
-const agreement = ref(false)
 
 // 用户名和邮箱检查状态
 const usernameChecking = ref(false)
@@ -236,6 +248,9 @@ const emailStatus = ref<'success' | 'error' | ''>('')
 
 // 密码强度
 const passwordStrength = ref(0)
+// 密码要素布尔标记
+const hasUppercase = computed(() => /[A-Z]/.test(formData.password))
+const hasSpecial = computed(() => /[^a-zA-Z0-9]/.test(formData.password))
 
 // 模态框状态
 const termsVisible = ref(false)
@@ -310,7 +325,7 @@ const formRules: Record<string, Rule[]> = {
   agreement: [
     {
       validator: (rule: any, value: boolean) => {
-        if (!agreement.value) {
+        if (!value) {
           return Promise.reject('请阅读并同意服务条款和隐私政策')
         }
         return Promise.resolve()
@@ -434,15 +449,17 @@ const checkEmailAvailability = async () => {
 }
 
 // 处理注册
-const handleRegister = async (values: RegisterData) => {
+const handleRegister = async (values: FormData) => {
   // 检查服务条款同意状态
-  if (!agreement.value) {
+  if (!values.agreement) {
     message.error('请阅读并同意服务条款和隐私政策')
     return
   }
   
   try {
-    const success = await authStore.register(values)
+    // 只传递注册所需的字段，不包含 agreement
+    const { agreement, ...registerData } = values
+    const success = await authStore.register(registerData)
     if (success) {
       message.success('注册成功，欢迎使用 JobView!')
       await router.push('/')
@@ -632,6 +649,27 @@ const showPrivacy = () => {
 
 .strength-text.very-strong {
   color: #1890ff;
+}
+
+.password-hints {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #8c8c8c;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hint-item::before {
+  content: '• ';
+}
+
+.hint-item.ok {
+  color: #52c41a;
+}
+
+.hint-item.ok::before {
+  content: '✓ ';
 }
 
 .register-button {

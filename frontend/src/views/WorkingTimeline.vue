@@ -161,7 +161,7 @@ const getStatusColor = (status: ApplicationStatus) => {
 const getStatusIcon = (status: ApplicationStatus) => {
   if (status === ApplicationStatus.REJECTED) {
     return ExclamationCircleOutlined
-  } else if ([ApplicationStatus.OFFER_RECEIVED, ApplicationStatus.OFFER_ACCEPTED].includes(status)) {
+  } else if (StatusHelper.isPassedStatus(status)) {
     return CheckCircleOutlined
   } else {
     return ClockCircleOutlined

@@ -259,7 +259,7 @@ const searchText = ref('')
 const highlightedId = ref<number | null>(null)
 const cardRefs = new Map<number, HTMLElement>()
 
-const failedStatusSet = new Set([
+const failedStatusSet = new Set<ApplicationStatus>([
   ApplicationStatus.RESUME_SCREENING_FAIL,
   ApplicationStatus.WRITTEN_TEST_FAIL,
   ApplicationStatus.FIRST_FAIL,
@@ -360,7 +360,7 @@ const locateCardById = async (id: number) => {
   }
 
   // 切换到对应分组标签（进行中/失败），以确保卡片渲染出来
-  const targetTab: 'in-progress' | 'failed' = failedStatusSet.has(app.status) ? 'failed' : 'in-progress'
+  const targetTab: 'in-progress' | 'failed' = failedStatusSet.has(app.status as ApplicationStatus) ? 'failed' : 'in-progress'
   if (activeTab.value !== targetTab) {
     activeTab.value = targetTab
     await nextTick()

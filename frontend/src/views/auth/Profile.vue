@@ -351,11 +351,11 @@ import {
   ClockCircleOutlined
 } from '@ant-design/icons-vue'
 import { AuthAPI } from '../../api/auth'
-import type { UploadRequestOption as UploadRequest } from 'ant-design-vue/es/upload/interface'
 import { useAuthStore } from '../../stores/auth'
 import { useJobApplicationStore } from '../../stores/jobApplication'
 import type { UpdateProfileData } from '../../types/auth'
 import type { Rule } from 'ant-design-vue/es/form'
+import type { UploadProps } from 'ant-design-vue'
 import dayjs from 'dayjs'
 
 const router = useRouter()
@@ -537,10 +537,10 @@ const beforeAvatarUpload = (file: File) => {
 }
 
 // 自定义上传：先本地预览，再调用后端保存
-const handleAvatarUpload = async (options: UploadRequest) => {
-  const file = options.file as File
+const handleAvatarUpload = async (options: any) => {
+  const file = options?.file as File
   if (!beforeAvatarUpload(file)) {
-    options.onError?.(new Error('invalid file'))
+    options?.onError?.(new Error('invalid file'))
     return
   }
   // 本地预览
@@ -557,13 +557,13 @@ const handleAvatarUpload = async (options: UploadRequest) => {
       localStorage.setItem('user', JSON.stringify(authStore.user))
     }
     message.success('头像更新成功')
-    options.onSuccess?.({}, file as any)
+    options?.onSuccess?.({}, file as any)
   } catch (e: any) {
     // 失败时回滚预览
     revokePreview()
     avatarPreview.value = authStore.user?.avatar || null
     message.error('头像上传失败: ' + (e?.message || '请稍后再试'))
-    options.onError?.(e)
+    options?.onError?.(e)
   }
 }
 

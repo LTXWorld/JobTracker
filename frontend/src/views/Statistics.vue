@@ -406,7 +406,7 @@ const trendLineOption = computed(() => {
 // 各阶段通过率柱状图配置（优先使用后端StageAnalysis；若无则用前端推断，考虑“直通”场景）
 const stageBarOption = computed(() => {
   // 优先后端口径
-  const sa: any = analyticsData.value?.StageAnalysis || (analyticsData.value as any)?.stage_analysis
+  const sa: any = (analyticsData.value as any)?.stage_analysis
   if (sa && Object.keys(sa).length > 0) {
     const order = ['written', 'first', 'second', 'third', 'hr']
     const names = order
@@ -598,7 +598,7 @@ const tableData = computed(() => {
     const data = companyMap.get(app.company_name)!
     data.count++
     
-    const interviewStatuses = [
+    const interviewStatuses: ApplicationStatus[] = [
       ApplicationStatus.WRITTEN_TEST,
       ApplicationStatus.FIRST_INTERVIEW,
       ApplicationStatus.SECOND_INTERVIEW,
