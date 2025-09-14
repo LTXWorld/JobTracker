@@ -179,11 +179,18 @@ const fetchAvailableStatuses = async () => {
   if (!props.autoFetch) return
   
   try {
-    const transitions = await statusTrackingStore.getAvailableTransitions(props.currentStatus)
-    const forward = transitions.reduce((acc: ApplicationStatus[], rule) => {
-      acc.push(...rule.to)
-      return acc
-    }, [])
+    const transitions: any = await statusTrackingStore.getAvailableTransitions(props.currentStatus)
+    let forward: ApplicationStatus[] = []
+    if (Array.isArray(transitions)) {
+      // 兼容后端直接返回可达状态数组或规则数组
+      if (transitions.length > 0 && typeof transitions[0] === 'string') {
+        forward = transitions as ApplicationStatus[]
+      } else {
+        forward = (transitions as any[]).flatMap(r => (r?.to ?? [])) as ApplicationStatus[]
+      }
+    } else if (transitions && Array.isArray((transitions as any).transitions)) {
+      forward = (transitions as any).transitions as ApplicationStatus[]
+    }
     const backward = getBackwardStatuses(props.currentStatus)
     const set = new Set<ApplicationStatus>([...forward, ...backward])
     set.delete(props.currentStatus)

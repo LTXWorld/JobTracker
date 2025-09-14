@@ -174,15 +174,15 @@ import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
 import dayjs from 'dayjs'
 import { useJobApplicationStore } from '../stores/jobApplication'
-import { ApplicationStatus, type JobApplication } from '../types'
+import { ApplicationStatus } from '../types'
 
 const props = defineProps<{
   visible: boolean
 }>()
 
 const emit = defineEmits<{
-  'update:visible': (value: boolean) => void
-  'success': () => void
+  (e: 'update:visible', value: boolean): void
+  (e: 'success'): void
 }>()
 
 const jobStore = useJobApplicationStore()
@@ -233,7 +233,7 @@ const statusMap: Record<string, ApplicationStatus> = {
 const mappingColumns = [
   { title: '文件列名', dataIndex: 'source', key: 'source' },
   { title: '示例数据', dataIndex: 'preview', key: 'preview' },
-  { title: '映射到字段', key: 'target' }
+  { title: '映射到字段', dataIndex: 'target', key: 'target' }
 ]
 
 // 映射数据
@@ -258,7 +258,7 @@ const previewColumns = computed(() => {
     { title: '地点', dataIndex: 'work_location', key: 'work_location' }
   ]
   if (invalidRows.value.length > 0) {
-    cols.push({ title: '错误原因', key: 'error' })
+    cols.push({ title: '错误原因', dataIndex: 'error', key: 'error' })
   }
   return cols
 })
@@ -486,6 +486,7 @@ const handleImport = async () => {
         position_title: row.position_title,
         application_date: row.application_date,
         status: row.status,
+        company_attribute: '私企',
         salary_range: row.salary_range || '',
         work_location: row.work_location || '',
         notes: row.notes || ''

@@ -16,7 +16,7 @@ import type {
  */
 export class AuthAPI {
   // 基础API路径 - 与后端路由保持一致
-  private static readonly AUTH_BASE_URL = '/api/auth'
+  private static readonly AUTH_BASE_URL = '/auth'
 
   /**
    * 用户登录

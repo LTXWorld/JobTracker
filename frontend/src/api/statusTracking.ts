@@ -6,8 +6,6 @@ import type {
   UserStatusPreferences,
   UpdateStatusRequest,
   BatchStatusUpdateRequest,
-  StatusHistoryParams,
-  StatusDurationStats,
   StatusTransitionRule
 } from '../types'
 import { StatusHelper } from '../types'
@@ -33,7 +31,7 @@ export class StatusTrackingAPI {
     if (params?.page) queryParams.append('page', params.page.toString())
     if (params?.page_size) queryParams.append('page_size', params.page_size.toString())
     
-    const url = `/api/v1/job-applications/${applicationId}/status-history` + 
+    const url = `/v1/job-applications/${applicationId}/status-history` + 
                 (queryParams.toString() ? `?${queryParams.toString()}` : '')
     
     const response = await request.get(url)
@@ -98,7 +96,7 @@ export class StatusTrackingAPI {
    * @param data 状态更新数据
    */
   static async updateStatus(applicationId: number, data: UpdateStatusRequest): Promise<void> {
-    const response = await request.post(`/api/v1/job-applications/${applicationId}/status`, data)
+    const response = await request.post(`/v1/job-applications/${applicationId}/status`, data)
     if (!response.data?.success) {
       throw new Error(response.data?.message || '状态更新失败')
     }
@@ -119,7 +117,7 @@ export class StatusTrackingAPI {
     total_duration: number;
     current_stage: string;
   }> {
-    const response = await request.get(`/api/v1/job-applications/${applicationId}/status-timeline`)
+    const response = await request.get(`/v1/job-applications/${applicationId}/status-timeline`)
     if (!response.data.data) {
       throw new Error('获取时间轴数据失败')
     }
@@ -136,7 +134,7 @@ export class StatusTrackingAPI {
       throw new Error('批量更新最多支持100条记录')
     }
     
-    const response = await request.put('/api/v1/job-applications/status/batch', data)
+    const response = await request.put('/v1/job-applications/status/batch', data)
     if (!response.data?.success) {
       throw new Error(response.data?.message || '批量更新失败')
     }
@@ -148,7 +146,7 @@ export class StatusTrackingAPI {
    * 获取状态流转模板列表
    */
   static async getStatusFlowTemplates(): Promise<StatusFlowTemplate[]> {
-    const response = await request.get('/api/v1/status-flow-templates')
+    const response = await request.get('/v1/status-flow-templates')
     return response.data.data || []
   }
 
@@ -157,7 +155,7 @@ export class StatusTrackingAPI {
    * @param template 模板数据
    */
   static async createStatusFlowTemplate(template: Omit<StatusFlowTemplate, 'id' | 'created_at' | 'updated_at'>): Promise<StatusFlowTemplate> {
-    const response = await request.post('/api/v1/status-flow-templates', template)
+    const response = await request.post('/v1/status-flow-templates', template)
     if (!response.data.data) {
       throw new Error('创建模板失败')
     }
@@ -173,7 +171,7 @@ export class StatusTrackingAPI {
     templateId: number, 
     template: Partial<StatusFlowTemplate>
   ): Promise<StatusFlowTemplate> {
-    const response = await request.put(`/api/v1/status-flow-templates/${templateId}`, template)
+    const response = await request.put(`/v1/status-flow-templates/${templateId}`, template)
     if (!response.data.data) {
       throw new Error('更新模板失败')
     }
@@ -185,14 +183,14 @@ export class StatusTrackingAPI {
    * @param templateId 模板ID
    */
   static async deleteStatusFlowTemplate(templateId: number): Promise<void> {
-    await request.delete(`/api/v1/status-flow-templates/${templateId}`)
+    await request.delete(`/v1/status-flow-templates/${templateId}`)
   }
 
   /**
    * 获取用户状态偏好设置
    */
   static async getUserStatusPreferences(): Promise<UserStatusPreferences> {
-    const response = await request.get('/api/v1/user-status-preferences')
+    const response = await request.get('/v1/user-status-preferences')
     if (!response.data.data) {
       throw new Error('获取用户偏好失败')
     }
@@ -206,7 +204,7 @@ export class StatusTrackingAPI {
   static async updateUserStatusPreferences(
     preferences: Partial<UserStatusPreferences['preference_config']>
   ): Promise<UserStatusPreferences> {
-    const response = await request.put('/api/v1/user-status-preferences', { preference_config: preferences })
+    const response = await request.put('/v1/user-status-preferences', { preference_config: preferences })
     if (!response.data.data) {
       throw new Error('更新用户偏好失败')
     }
@@ -218,7 +216,7 @@ export class StatusTrackingAPI {
    * @param currentStatus 当前状态
    */
   static async getStatusTransitions(currentStatus: string): Promise<StatusTransitionRule[]> {
-    const response = await request.get(`/api/v1/status-transitions/${encodeURIComponent(currentStatus)}`)
+    const response = await request.get(`/v1/status-transitions/${encodeURIComponent(currentStatus)}`)
     return response.data.data || []
   }
 
@@ -239,7 +237,7 @@ export class StatusTrackingAPI {
       color: string;
     }>;
   }> {
-    const response = await request.get('/api/v1/status-definitions')
+    const response = await request.get('/v1/status-definitions')
     if (!response.data.data) {
       throw new Error('获取状态定义失败')
     }
@@ -260,7 +258,7 @@ export class StatusTrackingAPI {
     if (params?.start_date) queryParams.append('start_date', params.start_date)
     if (params?.end_date) queryParams.append('end_date', params.end_date)
     
-    const url = '/api/v1/job-applications/status-analytics' + 
+    const url = '/v1/job-applications/status-analytics' + 
                 (queryParams.toString() ? `?${queryParams.toString()}` : '')
     
     const response = await request.get(url)
@@ -290,7 +288,7 @@ export class StatusTrackingAPI {
     const period = params?.period
     const days = period === 'week' ? 7 : period === 'quarter' ? 90 : 30
 
-    const url = `/api/v1/job-applications/status-trends?days=${days}`
+    const url = `/v1/job-applications/status-trends?days=${days}`
     const response = await request.get(url)
     if (!response.data?.data) {
       throw new Error('获取趋势数据失败')
@@ -346,7 +344,7 @@ export class StatusTrackingAPI {
       impact_level: 'high' | 'medium' | 'low';
     }>;
   }> {
-    const response = await request.get('/api/v1/job-applications/process-insights')
+    const response = await request.get('/v1/job-applications/process-insights')
     if (!response.data.data) {
       throw new Error('获取洞察数据失败')
     }
@@ -379,7 +377,7 @@ export class StatusTrackingAPI {
     if (params.page) queryParams.append('page', params.page.toString())
     if (params.page_size) queryParams.append('page_size', params.page_size.toString())
     
-    const response = await request.get(`/api/v1/applications?${queryParams.toString()}`)
+    const response = await request.get(`/v1/applications?${queryParams.toString()}`)
     if (!response.data.data) {
       throw new Error('获取筛选数据失败')
     }
@@ -408,7 +406,7 @@ export class StatusTrackingAPI {
     if (params.page) queryParams.append('page', params.page.toString())
     if (params.page_size) queryParams.append('page_size', params.page_size.toString())
     
-    const response = await request.get(`/api/v1/applications/search?${queryParams.toString()}`)
+    const response = await request.get(`/v1/applications/search?${queryParams.toString()}`)
     if (!response.data.data) {
       throw new Error('搜索失败')
     }
@@ -446,7 +444,7 @@ export class StatusTrackingAPI {
       priority: 'high' | 'medium' | 'low';
     }>;
   }> {
-    const response = await request.get('/api/v1/applications/dashboard')
+    const response = await request.get('/v1/applications/dashboard')
     if (!response.data.data) {
       throw new Error('获取仪表板数据失败')
     }

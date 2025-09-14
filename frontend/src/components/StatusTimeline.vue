@@ -60,7 +60,8 @@
     </div>
 
     <!-- 时间轴内容 -->
-    <div class="timeline-content" v-loading="loading">
+    <div class="timeline-content">
+      <a-spin :spinning="loading">
       <a-empty
         v-if="!loading && timelineData.length === 0"
         description="暂无状态历史记录"
@@ -148,6 +149,7 @@
           </div>
         </a-timeline-item>
       </a-timeline>
+      </a-spin>
     </div>
 
     <!-- 时间统计摘要 -->

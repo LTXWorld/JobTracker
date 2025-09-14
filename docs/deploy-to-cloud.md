@@ -30,7 +30,7 @@ JWT_REFRESH_DURATION=720h
 
 注意：生产需将后端 CORS 白名单改为包含你的域名（`backend/cmd/main.go` 中的 `CORSMiddleware`）。
 
-前端建议以同源方式访问后端：将 `frontend/src/api/request.ts` 的 `baseURL` 改为 `/api`，由 Nginx 反代到后端。
+前端建议以同源方式访问后端：前端通过环境变量 `VITE_API_BASE` 指定 API 前缀（默认 `/api`），由 Nginx 反代到后端服务。无需修改源码。
 
 ---
 
@@ -110,7 +110,10 @@ curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 
 cd /path/to/repo/frontend
-sed -i "s#baseURL: 'http://localhost:8010'#baseURL: '/api'#" src/api/request.ts
+
+# 生产环境下，前端使用 /api 作为 API 前缀（默认已是 /api，可不设置）
+echo "VITE_API_BASE=/api" > .env.production
+
 npm ci && npm run build
 
 sudo mkdir -p /var/www/jobview
@@ -169,8 +172,8 @@ sudo certbot --nginx -d your-domain.com
 流程：
 
 ```
-# 先构建前端静态
-cd frontend && npm ci && npm run build
+# 先构建前端静态（保持 /api 前缀）
+cd frontend && echo "VITE_API_BASE=/api" > .env.production && npm ci && npm run build
 
 # 在项目根目录
 docker compose up -d --build
@@ -189,6 +192,7 @@ docker compose up -d --build
   - CORS 报错：确认后端 CORS 白名单包含生产域名，或使用同源反代 `/api`
   - 刷新白屏：Nginx 确保 `try_files $uri $uri/ /index.html;`
   - 文件访问：确保 `/static/` 反代到后端
+  - 404 /api/api/...：请勿在代码中硬编码 `/api`，统一通过 `VITE_API_BASE` 注入；项目内部请求路径使用 `/auth/*` 与 `/v1/*`，由 `VITE_API_BASE` 自动拼接为 `/api/auth/*`、`/api/v1/*`
+  - 直连后端：若不使用反代，可将 `VITE_API_BASE` 设为完整地址（如 `http://localhost:8010/api`），前端会正确请求，无双 `/api` 前缀问题
 
 完成以上步骤，即可在云服务器上稳定对外服务。
-

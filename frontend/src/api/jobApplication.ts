@@ -15,7 +15,7 @@ export class JobApplicationAPI {
     let hasNext = true
 
     while (hasNext) {
-      const resp = await request.get(`/api/v1/applications?page=${page}&page_size=${pageSize}`)
+    const resp = await request.get(`/v1/applications?page=${page}&page_size=${pageSize}`)
       const payload = resp.data?.data
       if (Array.isArray(payload)) {
         // 极端兼容：直接返回数组
@@ -36,7 +36,7 @@ export class JobApplicationAPI {
 
   // 根据ID获取投递记录
   static async getById(id: number): Promise<JobApplication> {
-    const response = await request.get(`/api/v1/applications/${id}`)
+    const response = await request.get(`/v1/applications/${id}`)
     if (!response.data.data) {
       throw new Error('投递记录不存在')
     }
@@ -45,7 +45,7 @@ export class JobApplicationAPI {
 
   // 创建新的投递记录
   static async create(data: CreateJobApplicationRequest): Promise<JobApplication> {
-    const response = await request.post('/api/v1/applications', data)
+    const response = await request.post('/v1/applications', data)
     if (!response.data.data) {
       throw new Error('创建失败')
     }
@@ -54,7 +54,7 @@ export class JobApplicationAPI {
 
   // 更新投递记录
   static async update(id: number, data: UpdateJobApplicationRequest): Promise<JobApplication> {
-    const response = await request.put(`/api/v1/applications/${id}`, data)
+    const response = await request.put(`/v1/applications/${id}`, data)
     if (!response.data.data) {
       throw new Error('更新失败')
     }
@@ -63,12 +63,12 @@ export class JobApplicationAPI {
 
   // 删除投递记录
   static async delete(id: number): Promise<void> {
-    await request.delete(`/api/v1/applications/${id}`)
+    await request.delete(`/v1/applications/${id}`)
   }
 
   // 获取统计信息
   static async getStatistics(): Promise<JobApplicationStatistics> {
-    const response = await request.get('/api/v1/applications/statistics')
+    const response = await request.get('/v1/applications/statistics')
     if (!response.data.data) {
       throw new Error('获取统计信息失败')
     }

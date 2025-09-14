@@ -15,7 +15,7 @@ import {
 export class ExportAPI {
   // 启动导出任务
   static async startExport(exportRequest: ExportRequest): Promise<ExportTask> {
-    const response = await request.post('/api/v1/export/applications', exportRequest)
+    const response = await request.post('/v1/export/applications', exportRequest)
     if (!response.data.success) {
       throw new Error(response.data.message || '启动导出失败')
     }
@@ -24,7 +24,7 @@ export class ExportAPI {
 
   // 查询任务状态
   static async getTaskStatus(taskId: string): Promise<ExportTask> {
-    const response = await request.get(`/api/v1/export/status/${taskId}`)
+    const response = await request.get(`/v1/export/status/${taskId}`)
     if (!response.data.success) {
       throw new Error(response.data.message || '获取任务状态失败')
     }
@@ -34,7 +34,7 @@ export class ExportAPI {
   // 下载导出文件
   static async downloadFile(taskId: string): Promise<void> {
     try {
-      const response = await request.get(`/api/v1/export/download/${taskId}`, {
+      const response = await request.get(`/v1/export/download/${taskId}`, {
         responseType: 'blob',
         timeout: 60000 // 增加下载超时时间到60秒
       })
@@ -73,7 +73,7 @@ export class ExportAPI {
 
   // 获取导出历史
   static async getExportHistory(page: number = 1, pageSize: number = 10): Promise<ExportHistoryResponse['data']> {
-    const response = await request.get(`/api/v1/export/history?page=${page}&limit=${pageSize}`)
+    const response = await request.get(`/v1/export/history?page=${page}&limit=${pageSize}`)
     if (!response.data.success) {
       throw new Error(response.data.message || '获取导出历史失败')
     }
@@ -82,12 +82,12 @@ export class ExportAPI {
 
   // 取消导出任务
   static async cancelTask(taskId: string): Promise<void> {
-    await request.delete(`/api/v1/export/cancel/${taskId}`)
+    await request.delete(`/v1/export/cancel/${taskId}`)
   }
 
   // 获取支持的导出格式
   static async getSupportedFormats(): Promise<ExportFormatInfo[]> {
-    const response = await request.get('/api/v1/export/formats')
+    const response = await request.get('/v1/export/formats')
     if (!response.data.success) {
       throw new Error(response.data.message || '获取支持格式失败')
     }
@@ -96,7 +96,7 @@ export class ExportAPI {
 
   // 获取可导出的字段
   static async getExportableFields(): Promise<ExportFieldGroup[]> {
-    const response = await request.get('/api/v1/export/fields')
+    const response = await request.get('/v1/export/fields')
     if (!response.data.success) {
       throw new Error(response.data.message || '获取导出字段失败')
     }
@@ -105,7 +105,7 @@ export class ExportAPI {
 
   // 获取导出模板
   static async getExportTemplate(): Promise<any> {
-    const response = await request.get('/api/v1/export/template')
+    const response = await request.get('/v1/export/template')
     if (!response.data.success) {
       throw new Error(response.data.message || '获取导出模板失败')
     }
@@ -114,7 +114,7 @@ export class ExportAPI {
 
   // 清理过期的导出文件
   static async cleanupExpiredFiles(): Promise<{ cleaned: number }> {
-    const response = await request.post('/api/v1/export/cleanup')
+    const response = await request.post('/v1/export/cleanup')
     if (!response.data.success) {
       throw new Error(response.data.message || '清理失败')
     }

@@ -111,6 +111,67 @@ npm run dev
 
 前端将在 `http://localhost:3000` 启动
 
+#### 本地/云端 API 路由说明（重要）
+
+- 前端通过环境变量 `VITE_API_BASE` 配置后端 API 前缀（默认 `/api`）。
+- 开发环境已在 `vite.config.ts` 配置代理：将浏览器请求 `/api/*` 转发到 `http://localhost:8010/api/*`，因此本地开发时保持默认即可。
+
+可选：如果希望直连后端（绕过代理），在 `frontend/.env.development` 中加入：
+
+```bash
+VITE_API_BASE=http://localhost:8010/api
+```
+
+生产/云端部署时，建议将前端和后端通过 Nginx/Ingress 统一到同域名下（例如 `example.com`），并将 `/api` 反向代理到后端服务；此时保留默认 `VITE_API_BASE=/api` 即可。
+
+说明：
+- 本项目默认 `VITE_API_BASE=/api`，并在各模块中使用以 `/api/...` 开头的接口路径（如 `/api/auth/login`、`/api/v1/applications`）。
+- 若你将 `VITE_API_BASE` 设置为完整地址（例如 `http://localhost:8010/api`），Axios 会正确解析并不会出现双 `/api` 前缀的问题。
+
+### 6. 生产/云端部署快速指南
+
+1) 构建前端
+
+```bash
+cd frontend
+npm ci
+# 默认使用 VITE_API_BASE=/api
+npm run build
+```
+
+2) 运行后端（示例）
+
+```bash
+cd backend
+go build -o app cmd/main.go
+./app # 监听 :8010
+```
+
+3) 反向代理（Nginx 示例）
+
+```nginx
+server {
+  listen 80;
+  server_name example.com;
+
+  # 前端静态资源
+  root /var/www/jobview/frontend/dist;
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+
+  # API 反代到后端
+  location /api/ {
+    proxy_pass http://127.0.0.1:8010/api/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  }
+}
+```
+
+至此，前端用 `/api/*` 访问后端即可，无需修改代码或环境变量。
+
 ### 5. 应用数据库优化 🎯
 ```bash
 # 执行数据库查询优化

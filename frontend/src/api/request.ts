@@ -61,9 +61,12 @@ const getFriendlyErrorMessage = (error: any): string => {
   return error.response?.data?.message || error.message || '请求失败'
 }
 
+// 读取环境配置
+const API_BASE = (import.meta as any).env?.VITE_API_BASE || '/api'
+
 // 创建axios实例
 const request = axios.create({
-  baseURL: 'http://localhost:8010',
+  baseURL: API_BASE,
   timeout: 15000, // 增加超时时间到15秒
   headers: {
     'Content-Type': 'application/json',
@@ -180,7 +183,8 @@ request.interceptors.response.use(
       if (refreshToken) {
         try {
           // 尝试刷新token
-          const response = await axios.post('http://localhost:8010/api/auth/refresh', {
+          // 使用裸 axios + 统一 API_BASE，避免递归触发实例拦截器
+          const response = await axios.post(`${API_BASE}/auth/refresh`, {
             refresh_token: refreshToken
           })
           
