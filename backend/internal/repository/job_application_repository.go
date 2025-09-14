@@ -37,8 +37,9 @@ func (r *jobAppRepo) Create(userID uint, req *model.CreateJobApplicationRequest)
         user_id, company_name, position_title, application_date, status,
         job_description, salary_range, work_location, contact_info, notes,
         interview_time, reminder_time, reminder_enabled, follow_up_date,
-        hr_name, hr_phone, hr_email, interview_location, interview_type
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+        hr_name, hr_phone, hr_email, interview_location, interview_type,
+        company_attribute
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
     RETURNING id, created_at, updated_at`
 
     var job model.JobApplication
@@ -62,6 +63,7 @@ func (r *jobAppRepo) Create(userID uint, req *model.CreateJobApplicationRequest)
         req.HREmail,
         req.InterviewLocation,
         req.InterviewType,
+        func() interface{} { if strings.TrimSpace(req.CompanyAttribute) == "" { return nil }; return req.CompanyAttribute }(),
     ).Row()
     if err := row.Scan(&job.ID, &job.CreatedAt, &job.UpdatedAt); err != nil { return nil, fmt.Errorf("failed to create job application: %w", err) }
 
@@ -84,6 +86,10 @@ func (r *jobAppRepo) Create(userID uint, req *model.CreateJobApplicationRequest)
     job.HREmail = req.HREmail
     job.InterviewLocation = req.InterviewLocation
     job.InterviewType = req.InterviewType
+    if strings.TrimSpace(req.CompanyAttribute) != "" {
+        ca := req.CompanyAttribute
+        job.CompanyAttribute = &ca
+    }
     return &job, nil
 }
 
@@ -93,6 +99,7 @@ func (r *jobAppRepo) GetByID(userID uint, id int) (*model.JobApplication, error)
         job_description, salary_range, work_location, contact_info, notes,
         interview_time, reminder_time, reminder_enabled, follow_up_date,
         hr_name, hr_phone, hr_email, interview_location, interview_type,
+        company_attribute,
         created_at, updated_at FROM job_applications WHERE id=$1 AND user_id=$2`
     var job model.JobApplication
     row := r.db.ORM.Raw(query, id, userID).Row()
@@ -101,6 +108,7 @@ func (r *jobAppRepo) GetByID(userID uint, id int) (*model.JobApplication, error)
         &job.JobDescription,&job.SalaryRange,&job.WorkLocation,&job.ContactInfo,&job.Notes,
         &job.InterviewTime,&job.ReminderTime,&job.ReminderEnabled,&job.FollowUpDate,
         &job.HRName,&job.HRPhone,&job.HREmail,&job.InterviewLocation,&job.InterviewType,
+        &job.CompanyAttribute,
         &job.CreatedAt,&job.UpdatedAt,
     ); err != nil {
         if err == sql.ErrNoRows { return nil, fmt.Errorf("job application not found") }
@@ -115,6 +123,7 @@ func (r *jobAppRepo) GetAll(userID uint) ([]model.JobApplication, error) {
         job_description, salary_range, work_location, contact_info, notes,
         interview_time, reminder_time, reminder_enabled, follow_up_date,
         hr_name, hr_phone, hr_email, interview_location, interview_type,
+        company_attribute,
         created_at, updated_at FROM job_applications WHERE user_id = $1
         ORDER BY application_date DESC, created_at DESC LIMIT 500`
     rows, err := r.db.ORM.Raw(query, userID).Rows()
@@ -127,6 +136,7 @@ func (r *jobAppRepo) GetAll(userID uint) ([]model.JobApplication, error) {
             &job.JobDescription,&job.SalaryRange,&job.WorkLocation,&job.ContactInfo,&job.Notes,
             &job.InterviewTime,&job.ReminderTime,&job.ReminderEnabled,&job.FollowUpDate,
             &job.HRName,&job.HRPhone,&job.HREmail,&job.InterviewLocation,&job.InterviewType,
+            &job.CompanyAttribute,
             &job.CreatedAt,&job.UpdatedAt); err != nil { return nil, fmt.Errorf("failed to scan job application: %w", err) }
         list = append(list, job)
     }
@@ -152,6 +162,7 @@ func (r *jobAppRepo) GetAllPaginated(userID uint, req model.PaginationRequest) (
         job_description, salary_range, work_location, contact_info, notes,
         interview_time, reminder_time, reminder_enabled, follow_up_date,
         hr_name, hr_phone, hr_email, interview_location, interview_type,
+        company_attribute,
         created_at, updated_at FROM job_applications %s ORDER BY %s %s, created_at DESC LIMIT $%d OFFSET $%d`,
         where, req.SortBy, req.SortDir, idx, idx+1)
     args = append(args, req.PageSize, req.GetOffset())
@@ -165,6 +176,7 @@ func (r *jobAppRepo) GetAllPaginated(userID uint, req model.PaginationRequest) (
             &job.JobDescription,&job.SalaryRange,&job.WorkLocation,&job.ContactInfo,&job.Notes,
             &job.InterviewTime,&job.ReminderTime,&job.ReminderEnabled,&job.FollowUpDate,
             &job.HRName,&job.HRPhone,&job.HREmail,&job.InterviewLocation,&job.InterviewType,
+            &job.CompanyAttribute,
             &job.CreatedAt,&job.UpdatedAt); err != nil { return nil, fmt.Errorf("failed to scan job application: %w", err) }
         jobs = append(jobs, job)
     }
@@ -195,6 +207,7 @@ func (r *jobAppRepo) Update(userID uint, id int, req *model.UpdateJobApplication
     if req.HREmail != nil { setParts = append(setParts, fmt.Sprintf("hr_email=$%d", idx)); args = append(args, *req.HREmail); idx++ }
     if req.InterviewLocation != nil { setParts = append(setParts, fmt.Sprintf("interview_location=$%d", idx)); args = append(args, *req.InterviewLocation); idx++ }
     if req.InterviewType != nil { setParts = append(setParts, fmt.Sprintf("interview_type=$%d", idx)); args = append(args, *req.InterviewType); idx++ }
+    if req.CompanyAttribute != nil { setParts = append(setParts, fmt.Sprintf("company_attribute=$%d", idx)); if strings.TrimSpace(*req.CompanyAttribute) == "" { args = append(args, nil) } else { args = append(args, *req.CompanyAttribute) }; idx++ }
     if len(setParts) == 0 { return r.GetByID(userID, id) }
     setParts = append(setParts, fmt.Sprintf("updated_at=$%d", idx)); args = append(args, time.Now()); idx++
     args = append(args, id, userID)
@@ -202,10 +215,11 @@ func (r *jobAppRepo) Update(userID uint, id int, req *model.UpdateJobApplication
         job_description, salary_range, work_location, contact_info, notes,
         interview_time, reminder_time, reminder_enabled, follow_up_date,
         hr_name, hr_phone, hr_email, interview_location, interview_type,
+        company_attribute,
         created_at, updated_at`, strings.Join(setParts, ", "), idx, idx+1)
     var job model.JobApplication
     row := r.db.ORM.Raw(query, args...).Row()
-    if err := row.Scan(&job.ID,&job.UserID,&job.CompanyName,&job.PositionTitle,&job.ApplicationDate,&job.Status,&job.JobDescription,&job.SalaryRange,&job.WorkLocation,&job.ContactInfo,&job.Notes,&job.InterviewTime,&job.ReminderTime,&job.ReminderEnabled,&job.FollowUpDate,&job.HRName,&job.HRPhone,&job.HREmail,&job.InterviewLocation,&job.InterviewType,&job.CreatedAt,&job.UpdatedAt); err != nil {
+    if err := row.Scan(&job.ID,&job.UserID,&job.CompanyName,&job.PositionTitle,&job.ApplicationDate,&job.Status,&job.JobDescription,&job.SalaryRange,&job.WorkLocation,&job.ContactInfo,&job.Notes,&job.InterviewTime,&job.ReminderTime,&job.ReminderEnabled,&job.FollowUpDate,&job.HRName,&job.HRPhone,&job.HREmail,&job.InterviewLocation,&job.InterviewType,&job.CompanyAttribute,&job.CreatedAt,&job.UpdatedAt); err != nil {
         if err == sql.ErrNoRows { return nil, fmt.Errorf("job application not found") }
         return nil, fmt.Errorf("failed to update job application: %w", err)
     }
@@ -219,4 +233,3 @@ func (r *jobAppRepo) Delete(userID uint, id int) error {
     if res.RowsAffected == 0 { return fmt.Errorf("job application not found") }
     return nil
 }
-

@@ -151,6 +151,7 @@ export interface JobApplication {
   position_title: string;
   application_date: string;
   status: ApplicationStatus;
+  company_attribute?: '央国企' | '私企' | null; // 企业属性
   job_description?: string | null;
   salary_range?: string | null;
   work_location?: string | null;
@@ -175,6 +176,7 @@ export interface CreateJobApplicationRequest {
   position_title: string;
   application_date?: string;
   status?: ApplicationStatus;
+  company_attribute: '央国企' | '私企';
   job_description?: string;
   salary_range?: string;
   work_location?: string;
@@ -197,6 +199,7 @@ export interface UpdateJobApplicationRequest {
   position_title?: string;
   application_date?: string;
   status?: ApplicationStatus;
+  company_attribute?: '央国企' | '私企' | '';
   job_description?: string;
   salary_range?: string;
   work_location?: string;

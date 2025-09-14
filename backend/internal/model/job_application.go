@@ -186,28 +186,29 @@ func (s ApplicationStatus) IsPassedStatus() bool {
 
 // JobApplication 投递记录模型
 type JobApplication struct {
-	ID                   int               `json:"id" db:"id"`
-	UserID               uint              `json:"user_id" db:"user_id"`
-	CompanyName          string            `json:"company_name" db:"company_name"`
-	PositionTitle        string            `json:"position_title" db:"position_title"`
-	ApplicationDate      string            `json:"application_date" db:"application_date"`
-	Status               ApplicationStatus `json:"status" db:"status"`
-	JobDescription       *string           `json:"job_description" db:"job_description"`
-	SalaryRange          *string           `json:"salary_range" db:"salary_range"`
-	WorkLocation         *string           `json:"work_location" db:"work_location"`
-	ContactInfo          *string           `json:"contact_info" db:"contact_info"`
-	Notes                *string           `json:"notes" db:"notes"`
-	InterviewTime        *time.Time        `json:"interview_time" db:"interview_time"`
-	ReminderTime         *time.Time        `json:"reminder_time" db:"reminder_time"`
-	ReminderEnabled      bool              `json:"reminder_enabled" db:"reminder_enabled"`
-	FollowUpDate         *string           `json:"follow_up_date" db:"follow_up_date"`
-	HRName               *string           `json:"hr_name" db:"hr_name"`
-	HRPhone              *string           `json:"hr_phone" db:"hr_phone"`
-	HREmail              *string           `json:"hr_email" db:"hr_email"`
-	InterviewLocation    *string           `json:"interview_location" db:"interview_location"`
-	InterviewType        *string           `json:"interview_type" db:"interview_type"`
-	CreatedAt            time.Time         `json:"created_at" db:"created_at"`
-	UpdatedAt            time.Time         `json:"updated_at" db:"updated_at"`
+    ID                   int               `json:"id" db:"id"`
+    UserID               uint              `json:"user_id" db:"user_id"`
+    CompanyName          string            `json:"company_name" db:"company_name"`
+    PositionTitle        string            `json:"position_title" db:"position_title"`
+    ApplicationDate      string            `json:"application_date" db:"application_date"`
+    Status               ApplicationStatus `json:"status" db:"status"`
+    JobDescription       *string           `json:"job_description" db:"job_description"`
+    SalaryRange          *string           `json:"salary_range" db:"salary_range"`
+    WorkLocation         *string           `json:"work_location" db:"work_location"`
+    ContactInfo          *string           `json:"contact_info" db:"contact_info"`
+    Notes                *string           `json:"notes" db:"notes"`
+    InterviewTime        *time.Time        `json:"interview_time" db:"interview_time"`
+    ReminderTime         *time.Time        `json:"reminder_time" db:"reminder_time"`
+    ReminderEnabled      bool              `json:"reminder_enabled" db:"reminder_enabled"`
+    FollowUpDate         *string           `json:"follow_up_date" db:"follow_up_date"`
+    HRName               *string           `json:"hr_name" db:"hr_name"`
+    HRPhone              *string           `json:"hr_phone" db:"hr_phone"`
+    HREmail              *string           `json:"hr_email" db:"hr_email"`
+    InterviewLocation    *string           `json:"interview_location" db:"interview_location"`
+    InterviewType        *string           `json:"interview_type" db:"interview_type"`
+    CompanyAttribute     *string           `json:"company_attribute,omitempty" db:"company_attribute"`
+    CreatedAt            time.Time         `json:"created_at" db:"created_at"`
+    UpdatedAt            time.Time         `json:"updated_at" db:"updated_at"`
 
 	// 新增状态跟踪字段
 	StatusHistory        *StatusHistory    `json:"status_history,omitempty" db:"status_history"`
@@ -218,15 +219,16 @@ type JobApplication struct {
 
 // CreateJobApplicationRequest 创建投递记录请求
 type CreateJobApplicationRequest struct {
-	CompanyName       string            `json:"company_name" binding:"required"`
-	PositionTitle     string            `json:"position_title" binding:"required"`
-	ApplicationDate   string            `json:"application_date"`
-	Status            ApplicationStatus `json:"status"`
-	JobDescription    *string           `json:"job_description"`
-	SalaryRange       *string           `json:"salary_range"`
-	WorkLocation      *string           `json:"work_location"`
-	ContactInfo       *string           `json:"contact_info"`
-	Notes             *string           `json:"notes"`
+    CompanyName       string            `json:"company_name" binding:"required"`
+    PositionTitle     string            `json:"position_title" binding:"required"`
+    ApplicationDate   string            `json:"application_date"`
+    Status            ApplicationStatus `json:"status"`
+    CompanyAttribute  string            `json:"company_attribute"` // 企业属性：央国企/私企（新建必填，由handler校验）
+    JobDescription    *string           `json:"job_description"`
+    SalaryRange       *string           `json:"salary_range"`
+    WorkLocation      *string           `json:"work_location"`
+    ContactInfo       *string           `json:"contact_info"`
+    Notes             *string           `json:"notes"`
 	InterviewTime     *time.Time        `json:"interview_time"`
 	ReminderTime      *time.Time        `json:"reminder_time"`
 	ReminderEnabled   *bool             `json:"reminder_enabled"`
@@ -240,15 +242,16 @@ type CreateJobApplicationRequest struct {
 
 // UpdateJobApplicationRequest 更新投递记录请求
 type UpdateJobApplicationRequest struct {
-	CompanyName       *string            `json:"company_name"`
-	PositionTitle     *string            `json:"position_title"`
-	ApplicationDate   *string            `json:"application_date"`
-	Status            *ApplicationStatus `json:"status"`
-	JobDescription    *string            `json:"job_description"`
-	SalaryRange       *string            `json:"salary_range"`
-	WorkLocation      *string            `json:"work_location"`
-	ContactInfo       *string            `json:"contact_info"`
-	Notes             *string            `json:"notes"`
+    CompanyName       *string            `json:"company_name"`
+    PositionTitle     *string            `json:"position_title"`
+    ApplicationDate   *string            `json:"application_date"`
+    Status            *ApplicationStatus `json:"status"`
+    CompanyAttribute  *string            `json:"company_attribute"`
+    JobDescription    *string            `json:"job_description"`
+    SalaryRange       *string            `json:"salary_range"`
+    WorkLocation      *string            `json:"work_location"`
+    ContactInfo       *string            `json:"contact_info"`
+    Notes             *string            `json:"notes"`
 	InterviewTime     *time.Time         `json:"interview_time"`
 	ReminderTime      *time.Time         `json:"reminder_time"`
 	ReminderEnabled   *bool              `json:"reminder_enabled"`

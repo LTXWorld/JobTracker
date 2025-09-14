@@ -237,9 +237,9 @@ func (h *JobApplicationHandler) writeErrorResponse(w http.ResponseWriter, status
 
 // validateCreateRequest 验证创建请求
 func (h *JobApplicationHandler) validateCreateRequest(req *model.CreateJobApplicationRequest) error {
-	if err := utils.ValidateCompanyName(req.CompanyName); err != nil {
-		return err
-	}
+    if err := utils.ValidateCompanyName(req.CompanyName); err != nil {
+        return err
+    }
 	
 	if err := utils.ValidatePositionTitle(req.PositionTitle); err != nil {
 		return err
@@ -269,13 +269,18 @@ func (h *JobApplicationHandler) validateCreateRequest(req *model.CreateJobApplic
 		}
 	}
 	
-	if req.ContactInfo != nil {
-		if err := utils.ValidateContactInfo(*req.ContactInfo); err != nil {
-			return err
-		}
-	}
-	
-	return nil
+    if req.ContactInfo != nil {
+        if err := utils.ValidateContactInfo(*req.ContactInfo); err != nil {
+            return err
+        }
+    }
+
+    // 企业属性：新建为必填
+    if err := utils.ValidateCompanyAttribute(req.CompanyAttribute, true); err != nil {
+        return err
+    }
+
+    return nil
 }
 
 // validateUpdateRequest 验证更新请求
@@ -316,13 +321,19 @@ func (h *JobApplicationHandler) validateUpdateRequest(req *model.UpdateJobApplic
 		}
 	}
 	
-	if req.ContactInfo != nil {
-		if err := utils.ValidateContactInfo(*req.ContactInfo); err != nil {
-			return err
-		}
-	}
-	
-	return nil
+    if req.ContactInfo != nil {
+        if err := utils.ValidateContactInfo(*req.ContactInfo); err != nil {
+            return err
+        }
+    }
+
+    if req.CompanyAttribute != nil {
+        if err := utils.ValidateCompanyAttribute(*req.CompanyAttribute, false); err != nil {
+            return err
+        }
+    }
+    
+    return nil
 }
 
 // GetJobApplicationsWithFilters 根据状态和阶段筛选获取岗位申请

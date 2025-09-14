@@ -366,13 +366,28 @@ func ValidateNotes(notes string) error {
 
 // ValidateContactInfo 验证联系信息
 func ValidateContactInfo(contactInfo string) error {
-	return ValidateOptionalText("contact_info", contactInfo, 500)
+    return ValidateOptionalText("contact_info", contactInfo, 500)
 }
 
 // NewValidationError 创建验证错误
 func NewValidationError(field, message string, args ...interface{}) error {
-	return ValidationError{
-		Field:   field,
-		Message: fmt.Sprintf(message, args...),
-	}
+    return ValidationError{
+        Field:   field,
+        Message: fmt.Sprintf(message, args...),
+    }
+}
+
+// ValidateCompanyAttribute 验证企业属性（央国企/私企），空字符串视为未填写（旧数据兼容）
+func ValidateCompanyAttribute(attr string, required bool) error {
+    trimmed := strings.TrimSpace(attr)
+    if trimmed == "" {
+        if required {
+            return ValidationError{Field: "company_attribute", Message: "企业属性为必填项"}
+        }
+        return nil
+    }
+    if trimmed != "央国企" && trimmed != "私企" {
+        return ValidationError{Field: "company_attribute", Message: "企业属性取值无效，应为‘央国企’或‘私企’"}
+    }
+    return nil
 }

@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS job_applications (
     work_location VARCHAR(255),
     contact_info VARCHAR(500),
     notes TEXT,
+    company_attribute VARCHAR(10),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

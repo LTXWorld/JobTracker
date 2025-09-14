@@ -181,7 +181,7 @@ func (r *exportRepo) GetExportData(userID uint, filters *model.ExportFilters, of
     var apps []model.JobApplication
     for rows.Next() {
         var a model.JobApplication
-        if err := rows.Scan(&a.ID,&a.UserID,&a.CompanyName,&a.PositionTitle,&a.ApplicationDate,&a.Status,&a.JobDescription,&a.SalaryRange,&a.WorkLocation,&a.ContactInfo,&a.Notes,&a.InterviewTime,&a.ReminderTime,&a.ReminderEnabled,&a.FollowUpDate,&a.HRName,&a.HRPhone,&a.HREmail,&a.InterviewLocation,&a.InterviewType,&a.CreatedAt,&a.UpdatedAt); err != nil { return nil, err }
+        if err := rows.Scan(&a.ID,&a.UserID,&a.CompanyName,&a.PositionTitle,&a.ApplicationDate,&a.Status,&a.JobDescription,&a.SalaryRange,&a.WorkLocation,&a.ContactInfo,&a.Notes,&a.InterviewTime,&a.ReminderTime,&a.ReminderEnabled,&a.FollowUpDate,&a.HRName,&a.HRPhone,&a.HREmail,&a.InterviewLocation,&a.InterviewType,&a.CompanyAttribute,&a.CreatedAt,&a.UpdatedAt); err != nil { return nil, err }
         apps = append(apps, a)
     }
     return apps, nil
@@ -215,7 +215,7 @@ func buildCountQueryInternal(userID uint, filters *model.ExportFilters) (string,
 }
 
 func buildDataQueryInternal(userID uint, filters *model.ExportFilters, offset, limit int) (string, []interface{}) {
-    query := "SELECT id, user_id, company_name, position_title, application_date, status, job_description, salary_range, work_location, contact_info, notes, interview_time, reminder_time, reminder_enabled, follow_up_date, hr_name, hr_phone, hr_email, interview_location, interview_type, created_at, updated_at FROM job_applications WHERE user_id = $1"
+    query := "SELECT id, user_id, company_name, position_title, application_date, status, job_description, salary_range, work_location, contact_info, notes, interview_time, reminder_time, reminder_enabled, follow_up_date, hr_name, hr_phone, hr_email, interview_location, interview_type, company_attribute, created_at, updated_at FROM job_applications WHERE user_id = $1"
     args := []interface{}{userID}
     argIndex := 2
     if len(filters.Status) > 0 {

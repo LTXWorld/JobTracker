@@ -55,6 +55,7 @@ func (db *DB) RunMigrations() error {
 				hr_email VARCHAR(255),
 				interview_location VARCHAR(255),
 				interview_type VARCHAR(255),
+				company_attribute VARCHAR(10),
 				created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 				updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 			);
@@ -88,6 +89,7 @@ func (db *DB) RunMigrations() error {
 			"ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS hr_email VARCHAR(255);",
 			"ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS interview_location VARCHAR(255);",
 			"ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS interview_type VARCHAR(255);",
+			"ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS company_attribute VARCHAR(10);",
 		}
 
 		for _, alterSQL := range alterTableSQL {
@@ -96,6 +98,20 @@ func (db *DB) RunMigrations() error {
 			}
 		}
 	}
+
+	// 确保企业属性检查约束存在（幂等）
+	_, _ = db.Exec(`
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE table_name = 'job_applications' AND constraint_name = 'chk_company_attribute_valid'
+    ) THEN
+        ALTER TABLE job_applications
+        ADD CONSTRAINT chk_company_attribute_valid
+        CHECK (company_attribute IS NULL OR company_attribute IN ('央国企', '私企'));
+    END IF;
+END $$;`)
 
 	// 创建索引
 	indexes := []string{

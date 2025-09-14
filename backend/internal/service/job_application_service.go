@@ -55,15 +55,20 @@ func (s *JobApplicationService) Create(userID uint, req *model.CreateJobApplicat
 		reminderEnabled = *req.ReminderEnabled
 	}
 
-	query := `
-		INSERT INTO job_applications (
-			user_id, company_name, position_title, application_date, status, 
-			job_description, salary_range, work_location, contact_info, notes,
-			interview_time, reminder_time, reminder_enabled, follow_up_date,
-			hr_name, hr_phone, hr_email, interview_location, interview_type
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-		RETURNING id, created_at, updated_at
-	`
+    query := `
+        INSERT INTO job_applications (
+            user_id, company_name, position_title, application_date, status, 
+            job_description, salary_range, work_location, contact_info, notes,
+            interview_time, reminder_time, reminder_enabled, follow_up_date,
+            hr_name, hr_phone, hr_email, interview_location, interview_type,
+            company_attribute
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+            $11, $12, $13, $14, $15, $16, $17, $18, $19,
+            $20
+        )
+        RETURNING id, created_at, updated_at
+    `
 
 	var job model.JobApplication
 	err := s.db.QueryRow(query,
@@ -84,9 +89,10 @@ func (s *JobApplicationService) Create(userID uint, req *model.CreateJobApplicat
 		req.HRName,
 		req.HRPhone,
 		req.HREmail,
-		req.InterviewLocation,
-		req.InterviewType,
-	).Scan(&job.ID, &job.CreatedAt, &job.UpdatedAt)
+        req.InterviewLocation,
+        req.InterviewType,
+        nullIfEmpty(req.CompanyAttribute),
+    ).Scan(&job.ID, &job.CreatedAt, &job.UpdatedAt)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create job application: %w", err)
@@ -111,7 +117,11 @@ func (s *JobApplicationService) Create(userID uint, req *model.CreateJobApplicat
 	job.HRPhone = req.HRPhone
 	job.HREmail = req.HREmail
 	job.InterviewLocation = req.InterviewLocation
-	job.InterviewType = req.InterviewType
+    job.InterviewType = req.InterviewType
+    if req.CompanyAttribute != "" {
+        ca := req.CompanyAttribute
+        job.CompanyAttribute = &ca
+    }
 
 	return &job, nil
 }
@@ -119,15 +129,16 @@ func (s *JobApplicationService) Create(userID uint, req *model.CreateJobApplicat
 // GetByID 根据ID获取投递记录（带用户权限检查）
 func (s *JobApplicationService) GetByID(userID uint, id int) (*model.JobApplication, error) {
     if s.db.UseGorm && s.repo != nil { return s.repo.GetByID(userID, id) }
-	query := `
-		SELECT id, user_id, company_name, position_title, application_date, status,
-			job_description, salary_range, work_location, contact_info, notes,
-			interview_time, reminder_time, reminder_enabled, follow_up_date,
-			hr_name, hr_phone, hr_email, interview_location, interview_type,
-			created_at, updated_at
-		FROM job_applications
-		WHERE id = $1 AND user_id = $2
-	`
+    query := `
+        SELECT id, user_id, company_name, position_title, application_date, status,
+            job_description, salary_range, work_location, contact_info, notes,
+            interview_time, reminder_time, reminder_enabled, follow_up_date,
+            hr_name, hr_phone, hr_email, interview_location, interview_type,
+            company_attribute,
+            created_at, updated_at
+        FROM job_applications
+        WHERE id = $1 AND user_id = $2
+    `
 
 	var job model.JobApplication
 	err := s.db.QueryRow(query, id, userID).Scan(
@@ -150,10 +161,11 @@ func (s *JobApplicationService) GetByID(userID uint, id int) (*model.JobApplicat
 		&job.HRPhone,
 		&job.HREmail,
 		&job.InterviewLocation,
-		&job.InterviewType,
-		&job.CreatedAt,
-		&job.UpdatedAt,
-	)
+        &job.InterviewType,
+        &job.CompanyAttribute,
+        &job.CreatedAt,
+        &job.UpdatedAt,
+    )
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -223,17 +235,18 @@ func (s *JobApplicationService) GetAllPaginated(userID uint, req model.Paginatio
 	}
 
 	// 3. 数据查询（使用复合索引）
-	dataQuery := fmt.Sprintf(`
-		SELECT id, user_id, company_name, position_title, application_date, status,
-			job_description, salary_range, work_location, contact_info, notes,
-			interview_time, reminder_time, reminder_enabled, follow_up_date,
-			hr_name, hr_phone, hr_email, interview_location, interview_type,
-			created_at, updated_at
-		FROM job_applications 
-		%s 
-		ORDER BY %s %s, created_at DESC 
-		LIMIT $%d OFFSET $%d
-	`, whereClause, req.SortBy, req.SortDir, argIndex, argIndex+1)
+    dataQuery := fmt.Sprintf(`
+        SELECT id, user_id, company_name, position_title, application_date, status,
+            job_description, salary_range, work_location, contact_info, notes,
+            interview_time, reminder_time, reminder_enabled, follow_up_date,
+            hr_name, hr_phone, hr_email, interview_location, interview_type,
+            company_attribute,
+            created_at, updated_at
+        FROM job_applications 
+        %s 
+        ORDER BY %s %s, created_at DESC 
+        LIMIT $%d OFFSET $%d
+    `, whereClause, req.SortBy, req.SortDir, argIndex, argIndex+1)
 
 	// 添加LIMIT和OFFSET参数
 	args = append(args, req.PageSize, req.GetOffset())
@@ -274,10 +287,11 @@ func (s *JobApplicationService) GetAllPaginated(userID uint, req model.Paginatio
 			&job.HRPhone,
 			&job.HREmail,
 			&job.InterviewLocation,
-			&job.InterviewType,
-			&job.CreatedAt,
-			&job.UpdatedAt,
-		)
+            &job.InterviewType,
+            &job.CompanyAttribute,
+            &job.CreatedAt,
+            &job.UpdatedAt,
+        )
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan job application: %w", err)
 		}
@@ -306,17 +320,18 @@ func (s *JobApplicationService) GetAllPaginated(userID uint, req model.Paginatio
 func (s *JobApplicationService) GetAll(userID uint) ([]model.JobApplication, error) {
     if s.db.UseGorm && s.repo != nil { return s.repo.GetAll(userID) }
 	// 优化查询：显式使用复合索引，限制返回数量避免大数据集性能问题
-	query := `
-		SELECT id, user_id, company_name, position_title, application_date, status,
-			job_description, salary_range, work_location, contact_info, notes,
-			interview_time, reminder_time, reminder_enabled, follow_up_date,
-			hr_name, hr_phone, hr_email, interview_location, interview_type,
-			created_at, updated_at
-		FROM job_applications
-		WHERE user_id = $1
-		ORDER BY application_date DESC, created_at DESC
-		LIMIT 500
-	`
+    query := `
+        SELECT id, user_id, company_name, position_title, application_date, status,
+            job_description, salary_range, work_location, contact_info, notes,
+            interview_time, reminder_time, reminder_enabled, follow_up_date,
+            hr_name, hr_phone, hr_email, interview_location, interview_type,
+            company_attribute,
+            created_at, updated_at
+        FROM job_applications
+        WHERE user_id = $1
+        ORDER BY application_date DESC, created_at DESC
+        LIMIT 500
+    `
 
 	rows, err := s.db.Query(query, userID)
 	if err != nil {
@@ -347,10 +362,11 @@ func (s *JobApplicationService) GetAll(userID uint) ([]model.JobApplication, err
 			&job.HRPhone,
 			&job.HREmail,
 			&job.InterviewLocation,
-			&job.InterviewType,
-			&job.CreatedAt,
-			&job.UpdatedAt,
-		)
+            &job.InterviewType,
+            &job.CompanyAttribute,
+            &job.CreatedAt,
+            &job.UpdatedAt,
+        )
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan job application: %w", err)
 		}
@@ -473,11 +489,21 @@ func (s *JobApplicationService) Update(userID uint, id int, req *model.UpdateJob
 		argIndex++
 	}
 
-	if req.InterviewType != nil {
-		setParts = append(setParts, fmt.Sprintf("interview_type = $%d", argIndex))
-		args = append(args, *req.InterviewType)
-		argIndex++
-	}
+    if req.InterviewType != nil {
+        setParts = append(setParts, fmt.Sprintf("interview_type = $%d", argIndex))
+        args = append(args, *req.InterviewType)
+        argIndex++
+    }
+
+    if req.CompanyAttribute != nil {
+        setParts = append(setParts, fmt.Sprintf("company_attribute = $%d", argIndex))
+        if strings.TrimSpace(*req.CompanyAttribute) == "" {
+            args = append(args, nil)
+        } else {
+            args = append(args, *req.CompanyAttribute)
+        }
+        argIndex++
+    }
 
 	// 如果没有需要更新的字段，直接返回现有记录
 	if len(setParts) == 0 {
@@ -493,16 +519,17 @@ func (s *JobApplicationService) Update(userID uint, id int, req *model.UpdateJob
 	args = append(args, id, userID)
 
 	// 优化：使用UPDATE ... RETURNING避免额外查询，一次SQL完成更新并返回结果
-	query := fmt.Sprintf(`
-		UPDATE job_applications
-		SET %s
-		WHERE id = $%d AND user_id = $%d
-		RETURNING id, user_id, company_name, position_title, application_date, status,
-			job_description, salary_range, work_location, contact_info, notes,
-			interview_time, reminder_time, reminder_enabled, follow_up_date,
-			hr_name, hr_phone, hr_email, interview_location, interview_type,
-			created_at, updated_at
-	`, strings.Join(setParts, ", "), argIndex, argIndex+1)
+    query := fmt.Sprintf(`
+        UPDATE job_applications
+        SET %s
+        WHERE id = $%d AND user_id = $%d
+        RETURNING id, user_id, company_name, position_title, application_date, status,
+            job_description, salary_range, work_location, contact_info, notes,
+            interview_time, reminder_time, reminder_enabled, follow_up_date,
+            hr_name, hr_phone, hr_email, interview_location, interview_type,
+            company_attribute,
+            created_at, updated_at
+    `, strings.Join(setParts, ", "), argIndex, argIndex+1)
 
 	var job model.JobApplication
 	err := s.db.QueryRow(query, args...).Scan(
@@ -525,10 +552,11 @@ func (s *JobApplicationService) Update(userID uint, id int, req *model.UpdateJob
 		&job.HRPhone,
 		&job.HREmail,
 		&job.InterviewLocation,
-		&job.InterviewType,
-		&job.CreatedAt,
-		&job.UpdatedAt,
-	)
+        &job.InterviewType,
+        &job.CompanyAttribute,
+        &job.CreatedAt,
+        &job.UpdatedAt,
+    )
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -729,48 +757,50 @@ func (s *JobApplicationService) BatchCreate(userID uint, applications []model.Cr
 		}
 
 		// 构建单个记录的值占位符
-		valueStrings = append(valueStrings, fmt.Sprintf(
-			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
-			argIndex, argIndex+1, argIndex+2, argIndex+3, argIndex+4, argIndex+5, argIndex+6, argIndex+7, argIndex+8,
-			argIndex+9, argIndex+10, argIndex+11, argIndex+12, argIndex+13, argIndex+14, argIndex+15, argIndex+16, argIndex+17, argIndex+18,
-		))
+        valueStrings = append(valueStrings, fmt.Sprintf(
+            "($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+            argIndex, argIndex+1, argIndex+2, argIndex+3, argIndex+4, argIndex+5, argIndex+6, argIndex+7, argIndex+8,
+            argIndex+9, argIndex+10, argIndex+11, argIndex+12, argIndex+13, argIndex+14, argIndex+15, argIndex+16, argIndex+17, argIndex+18, argIndex+19,
+        ))
 
 		// 添加参数值
-		valueArgs = append(valueArgs,
-			userID,
-			req.CompanyName,
-			req.PositionTitle,
-			applicationDate,
-			status,
-			req.JobDescription,
-			req.SalaryRange,
-			req.WorkLocation,
-			req.ContactInfo,
-			req.Notes,
-			req.InterviewTime,
-			req.ReminderTime,
-			reminderEnabled,
-			req.FollowUpDate,
-			req.HRName,
-			req.HRPhone,
-			req.HREmail,
-			req.InterviewLocation,
-			req.InterviewType,
-		)
+        valueArgs = append(valueArgs,
+            userID,
+            req.CompanyName,
+            req.PositionTitle,
+            applicationDate,
+            status,
+            req.JobDescription,
+            req.SalaryRange,
+            req.WorkLocation,
+            req.ContactInfo,
+            req.Notes,
+            req.InterviewTime,
+            req.ReminderTime,
+            reminderEnabled,
+            req.FollowUpDate,
+            req.HRName,
+            req.HRPhone,
+            req.HREmail,
+            req.InterviewLocation,
+            req.InterviewType,
+            nullIfEmpty(req.CompanyAttribute),
+        )
 
-		argIndex += 19
-	}
+        argIndex += 20
+    }
 
 	// 执行批量插入
-	query := fmt.Sprintf(`
-		INSERT INTO job_applications (
-			user_id, company_name, position_title, application_date, status, 
-			job_description, salary_range, work_location, contact_info, notes,
-			interview_time, reminder_time, reminder_enabled, follow_up_date,
-			hr_name, hr_phone, hr_email, interview_location, interview_type
-		) VALUES %s
-		RETURNING id, created_at, updated_at
-	`, strings.Join(valueStrings, ", "))
+    query := fmt.Sprintf(`
+        INSERT INTO job_applications (
+            user_id, company_name, position_title, application_date, status, 
+            job_description, salary_range, work_location, contact_info, notes,
+            interview_time, reminder_time, reminder_enabled, follow_up_date,
+            hr_name, hr_phone, hr_email, interview_location, interview_type,
+            company_attribute
+        ) VALUES %s
+        RETURNING id, created_at, updated_at
+    `, strings.Join(valueStrings, ", "))
 
     var rows *sql.Rows
     var err error
@@ -1026,19 +1056,20 @@ func (s *JobApplicationService) SearchApplications(userID uint, searchQuery stri
 	}
 
 	// 3. 数据查询
-	dataQuery := fmt.Sprintf(`
-		SELECT id, user_id, company_name, position_title, application_date, status,
-			job_description, salary_range, work_location, contact_info, notes,
-			interview_time, reminder_time, reminder_enabled, follow_up_date,
-			hr_name, hr_phone, hr_email, interview_location, interview_type,
-			created_at, updated_at,
-			ts_rank_cd(to_tsvector('simple', COALESCE(company_name, '') || ' ' || COALESCE(position_title, '')), 
-					  plainto_tsquery('simple', $2)) as rank
-		FROM job_applications 
-		%s 
-		ORDER BY rank DESC, %s %s, created_at DESC 
-		LIMIT $%d OFFSET $%d
-	`, whereClause, req.SortBy, req.SortDir, argIndex, argIndex+1)
+    dataQuery := fmt.Sprintf(`
+        SELECT id, user_id, company_name, position_title, application_date, status,
+            job_description, salary_range, work_location, contact_info, notes,
+            interview_time, reminder_time, reminder_enabled, follow_up_date,
+            hr_name, hr_phone, hr_email, interview_location, interview_type,
+            company_attribute,
+            created_at, updated_at,
+            ts_rank_cd(to_tsvector('simple', COALESCE(company_name, '') || ' ' || COALESCE(position_title, '')), 
+                          plainto_tsquery('simple', $2)) as rank
+        FROM job_applications 
+        %s 
+        ORDER BY rank DESC, %s %s, created_at DESC 
+        LIMIT $%d OFFSET $%d
+    `, whereClause, req.SortBy, req.SortDir, argIndex, argIndex+1)
 
 	// 添加LIMIT和OFFSET参数
 	args = append(args, req.PageSize, req.GetOffset())
@@ -1080,11 +1111,12 @@ func (s *JobApplicationService) SearchApplications(userID uint, searchQuery stri
 			&job.HRPhone,
 			&job.HREmail,
 			&job.InterviewLocation,
-			&job.InterviewType,
-			&job.CreatedAt,
-			&job.UpdatedAt,
-			&rank, // 搜索相关度分数
-		)
+            &job.InterviewType,
+            &job.CompanyAttribute,
+            &job.CreatedAt,
+            &job.UpdatedAt,
+            &rank, // 搜索相关度分数
+        )
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan search result: %w", err)
 		}
@@ -1181,17 +1213,18 @@ func (s *JobApplicationService) GetApplicationsByDateRange(userID uint, startDat
 	}
 
 	// 3. 数据查询 - 使用日期范围索引
-	dataQuery := fmt.Sprintf(`
-		SELECT id, user_id, company_name, position_title, application_date, status,
-			job_description, salary_range, work_location, contact_info, notes,
-			interview_time, reminder_time, reminder_enabled, follow_up_date,
-			hr_name, hr_phone, hr_email, interview_location, interview_type,
-			created_at, updated_at
-		FROM job_applications 
-		%s 
-		ORDER BY %s %s, created_at DESC 
-		LIMIT $%d OFFSET $%d
-	`, whereClause, req.SortBy, req.SortDir, argIndex, argIndex+1)
+    dataQuery := fmt.Sprintf(`
+        SELECT id, user_id, company_name, position_title, application_date, status,
+            job_description, salary_range, work_location, contact_info, notes,
+            interview_time, reminder_time, reminder_enabled, follow_up_date,
+            hr_name, hr_phone, hr_email, interview_location, interview_type,
+            company_attribute,
+            created_at, updated_at
+        FROM job_applications 
+        %s 
+        ORDER BY %s %s, created_at DESC 
+        LIMIT $%d OFFSET $%d
+    `, whereClause, req.SortBy, req.SortDir, argIndex, argIndex+1)
 
 	// 添加LIMIT和OFFSET参数
 	args = append(args, req.PageSize, req.GetOffset())
@@ -1227,10 +1260,11 @@ func (s *JobApplicationService) GetApplicationsByDateRange(userID uint, startDat
 			&job.HRPhone,
 			&job.HREmail,
 			&job.InterviewLocation,
-			&job.InterviewType,
-			&job.CreatedAt,
-			&job.UpdatedAt,
-		)
+            &job.InterviewType,
+            &job.CompanyAttribute,
+            &job.CreatedAt,
+            &job.UpdatedAt,
+        )
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan application by date range: %w", err)
 		}
@@ -1338,17 +1372,18 @@ func (s *JobApplicationService) GetJobApplicationsWithStatusFilters(userID uint,
 	}
 
 	// 3. 数据查询
-	dataQuery := fmt.Sprintf(`
-		SELECT id, user_id, company_name, position_title, application_date, status,
-			job_description, salary_range, work_location, contact_info, notes,
-			interview_time, reminder_time, reminder_enabled, follow_up_date,
-			hr_name, hr_phone, hr_email, interview_location, interview_type,
-			created_at, updated_at
-		FROM job_applications 
-		%s 
-		ORDER BY %s %s, created_at DESC 
-		LIMIT $%d OFFSET $%d
-	`, whereClause, req.SortBy, req.SortDir, argIndex, argIndex+1)
+    dataQuery := fmt.Sprintf(`
+        SELECT id, user_id, company_name, position_title, application_date, status,
+            job_description, salary_range, work_location, contact_info, notes,
+            interview_time, reminder_time, reminder_enabled, follow_up_date,
+            hr_name, hr_phone, hr_email, interview_location, interview_type,
+            company_attribute,
+            created_at, updated_at
+        FROM job_applications 
+        %s 
+        ORDER BY %s %s, created_at DESC 
+        LIMIT $%d OFFSET $%d
+    `, whereClause, req.SortBy, req.SortDir, argIndex, argIndex+1)
 
 	// 添加LIMIT和OFFSET参数
 	args = append(args, req.PageSize, req.GetOffset())
@@ -1384,10 +1419,11 @@ func (s *JobApplicationService) GetJobApplicationsWithStatusFilters(userID uint,
 			&job.HRPhone,
 			&job.HREmail,
 			&job.InterviewLocation,
-			&job.InterviewType,
-			&job.CreatedAt,
-			&job.UpdatedAt,
-		)
+            &job.InterviewType,
+            &job.CompanyAttribute,
+            &job.CreatedAt,
+            &job.UpdatedAt,
+        )
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan filtered job application: %w", err)
 		}
@@ -1577,4 +1613,12 @@ func (s *JobApplicationService) GetDashboardData(userID uint) (map[string]interf
 	}
 
 	return dashboard, nil
+}
+
+// nullIfEmpty 将空字符串转换为NULL用于可选字段写库
+func nullIfEmpty(s string) interface{} {
+    if strings.TrimSpace(s) == "" {
+        return nil
+    }
+    return s
 }

@@ -677,15 +677,16 @@ func (s *ExportService) buildCountQuery(userID uint, filters *model.ExportFilter
 
 // buildDataQuery 构建数据查询
 func (s *ExportService) buildDataQuery(userID uint, filters *model.ExportFilters, offset, limit int) (string, []interface{}) {
-	query := `
-		SELECT id, user_id, company_name, position_title, application_date, status,
-			   job_description, salary_range, work_location, contact_info, notes,
-			   interview_time, reminder_time, reminder_enabled, follow_up_date,
-			   hr_name, hr_phone, hr_email, interview_location, interview_type,
-			   created_at, updated_at
-		FROM job_applications 
-		WHERE user_id = $1
-	`
+    query := `
+        SELECT id, user_id, company_name, position_title, application_date, status,
+               job_description, salary_range, work_location, contact_info, notes,
+               interview_time, reminder_time, reminder_enabled, follow_up_date,
+               hr_name, hr_phone, hr_email, interview_location, interview_type,
+               company_attribute,
+               created_at, updated_at
+        FROM job_applications 
+        WHERE user_id = $1
+    `
 	args := []interface{}{userID}
 	argIndex := 2
 

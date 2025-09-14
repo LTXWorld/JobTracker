@@ -22,6 +22,13 @@
         <a-input v-model:value="formData.position_title" placeholder="请输入职位标题" />
       </a-form-item>
 
+      <a-form-item label="企业属性" name="company_attribute">
+        <a-select v-model:value="formData.company_attribute" placeholder="请选择企业属性">
+          <a-select-option value="央国企">央国企</a-select-option>
+          <a-select-option value="私企">私企</a-select-option>
+        </a-select>
+      </a-form-item>
+
       <a-form-item label="投递日期" name="application_date">
         <a-date-picker
           v-model:value="formData.application_date"
@@ -239,6 +246,7 @@ const formData = reactive<{
   position_title: string
   application_date: Dayjs | null
   status: ApplicationStatus
+  company_attribute: '' | '央国企' | '私企'
   salary_range: string
   work_location: string
   notes: string
@@ -251,6 +259,7 @@ const formData = reactive<{
   position_title: '',
   application_date: null,
   status: '已投递' as ApplicationStatus,
+  company_attribute: '',
   salary_range: '',
   work_location: '',
   notes: '',
@@ -267,6 +276,9 @@ const rules = {
   ],
   position_title: [
     { required: true, message: '请输入职位标题', trigger: 'blur' }
+  ],
+  company_attribute: [
+    { required: true, message: '请选择企业属性', trigger: 'change' }
   ]
 }
 
@@ -286,6 +298,7 @@ const resetForm = () => {
   formData.position_title = ''
   formData.application_date = dayjs()
   formData.status = '已投递' as ApplicationStatus
+  formData.company_attribute = ''
   formData.salary_range = ''
   formData.work_location = ''
   formData.notes = ''
@@ -303,6 +316,7 @@ watch(() => props.initialData, (app) => {
     formData.position_title = app.position_title
     formData.application_date = app.application_date ? dayjs(app.application_date) : null
     formData.status = app.status
+    formData.company_attribute = (app.company_attribute as any) || ''
     formData.salary_range = app.salary_range || ''
     formData.work_location = app.work_location || ''
     formData.notes = app.notes || ''
@@ -326,6 +340,7 @@ const handleSubmit = async () => {
       position_title: formData.position_title,
       application_date: formData.application_date?.format('YYYY-MM-DD') || dayjs().format('YYYY-MM-DD'),
       status: formData.status as ApplicationStatus,
+      company_attribute: formData.company_attribute as '央国企' | '私企',
       salary_range: formData.salary_range || undefined,
       work_location: formData.work_location || undefined,
       notes: formData.notes || undefined,
