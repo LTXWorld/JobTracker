@@ -35,6 +35,7 @@ jobs:
           # 以 go.mod 为准，避免版本不匹配
           go-version-file: backend/go.mod
           cache: true
+          cache-dependency-path: backend/go.sum
 
       # 第三步：设置 Node.js 环境
       - name: Set up Node.js
