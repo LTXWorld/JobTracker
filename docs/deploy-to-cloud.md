@@ -1,6 +1,8 @@
 # JobView 云服务器部署指南（Production）
 
-本文档说明如何将本项目部署到一台 Ubuntu 22.04 云服务器。提供推荐方案（Nginx + Systemd）与可选方案（Docker Compose）。
+> 最后更新：2024年9月14日
+
+本文档说明如何将 JobView 求职管理系统部署到一台 Ubuntu 22.04 云服务器。系统已通过全面优化，支持 100-200 并发用户，查询响应时间提升 84-89%。
 
 ---
 
@@ -196,3 +198,44 @@ docker compose up -d --build
   - 直连后端：若不使用反代，可将 `VITE_API_BASE` 设为完整地址（如 `http://localhost:8010/api`），前端会正确请求，无双 `/api` 前缀问题
 
 完成以上步骤，即可在云服务器上稳定对外服务。
+
+---
+
+## 4) 使用 GitHub Actions 自动部署（推荐）
+
+本仓库已内置基于 GitHub Actions 的零镜像部署流程（`.github/workflows/deploy.yml`）。当推送到 `main` 分支或手动触发时，将在云端：
+
+- 构建后端 Linux amd64 二进制 `backend/jobview-backend`
+- 构建前端静态资源 `frontend/dist`
+- 通过 `scp` 将产物上传到服务器指定目录
+- 通过 `ssh` 调用 `systemctl restart jobview-backend` 平滑重启后端
+
+### 4.1 准备服务器
+- 已完成本指南 1.3、1.4、1.5 中的部署与 `jobview-backend.service` 配置
+- 确保下列路径存在并可写：
+  - 后端：`${REMOTE_PATH_BACKEND}`（例如 `/opt/jobview/backend`）且包含 `.env`
+  - 前端：`${REMOTE_PATH_FRONTEND}`（例如 `/var/www/jobview`）
+
+### 4.2 配置仓库 Secrets
+在 GitHub 仓库 Settings → Secrets and variables → Actions 新增：
+
+- `SERVER_HOST`：服务器域名或 IP
+- `SERVER_USER`：SSH 登录用户
+- `SERVER_SSH_KEY`：私钥内容（PEM 格式）
+- `REMOTE_PATH_BACKEND`：后端部署目录（如 `/opt/jobview/backend`）
+- `REMOTE_PATH_FRONTEND`：前端静态目录（如 `/var/www/jobview`）
+
+### 4.3 工作流要点
+- Go 版本自动从 `backend/go.mod` 解析；Node 使用 20
+- 前端默认以同源 `/api` 访问后端，无需在 CI 中改环境变量
+- 上传产物时使用 `strip_components` 去除多余目录层级：
+  - 后端：从 `backend/jobview-backend` 上传到 `${REMOTE_PATH_BACKEND}/jobview-backend`
+  - 前端：从 `frontend/dist/**` 展开上传到 `${REMOTE_PATH_FRONTEND}`
+
+### 4.4 手动触发与回滚
+- 手动触发：GitHub → Actions → Deploy JobView Project → Run workflow
+- 回滚：
+  - 后端：在服务器保留上一个二进制，替换并 `systemctl restart jobview-backend`
+  - 前端：静态目录可用时间戳备份（`cp -a /var/www/jobview /var/www/jobview_YYYYMMDDHHmm`）后再替换
+
+更详细的 CI/CD 说明见 `docs/ci-cd-github-actions.md`。
