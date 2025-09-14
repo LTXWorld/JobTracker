@@ -150,39 +150,47 @@ func CORSMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
-			
+
 			// 检查允许的域名
 			allowed := false
 			for _, allowedOrigin := range allowedOrigins {
+				// 完全匹配
 				if origin == allowedOrigin || allowedOrigin == "*" {
 					allowed = true
 					break
 				}
+				// 支持Chrome扩展的通配符匹配
+				if strings.HasPrefix(allowedOrigin, "chrome-extension://") &&
+				   strings.HasPrefix(origin, "chrome-extension://") {
+					allowed = true
+					break
+				}
 			}
-			
+
 			if allowed {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 			} else if origin != "" {
-				// 即使不允许的域名也设置基本的 CORS 头以便错误处理
+				// 对于不允许的域名，仍然设置CORS头但会被浏览器拒绝
+				// 这样便于调试
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 			} else {
 				// 如果没有Origin头，设置默认允许的第一个域名
-				if len(allowedOrigins) > 0 {
+				if len(allowedOrigins) > 0 && !strings.Contains(allowedOrigins[0], "chrome-extension") {
 					w.Header().Set("Access-Control-Allow-Origin", allowedOrigins[0])
 				}
 			}
-			
+
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Accept-Encoding, Accept-Language")
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Max-Age", "86400") // 24小时预检缓存
-			
+
 			// 处理预检请求
 			if r.Method == "OPTIONS" {
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
-			
+
 			next.ServeHTTP(w, r)
 		})
 	}

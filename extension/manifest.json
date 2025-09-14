@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "JobView 简历自动填充助手",
+  "version": "1.0.0",
+  "description": "一键填充简历信息到各大招聘网站，提升求职效率",
+  "author": "JobView Team",
+  "permissions": [
+    "storage",
+    "tabs",
+    "activeTab",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://*.zhaopin.com/*",
+    "https://*.51job.com/*",
+    "https://*.zhipin.com/*",
+    "http://localhost:*/*",
+    "https://jobview.bfsmlt.top/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.zhaopin.com/*",
+        "https://*.51job.com/*",
+        "https://*.zhipin.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "JobView 自动填充",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

@@ -1,0 +1,217 @@
+/* JobView AutoFill Extension - Content Styles */
+
+#jobview-autofill-button {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+#jobview-autofill-button:hover {
+  background-color: #40a9ff !important;
+}
+
+#jobview-autofill-button:active {
+  transform: scale(0.95) !important;
+}
+
+/* 防止与页面样式冲突 */
+#jobview-autofill-button * {
+  box-sizing: border-box;
+}
+
+/* 填充预览提示 */
+.jobview-fill-preview {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  background: white;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  padding: 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 9999;
+  min-width: 300px;
+  max-width: 400px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.jobview-fill-preview h4 {
+  margin: 0 0 12px 0;
+  color: #262626;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.jobview-preview-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.jobview-preview-item:last-child {
+  border-bottom: none;
+}
+
+.jobview-preview-label {
+  color: #595959;
+  font-size: 14px;
+  flex: 1;
+}
+
+.jobview-preview-value {
+  color: #262626;
+  font-size: 14px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jobview-preview-actions {
+  margin-top: 16px;
+  text-align: right;
+}
+
+.jobview-btn {
+  display: inline-block;
+  padding: 6px 16px;
+  margin-left: 8px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  background: white;
+  color: #262626;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+.jobview-btn:hover {
+  border-color: #40a9ff;
+  color: #40a9ff;
+}
+
+.jobview-btn-primary {
+  background: #1890ff;
+  border-color: #1890ff;
+  color: white;
+}
+
+.jobview-btn-primary:hover {
+  background: #40a9ff;
+  border-color: #40a9ff;
+  color: white;
+}
+
+/* 字段高亮效果 */
+.jobview-field-highlight {
+  animation: jobview-highlight 2s ease-out;
+}
+
+@keyframes jobview-highlight {
+  0% {
+    background-color: #bae7ff;
+    border-color: #1890ff;
+  }
+  100% {
+    background-color: transparent;
+    border-color: initial;
+  }
+}
+
+/* 成功提示 */
+.jobview-success-toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+  border-radius: 6px;
+  padding: 12px 16px;
+  color: #52c41a;
+  font-size: 14px;
+  z-index: 10001;
+  animation: jobview-slide-down 0.3s ease-out;
+}
+
+@keyframes jobview-slide-down {
+  from {
+    transform: translateX(-50%) translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
+/* 加载状态 */
+.jobview-loading {
+  animation: jobview-spin 1s linear infinite;
+}
+
+@keyframes jobview-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  #jobview-autofill-button {
+    width: 44px !important;
+    height: 44px !important;
+    top: 80px !important;
+    right: 16px !important;
+  }
+
+  .jobview-fill-preview {
+    top: 140px;
+    right: 16px;
+    left: 16px;
+    min-width: auto;
+    max-width: none;
+  }
+}
+
+/* 暗色模式适配 */
+@media (prefers-color-scheme: dark) {
+  .jobview-fill-preview {
+    background: #1f1f1f;
+    border-color: #434343;
+    color: #ffffff;
+  }
+
+  .jobview-preview-item {
+    border-color: #434343;
+  }
+
+  .jobview-preview-label {
+    color: #a6a6a6;
+  }
+
+  .jobview-preview-value {
+    color: #ffffff;
+  }
+
+  .jobview-btn {
+    background: #1f1f1f;
+    border-color: #434343;
+    color: #ffffff;
+  }
+
+  .jobview-btn:hover {
+    border-color: #40a9ff;
+    color: #40a9ff;
+  }
+}

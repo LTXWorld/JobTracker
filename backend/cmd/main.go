@@ -65,7 +65,15 @@ func main() {
 	// 应用全局中间件
 	router.Use(auth.LoggingMiddleware)
 	router.Use(auth.SecurityHeadersMiddleware)
-	router.Use(auth.CORSMiddleware([]string{"http://localhost:3000", "http://localhost:8010"}))
+	// CORS配置 - 支持本地开发、Chrome扩展和生产环境
+	allowedOrigins := []string{
+		"http://localhost:3000",      // 本地前端开发
+		"http://localhost:3001",      // 备用前端端口
+		"http://localhost:8010",      // 本地后端
+		"https://jobview.bfsmlt.top", // 生产环境
+		"chrome-extension://*",       // Chrome扩展（注意：实际使用时需要具体的扩展ID）
+	}
+	router.Use(auth.CORSMiddleware(allowedOrigins))
 	
 	// 认证相关路由（无需认证）
 	authRouter := router.PathPrefix("/api/auth").Subrouter()
