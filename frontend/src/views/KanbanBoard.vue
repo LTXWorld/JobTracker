@@ -495,11 +495,36 @@ const stageRank = (status: ApplicationStatus): number => {
 const isBackward = (from: ApplicationStatus, to: ApplicationStatus) => stageRank(to) < stageRank(from)
 const isTerminal = (status: ApplicationStatus) => ['流程结束','已拒绝','简历筛选未通过','笔试未通过','一面未通过','二面未通过','三面未通过','HR面未通过'].includes(status)
 
+// 与后端一致的隐式直通规则：允许面试阶段的直接推进
+const isImplicitDirectTransitionAllowed = (from: ApplicationStatus, to: ApplicationStatus): boolean => {
+  const direct: Record<ApplicationStatus, ApplicationStatus> = {
+    '笔试中': '一面中',
+    '一面中': '二面中',
+    '二面中': '三面中',
+    '三面中': 'HR面中',
+    // 其他状态默认不直通
+  } as any
+  return direct[from] === to
+}
+
+// 与后端一致的隐式失败规则：进行中 → 同阶段未通过
+const isImplicitFailTransitionAllowed = (from: ApplicationStatus, to: ApplicationStatus): boolean => {
+  switch (from) {
+    case '简历筛选中': return to === '简历筛选未通过'
+    case '笔试中':     return to === '笔试未通过'
+    case '一面中':     return to === '一面未通过'
+    case '二面中':     return to === '二面未通过'
+    case '三面中':     return to === '三面未通过'
+    case 'HR面中':    return to === 'HR面未通过'
+    default: return false
+  }
+}
+
 const handleDragChange = async (evt: any, newStatus: ApplicationStatus) => {
   if (!evt.added) return
   const app = evt.added.element as JobApplication
 
-  // 预检合法流转（若配置了限制，则前端先挡住无效拖拽）
+  // 预检合法流转（若配置了限制，则前端先挡住无效拖拽；缺项时按隐式规则兜底）
   try {
     const rules: any = await statusTrackingStore.getAvailableTransitions(app.status)
     let allowed = true
@@ -509,6 +534,12 @@ const handleDragChange = async (evt: any, newStatus: ApplicationStatus) => {
       } else {
         allowed = rules.some((r: any) => (r?.to || []).includes(newStatus))
       }
+    }
+    // 若服务端返回缺少直通/失败项，按与后端一致的隐式规则放行
+    if (!allowed) {
+      const fallbackAllowed = isImplicitDirectTransitionAllowed(app.status as ApplicationStatus, newStatus) ||
+                              isImplicitFailTransitionAllowed(app.status as ApplicationStatus, newStatus)
+      allowed = fallbackAllowed
     }
     if (!allowed) {
       message.warning(`不允许从「${app.status}」到「${newStatus}」`)
