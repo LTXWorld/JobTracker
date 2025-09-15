@@ -127,8 +127,14 @@ deploy_frontend() {
             "$WEB_ROOT"/* 2>/dev/null || true
     fi
 
-    # 清理旧文件（保留备份）
-    find "$WEB_ROOT" -mindepth 1 -maxdepth 1 ! -name 'backup*' -exec rm -rf {} +
+    # 清理旧文件（保留备份和.user.ini）
+    # 注意：.user.ini 是宝塔的保护文件，不能删除
+    find "$WEB_ROOT" -mindepth 1 -maxdepth 1 \
+        ! -name 'backup*' \
+        ! -name '.user.ini' \
+        ! -name '.htaccess' \
+        ! -name '.well-known' \
+        -exec rm -rf {} + 2>/dev/null || true
 
     # 复制新文件
     cp -r "$PROJECT_DIR/frontend/dist/"* "$WEB_ROOT/"
