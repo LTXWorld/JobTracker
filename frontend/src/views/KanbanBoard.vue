@@ -194,6 +194,10 @@
       :application-id="selectedApplication.id"
       :current-status="selectedApplication.status"
       mode="button"
+      :auto-open="true"
+      :smart-choices="true"
+      :company-name="selectedApplication.company_name"
+      :position-title="selectedApplication.position_title"
       @updated="handleStatusUpdated"
       @cancelled="showQuickUpdateModal = false"
     />
@@ -497,8 +501,15 @@ const handleDragChange = async (evt: any, newStatus: ApplicationStatus) => {
 
   // 预检合法流转（若配置了限制，则前端先挡住无效拖拽）
   try {
-    const rules = await statusTrackingStore.getAvailableTransitions(app.status)
-    const allowed = rules?.some(r => (r.to || []).includes(newStatus)) ?? true
+    const rules: any = await statusTrackingStore.getAvailableTransitions(app.status)
+    let allowed = true
+    if (Array.isArray(rules)) {
+      if (rules.length > 0 && typeof rules[0] === 'string') {
+        allowed = (rules as any[]).includes(newStatus)
+      } else {
+        allowed = rules.some((r: any) => (r?.to || []).includes(newStatus))
+      }
+    }
     if (!allowed) {
       message.warning(`不允许从「${app.status}」到「${newStatus}」`)
       await fetchData()

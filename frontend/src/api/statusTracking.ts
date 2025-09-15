@@ -6,7 +6,8 @@ import type {
   UserStatusPreferences,
   UpdateStatusRequest,
   BatchStatusUpdateRequest,
-  StatusTransitionRule
+  StatusTransitionRule,
+  ApplicationStatus
 } from '../types'
 import { StatusHelper } from '../types'
 
@@ -215,9 +216,12 @@ export class StatusTrackingAPI {
    * 获取可用状态转换选项
    * @param currentStatus 当前状态
    */
-  static async getStatusTransitions(currentStatus: string): Promise<StatusTransitionRule[]> {
+  static async getStatusTransitions(currentStatus: string): Promise<ApplicationStatus[]> {
     const response = await request.get(`/v1/status-transitions/${encodeURIComponent(currentStatus)}`)
-    return response.data.data || []
+    // 后端返回形如 { current_status, available_transitions: [...], transition_count }
+    const payload = response.data?.data || {}
+    const list = payload.available_transitions || payload.transitions || []
+    return list as ApplicationStatus[]
   }
 
   /**

@@ -139,6 +139,10 @@ interface Props {
   autoFetch?: boolean // 是否自动获取可用状态
   companyName?: string // 公司名称（用于确认弹窗增强确认感）
   positionTitle?: string // 岗位名称（用于确认弹窗增强确认感）
+  // 是否在按钮模式下自动弹出弹窗（用于看板『快速更新』菜单直达）
+  autoOpen?: boolean
+  // 是否仅给出“当前阶段失败 + 下一主阶段”两项精简选项
+  smartChoices?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -147,7 +151,9 @@ const props = withDefaults(defineProps<Props>(), {
   showCurrent: true,
   buttonText: '更新状态',
   buttonSize: 'middle',
-  autoFetch: true
+  autoFetch: true,
+  autoOpen: false,
+  smartChoices: false
 })
 
 // Emits
@@ -182,7 +188,6 @@ const fetchAvailableStatuses = async () => {
     const transitions: any = await statusTrackingStore.getAvailableTransitions(props.currentStatus)
     let forward: ApplicationStatus[] = []
     if (Array.isArray(transitions)) {
-      // 兼容后端直接返回可达状态数组或规则数组
       if (transitions.length > 0 && typeof transitions[0] === 'string') {
         forward = transitions as ApplicationStatus[]
       } else {
@@ -191,18 +196,34 @@ const fetchAvailableStatuses = async () => {
     } else if (transitions && Array.isArray((transitions as any).transitions)) {
       forward = (transitions as any).transitions as ApplicationStatus[]
     }
-    const backward = getBackwardStatuses(props.currentStatus)
-    const set = new Set<ApplicationStatus>([...forward, ...backward])
-    set.delete(props.currentStatus)
-    availableStatuses.value = Array.from(set)
+
+    if (props.smartChoices) {
+      // 仅保留“当前阶段失败 + 下一主阶段”
+      const pair = getSmartPair(props.currentStatus)
+      // 与服务端允许列表取交集，避免提交失败
+      const allowedSet = new Set<ApplicationStatus>(forward)
+      let compact = pair.filter(st => allowedSet.has(st))
+      // 如果后端暂未返回（或规则缺失）导致交集为空，则降级为展示pair本身
+      if (compact.length === 0) compact = pair
+      availableStatuses.value = compact
+    } else {
+      const backward = getBackwardStatuses(props.currentStatus)
+      const set = new Set<ApplicationStatus>([...forward, ...backward])
+      set.delete(props.currentStatus)
+      availableStatuses.value = Array.from(set)
+    }
   } catch (error) {
     console.error('获取可用状态失败:', error)
     // 降级到默认状态列表
-    const forward = getDefaultNextStatuses(props.currentStatus)
-    const backward = getBackwardStatuses(props.currentStatus)
-    const set = new Set<ApplicationStatus>([...forward, ...backward])
-    set.delete(props.currentStatus)
-    availableStatuses.value = Array.from(set)
+    if (props.smartChoices) {
+      availableStatuses.value = getSmartPair(props.currentStatus)
+    } else {
+      const forward = getDefaultNextStatuses(props.currentStatus)
+      const backward = getBackwardStatuses(props.currentStatus)
+      const set = new Set<ApplicationStatus>([...forward, ...backward])
+      set.delete(props.currentStatus)
+      availableStatuses.value = Array.from(set)
+    }
   }
 }
 
@@ -237,6 +258,33 @@ const getDefaultNextStatuses = (currentStatus: ApplicationStatus): ApplicationSt
   }
   
   return statusFlow[currentStatus] || []
+}
+
+// 智能精简选项：当前阶段的“未通过” + 下一主阶段
+const getSmartPair = (currentStatus: ApplicationStatus): ApplicationStatus[] => {
+  const failMap: Record<string, ApplicationStatus> = {
+    '简历筛选中': '简历筛选未通过',
+    '笔试中': '笔试未通过',
+    '一面中': '一面未通过',
+    '二面中': '二面未通过',
+    '三面中': '三面未通过',
+    'HR面中': 'HR面未通过',
+  }
+  const nextMap: Record<string, ApplicationStatus> = {
+    '已投递': '简历筛选中',
+    '简历筛选中': '笔试中',
+    '笔试中': '一面中',
+    '一面中': '二面中',
+    '二面中': '三面中',
+    '三面中': 'HR面中',
+    'HR面中': 'HR面通过', // 安全选择（模板通常允许），后续可由规则自动进入待发offer
+  }
+  const pair: ApplicationStatus[] = []
+  const f = failMap[currentStatus]
+  const n = nextMap[currentStatus]
+  if (f) pair.push(f)
+  if (n) pair.push(n)
+  return pair
 }
 
 // 计算主阶段等级（用于判断回退）
@@ -402,6 +450,11 @@ const isInterviewStatus = (status: ApplicationStatus): boolean => {
 // 生命周期
 onMounted(() => {
   fetchAvailableStatuses()
+  // 菜单“快速更新”直达弹窗
+  if (props.mode === 'button' && props.autoOpen) {
+    // 使用下一帧保证初次渲染完成
+    nextTick(() => { showUpdateModal.value = true })
+  }
 })
 
 // 监听器
@@ -409,6 +462,13 @@ watch(() => props.currentStatus, () => {
   resetForm()
   fetchAvailableStatuses()
 }, { immediate: false })
+
+// 弹窗打开时再刷新一次可选项，确保最新
+watch(() => showUpdateModal.value, (open) => {
+  if (open) {
+    fetchAvailableStatuses()
+  }
+})
 </script>
 
 <!-- StatusUpdateContent 子组件 -->
