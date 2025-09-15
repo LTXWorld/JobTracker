@@ -552,10 +552,21 @@ func (db *DB) ensureStatusTrackingInfrastructure() error {
         return fmt.Errorf("create status_flow_templates: %w", err)
     }
 
-    // 默认模板（若不存在）
+    // 默认模板（若不存在）——种子包含基础可用的流转规则，避免前端无法拖拽
     seedDefault := `
         INSERT INTO status_flow_templates (name, description, flow_config, is_default, is_active)
-        SELECT 'default_flow', '默认求职申请状态流转模板', '{"transitions": {}}', true, true
+        SELECT
+            'default_flow',
+            '默认求职申请状态流转模板',
+            '{
+                "transitions": {
+                    "已投递": ["简历筛选中", "简历筛选未通过", "已拒绝"],
+                    "简历筛选中": ["笔试中", "简历筛选未通过"]
+                },
+                "rules": {}
+            }',
+            true,
+            true
         WHERE NOT EXISTS (SELECT 1 FROM status_flow_templates WHERE is_default = true);`
     if _, err := db.Exec(seedDefault); err != nil {
         log.Printf("Warning: seed default flow template failed: %v", err)

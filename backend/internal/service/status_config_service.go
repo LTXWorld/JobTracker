@@ -31,6 +31,9 @@ func NewStatusConfigService(db *database.DB) *StatusConfigService {
 // EnsureDirectTransitionsInDefaultTemplate 确保默认模板包含面试阶段的直通转移规则
 // 若模板不存在则忽略（由外部迁移负责创建）；若存在则在不改变其他配置的前提下补充：
 // 一面中 -> 二面中，二面中 -> 三面中，三面中 -> HR面中
+// EnsureDirectTransitionsInDefaultTemplate
+// 1) 幂等补齐面试阶段直通规则：笔试中→一面中→二面中→三面中→HR面中
+// 2) 幂等补齐基础默认规则：已投递→(简历筛选中/简历筛选未通过/已拒绝)，简历筛选中→(笔试中/简历筛选未通过)
 func (s *StatusConfigService) EnsureDirectTransitionsInDefaultTemplate() error {
     if s.repo != nil {
         id, cfgText, err := s.repo.GetDefaultFlowTemplate()
@@ -41,12 +44,27 @@ func (s *StatusConfigService) EnsureDirectTransitionsInDefaultTemplate() error {
         transitionsMap, ok := cfg["transitions"].(map[string]interface{})
         if !ok || transitionsMap == nil { transitionsMap = map[string]interface{}{}; cfg["transitions"]=transitionsMap }
         direct := map[string]string{string(model.StatusWrittenTest): string(model.StatusFirstInterview), string(model.StatusFirstInterview): string(model.StatusSecondInterview), string(model.StatusSecondInterview): string(model.StatusThirdInterview), string(model.StatusThirdInterview): string(model.StatusHRInterview)}
+        // 基础默认规则
+        baseline := map[string][]string{
+            string(model.StatusApplied):         {string(model.StatusResumeScreening), "简历筛选未通过", string(model.StatusRejected)},
+            string(model.StatusResumeScreening): {string(model.StatusWrittenTest), "简历筛选未通过"},
+        }
         changed := false
         for from, to := range direct {
             arr, _ := transitionsMap[from].([]interface{})
             exists := false
             for _, v := range arr { if sv, ok := v.(string); ok && sv == to { exists = true; break } }
             if !exists { arr = append(arr, to); transitionsMap[from] = arr; changed = true }
+        }
+        // 合并基础默认规则（仅追加缺失项，不覆盖自定义）
+        for from, list := range baseline {
+            arr, _ := transitionsMap[from].([]interface{})
+            for _, to := range list {
+                exists := false
+                for _, v := range arr { if sv, ok := v.(string); ok && sv == to { exists = true; break } }
+                if !exists { arr = append(arr, to); changed = true }
+            }
+            if len(arr) > 0 { transitionsMap[from] = arr }
         }
         if !changed { return nil }
         newBytes, _ := json.Marshal(cfg)
@@ -71,12 +89,25 @@ func (s *StatusConfigService) EnsureDirectTransitionsInDefaultTemplate() error {
         transitionsMap, ok := cfg["transitions"].(map[string]interface{})
         if !ok || transitionsMap == nil { transitionsMap = map[string]interface{}{}; cfg["transitions"] = transitionsMap }
         direct := map[string]string{string(model.StatusWrittenTest): string(model.StatusFirstInterview), string(model.StatusFirstInterview): string(model.StatusSecondInterview), string(model.StatusSecondInterview): string(model.StatusThirdInterview), string(model.StatusThirdInterview): string(model.StatusHRInterview)}
+        baseline := map[string][]string{
+            string(model.StatusApplied):         {string(model.StatusResumeScreening), "简历筛选未通过", string(model.StatusRejected)},
+            string(model.StatusResumeScreening): {string(model.StatusWrittenTest), "简历筛选未通过"},
+        }
         changed := false
         for from, to := range direct {
             arr, _ := transitionsMap[from].([]interface{})
             exists := false
             for _, v := range arr { if sv, ok := v.(string); ok && sv == to { exists = true; break } }
             if !exists { arr = append(arr, to); transitionsMap[from] = arr; changed = true }
+        }
+        for from, list := range baseline {
+            arr, _ := transitionsMap[from].([]interface{})
+            for _, to := range list {
+                exists := false
+                for _, v := range arr { if sv, ok := v.(string); ok && sv == to { exists = true; break } }
+                if !exists { arr = append(arr, to); changed = true }
+            }
+            if len(arr) > 0 { transitionsMap[from] = arr }
         }
         if !changed { return nil }
         newBytes, _ := json.Marshal(cfg)
@@ -110,12 +141,16 @@ func (s *StatusConfigService) EnsureDirectTransitionsInDefaultTemplate() error {
         cfg["transitions"] = transitionsMap
     }
 
-    // 需要补充的直通规则
+    // 需要补充的直通规则 + 基础默认规则
     direct := map[string]string{
         string(model.StatusWrittenTest):      string(model.StatusFirstInterview),
         string(model.StatusFirstInterview):  string(model.StatusSecondInterview),
         string(model.StatusSecondInterview): string(model.StatusThirdInterview),
         string(model.StatusThirdInterview):  string(model.StatusHRInterview),
+    }
+    baseline := map[string][]string{
+        string(model.StatusApplied):         {string(model.StatusResumeScreening), "简历筛选未通过", string(model.StatusRejected)},
+        string(model.StatusResumeScreening): {string(model.StatusWrittenTest), "简历筛选未通过"},
     }
 
     changed := false
@@ -134,6 +169,25 @@ func (s *StatusConfigService) EnsureDirectTransitionsInDefaultTemplate() error {
             arr = append(arr, to)
             transitionsMap[from] = arr
             changed = true
+        }
+    }
+    for from, list := range baseline {
+        arr, _ := transitionsMap[from].([]interface{})
+        for _, to := range list {
+            exists := false
+            for _, v := range arr {
+                if s, ok := v.(string); ok && s == to {
+                    exists = true
+                    break
+                }
+            }
+            if !exists {
+                arr = append(arr, to)
+                changed = true
+            }
+        }
+        if len(arr) > 0 {
+            transitionsMap[from] = arr
         }
     }
 
@@ -670,8 +724,15 @@ func (s *StatusConfigService) GetAvailableStatusTransitions(userID uint, current
             if m, ok := cfg["transitions"].(map[string]interface{}); ok {
                 if allowed, ok := m[string(currentStatus)].([]interface{}); ok {
                     for _, a := range allowed { if as, ok := a.(string); ok { st := model.ApplicationStatus(as); if st.IsValid() && st != currentStatus { transitionsSet[st]=true } } }
+                } else {
+                    // 配置中未找到该状态的转换，追加基础默认规则
+                    s.addBaselineDefaultTransitions(currentStatus, transitionsSet)
                 }
+            } else {
+                s.addBaselineDefaultTransitions(currentStatus, transitionsSet)
             }
+        } else {
+            s.addBaselineDefaultTransitions(currentStatus, transitionsSet)
         }
         s.addImplicitDirectTransitions(currentStatus, transitionsSet)
         return setToSlice(transitionsSet), nil
@@ -691,8 +752,8 @@ func (s *StatusConfigService) GetAvailableStatusTransitions(userID uint, current
             return setToSlice(transitionsSet), nil
         }
         var config map[string]interface{}
-        if err := json.Unmarshal([]byte(flowConfig), &config); err != nil { return setToSlice(transitionsSet), nil }
-        transitionsMap, ok := config["transitions"].(map[string]interface{}); if !ok { return setToSlice(transitionsSet), nil }
+        if err := json.Unmarshal([]byte(flowConfig), &config); err != nil { s.addBaselineDefaultTransitions(currentStatus, transitionsSet); s.addImplicitDirectTransitions(currentStatus, transitionsSet); return setToSlice(transitionsSet), nil }
+        transitionsMap, ok := config["transitions"].(map[string]interface{}); if !ok { s.addBaselineDefaultTransitions(currentStatus, transitionsSet); s.addImplicitDirectTransitions(currentStatus, transitionsSet); return setToSlice(transitionsSet), nil }
         if allowedStates, ok := transitionsMap[string(currentStatus)].([]interface{}); ok {
             for _, allowed := range allowedStates {
                 if allowedStr, ok := allowed.(string); ok {
@@ -700,6 +761,8 @@ func (s *StatusConfigService) GetAvailableStatusTransitions(userID uint, current
                     if st.IsValid() && st != currentStatus { transitionsSet[st] = true }
                 }
             }
+        } else {
+            s.addBaselineDefaultTransitions(currentStatus, transitionsSet)
         }
         s.addImplicitDirectTransitions(currentStatus, transitionsSet)
         return setToSlice(transitionsSet), nil
@@ -760,16 +823,19 @@ func (s *StatusConfigService) GetAvailableStatusTransitions(userID uint, current
 
     var config map[string]interface{}
     if err := json.Unmarshal([]byte(flowConfig), &config); err != nil {
-        return setToSlice(transitionsSet), nil // 配置解析失败，返回当前集合
+        s.addBaselineDefaultTransitions(currentStatus, transitionsSet)
+        s.addImplicitDirectTransitions(currentStatus, transitionsSet)
+        return setToSlice(transitionsSet), nil
     }
 
     transitionsMap, ok := config["transitions"].(map[string]interface{})
     if !ok {
+        s.addBaselineDefaultTransitions(currentStatus, transitionsSet)
+        s.addImplicitDirectTransitions(currentStatus, transitionsSet)
         return setToSlice(transitionsSet), nil
     }
 
-    allowedStates, ok := transitionsMap[string(currentStatus)].([]interface{})
-    if ok {
+    if allowedStates, ok := transitionsMap[string(currentStatus)].([]interface{}); ok {
         // 转换为ApplicationStatus类型
         for _, allowed := range allowedStates {
             if allowedStr, ok := allowed.(string); ok {
@@ -779,6 +845,8 @@ func (s *StatusConfigService) GetAvailableStatusTransitions(userID uint, current
                 }
             }
         }
+    } else {
+        s.addBaselineDefaultTransitions(currentStatus, transitionsSet)
     }
 
     // 添加内置直通规则
@@ -797,6 +865,20 @@ func (s *StatusConfigService) addImplicitDirectTransitions(currentStatus model.A
     }
     if next, ok := direct[currentStatus]; ok {
         set[next] = true
+    }
+}
+
+// addBaselineDefaultTransitions 在未配置或配置缺失时追加基础可用的转移规则
+// 目的：避免前端拖拽列表为空（例如：已投递→简历筛选中）
+func (s *StatusConfigService) addBaselineDefaultTransitions(currentStatus model.ApplicationStatus, set map[model.ApplicationStatus]bool) {
+    switch currentStatus {
+    case model.StatusApplied:
+        set[model.StatusResumeScreening] = true
+        set[model.ApplicationStatus("简历筛选未通过")] = true
+        set[model.StatusRejected] = true
+    case model.StatusResumeScreening:
+        set[model.StatusWrittenTest] = true
+        set[model.ApplicationStatus("简历筛选未通过")] = true
     }
 }
 
