@@ -1,16 +1,17 @@
 package handler
 
 import (
-	"encoding/json"
-	"jobView-backend/internal/auth"
-	"jobView-backend/internal/model"
-	"jobView-backend/internal/service"
-	"jobView-backend/internal/utils"
-	"log"
-	"net/http"
-	"strconv"
+    "encoding/json"
+    "jobView-backend/internal/auth"
+    "jobView-backend/internal/model"
+    "jobView-backend/internal/service"
+    "jobView-backend/internal/utils"
+    "fmt"
+    "log"
+    "net/http"
+    "strconv"
 
-	"github.com/gorilla/mux"
+    "github.com/gorilla/mux"
 )
 
 type JobApplicationHandler struct {
@@ -126,11 +127,11 @@ func (h *JobApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req model.UpdateJobApplicationRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.writeErrorResponse(w, http.StatusBadRequest, "invalid request body", err)
-		return
-	}
+    var req model.UpdateJobApplicationRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        h.writeErrorResponse(w, http.StatusBadRequest, "invalid request body", err)
+        return
+    }
 
 	// 验证输入
 	if err := h.validateUpdateRequest(&req); err != nil {
@@ -138,15 +139,26 @@ func (h *JobApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	job, err := h.service.Update(userID, id, &req)
-	if err != nil {
-		if err.Error() == "job application not found" {
-			h.writeErrorResponse(w, http.StatusNotFound, "job application not found", nil)
-		} else {
-			h.writeErrorResponse(w, http.StatusInternalServerError, "failed to update job application", err)
-		}
-		return
-	}
+    // 便于排查500，记录关键字段变化（不包含大字段）
+    log.Printf("[DEBUG] Update application id=%d by user=%d payload=%v", id, userID, map[string]interface{}{
+        "status": req.Status,
+        "company_name": req.CompanyName,
+        "position_title": req.PositionTitle,
+        "application_date": req.ApplicationDate,
+        "company_attribute": req.CompanyAttribute,
+    })
+
+    job, err := h.service.Update(userID, id, &req)
+    if err != nil {
+        // 打印后端实际错误，便于定位500根因
+        log.Printf("[ERROR] Update failed for application id=%d user=%d: %v", id, userID, err)
+        if err.Error() == "job application not found" {
+            h.writeErrorResponse(w, http.StatusNotFound, "job application not found", nil)
+        } else {
+            h.writeErrorResponse(w, http.StatusInternalServerError, "failed to update job application", err)
+        }
+        return
+    }
 
 	h.writeSuccessResponse(w, http.StatusOK, "job application updated successfully", job)
 }
@@ -219,20 +231,20 @@ func (h *JobApplicationHandler) writeSuccessResponse(w http.ResponseWriter, stat
 
 // writeErrorResponse 写入错误响应
 func (h *JobApplicationHandler) writeErrorResponse(w http.ResponseWriter, statusCode int, message string, err error) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(statusCode)
 
-	response := model.APIResponse{
-		Code:    statusCode,
-		Message: message,
-	}
+    response := model.APIResponse{
+        Code:    statusCode,
+        Message: message,
+    }
 
-	if err != nil && statusCode >= 500 {
-		// 只在服务器内部错误时显示详细错误信息
-		response.Data = map[string]string{"error": err.Error()}
-	}
+    if err != nil && statusCode >= 500 {
+        // 只在服务器内部错误时显示详细错误信息
+        response.Data = map[string]string{"error": fmt.Sprintf("%v", err)}
+    }
 
-	json.NewEncoder(w).Encode(response)
+    json.NewEncoder(w).Encode(response)
 }
 
 // validateCreateRequest 验证创建请求

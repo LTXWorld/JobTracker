@@ -17,13 +17,15 @@ const STORAGE_KEYS = {
 
 // JobView API 基础配置
 const API_CONFIG = {
-  BASE_URL: CONFIG.API_BASE_URL,  // 使用config.js中的配置
+  AUTH_BASE_URL: CONFIG.AUTH_BASE_URL,       // 认证基址 /api/auth
+  API_V1_BASE_URL: CONFIG.API_V1_BASE_URL,   // 业务基址 /api/v1
   TIMEOUT: 10000
 };
 
 class JobViewAPI {
   constructor() {
-    this.baseURL = API_CONFIG.BASE_URL;
+    this.authBase = API_CONFIG.AUTH_BASE_URL;
+    this.v1Base = API_CONFIG.API_V1_BASE_URL;
     this.timeout = API_CONFIG.TIMEOUT;
   }
 
@@ -48,9 +50,11 @@ class JobViewAPI {
   }
 
   // 发起API请求
+  // base: 'auth' | 'v1'（默认v1）
   async request(endpoint, options = {}) {
     const { accessToken } = await this.getTokens();
-    const url = `${this.baseURL}${endpoint}`;
+    const base = options.base === 'auth' ? this.authBase : this.v1Base;
+    const url = `${base}${endpoint}`;
 
     const headers = {
       'Content-Type': 'application/json',
@@ -105,7 +109,7 @@ class JobViewAPI {
     }
 
     try {
-      const response = await fetch(`${this.baseURL}/auth/refresh`, {
+      const response = await fetch(`${this.authBase}/refresh`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -130,7 +134,8 @@ class JobViewAPI {
 
   // 获取用户信息
   async getCurrentUser() {
-    return await this.request('/auth/current-user');
+    // 后端为 /api/auth/profile
+    return await this.request('/profile', { base: 'auth' });
   }
 
   // 获取简历数据
@@ -138,7 +143,7 @@ class JobViewAPI {
     try {
       // 并行获取简历基本信息和各个部分
       const [resumeInfo, sections] = await Promise.all([
-        this.request('/v1/resumes/me'),
+        this.request('/resumes/me', { base: 'v1' }),
         this.getResumeSections()
       ]);
 
@@ -155,14 +160,14 @@ class JobViewAPI {
   // 获取简历各部分内容
   async getResumeSections() {
     try {
-      const resumeInfo = await this.request('/v1/resumes/me');
+      const resumeInfo = await this.request('/resumes/me', { base: 'v1' });
       const resumeId = resumeInfo.data?.resume?.id;
 
       if (!resumeId) {
         return {};
       }
 
-      const response = await this.request(`/v1/resumes/${resumeId}/sections`);
+      const response = await this.request(`/resumes/${resumeId}/sections`, { base: 'v1' });
       const sections = response.data || [];
 
       // 转换为对象格式

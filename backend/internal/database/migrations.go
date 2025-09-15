@@ -175,6 +175,11 @@ END $$;`)
         log.Printf("Warning: failed to ensure status transition functions: %v", err)
     }
 
+    // 确保状态跟踪相关表、列、触发器存在（幂等）
+    if err := db.ensureStatusTrackingInfrastructure(); err != nil {
+        return fmt.Errorf("failed to ensure status tracking infrastructure: %w", err)
+    }
+
     log.Println("Database migrations completed successfully")
     return nil
 }
@@ -306,6 +311,16 @@ BEGIN
         RETURN TRUE;
     END IF;
 
+    -- 同阶段失败流转允许：从“进行中”到“未通过”
+    IF (p_old_status = '简历筛选中' AND p_new_status = '简历筛选未通过') OR
+       (p_old_status = '笔试中'     AND p_new_status = '笔试未通过') OR
+       (p_old_status = '一面中'     AND p_new_status = '一面未通过') OR
+       (p_old_status = '二面中'     AND p_new_status = '二面未通过') OR
+       (p_old_status = '三面中'     AND p_new_status = '三面未通过') OR
+       (p_old_status = 'HR面中'     AND p_new_status = 'HR面未通过') THEN
+        RETURN TRUE;
+    END IF;
+
     RETURN FALSE;
 END;
 $$ LANGUAGE plpgsql;
@@ -371,6 +386,16 @@ BEGIN
         RETURN TRUE;
     END IF;
 
+    -- 同阶段失败流转允许：从“进行中”到“未通过”
+    IF (p_old_status::text = '简历筛选中' AND p_new_status::text = '简历筛选未通过') OR
+       (p_old_status::text = '笔试中'     AND p_new_status::text = '笔试未通过') OR
+       (p_old_status::text = '一面中'     AND p_new_status::text = '一面未通过') OR
+       (p_old_status::text = '二面中'     AND p_new_status::text = '二面未通过') OR
+       (p_old_status::text = '三面中'     AND p_new_status::text = '三面未通过') OR
+       (p_old_status::text = 'HR面中'     AND p_new_status::text = 'HR面未通过') THEN
+        RETURN TRUE;
+    END IF;
+
     RETURN FALSE;
 END;
 $$ LANGUAGE plpgsql;`
@@ -385,13 +410,19 @@ $$ LANGUAGE plpgsql;`
 CREATE OR REPLACE FUNCTION trigger_job_status_change() 
 RETURNS TRIGGER AS $$
 DECLARE
-    v_old_status VARCHAR;
+    -- 为校验与JSON记录准备的文本值
+    v_old_text VARCHAR;
     v_duration_minutes INTEGER;
     v_status_history JSONB;
     v_history_entry JSONB;
     v_skip TEXT;
+    -- 与历史表列类型一致，兼容 enum / varchar
+    v_old_hist job_status_history.old_status%TYPE;
+    v_new_hist job_status_history.new_status%TYPE;
 BEGIN
-    v_old_status := OLD.status;
+    v_old_text := OLD.status::text;
+    v_old_hist := OLD.status;
+    v_new_hist := NEW.status;
 
     -- 跳过：当设置跳过历史时，不做任何改动（不更新 last_status_change/version/历史）
     v_skip := current_setting('jobview.skip_history', true);
@@ -404,8 +435,9 @@ BEGIN
     END IF;
 
     -- 若未通过 validate_status_transition 放行则拒绝
-    IF NOT validate_status_transition(NEW.user_id, v_old_status, NEW.status) THEN
-        RAISE EXCEPTION '不允许的状态转换: % -> %', v_old_status, NEW.status;
+    -- 这里将 NEW.status 显式转换为 varchar，以适配同时存在 varchar 与 enum 重载的情况
+    IF NOT validate_status_transition(NEW.user_id, v_old_text, NEW.status::varchar) THEN
+        RAISE EXCEPTION '不允许的状态转换: % -> %', v_old_text, NEW.status;
     END IF;
 
     -- 计算停留时长
@@ -423,7 +455,7 @@ BEGIN
     INSERT INTO job_status_history (
         job_application_id, user_id, old_status, new_status, status_changed_at, duration_minutes, metadata
     ) VALUES (
-        NEW.id, NEW.user_id, v_old_status, NEW.status, NOW(), v_duration_minutes,
+        NEW.id, NEW.user_id, v_old_hist, v_new_hist, NOW(), v_duration_minutes,
         COALESCE(NEW.status_history->'current_metadata', '{}')
     );
 
@@ -431,8 +463,8 @@ BEGIN
     v_status_history := COALESCE(NEW.status_history, '{"history": [], "summary": {}}'::jsonb);
     v_history_entry := jsonb_build_object(
         'timestamp', extract(epoch from NOW()),
-        'old_status', v_old_status,
-        'new_status', NEW.status,
+        'old_status', v_old_text,
+        'new_status', NEW.status::text,
         'duration_minutes', v_duration_minutes,
         'changed_at', NOW()::text
     );
@@ -442,7 +474,7 @@ BEGIN
         '{summary}',
         jsonb_build_object(
             'total_changes', jsonb_array_length(v_status_history->'history'),
-            'current_status', NEW.status,
+            'current_status', NEW.status::text,
             'last_changed', NOW()::text,
             'total_duration_minutes', COALESCE((v_status_history->'summary'->>'total_duration_minutes')::INTEGER, 0) + v_duration_minutes
         )
@@ -455,6 +487,107 @@ $$ LANGUAGE plpgsql;`
 
     if _, err := db.Exec(triggerFn); err != nil {
         log.Printf("Warning: failed to ensure trigger_job_status_change(): %v", err)
+    }
+    return nil
+}
+
+// ensureStatusTrackingInfrastructure 创建/补齐状态历史相关的表、列与触发器（幂等）
+func (db *DB) ensureStatusTrackingInfrastructure() error {
+    // 1) job_status_history 表
+    createHistory := `
+        CREATE TABLE IF NOT EXISTS job_status_history (
+            id BIGSERIAL PRIMARY KEY,
+            job_application_id INTEGER NOT NULL REFERENCES job_applications(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL,
+            old_status VARCHAR,
+            new_status VARCHAR NOT NULL,
+            status_changed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            duration_minutes INTEGER,
+            metadata JSONB DEFAULT '{}',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            CONSTRAINT chk_status_change_valid CHECK (old_status IS DISTINCT FROM new_status OR old_status IS NULL),
+            CONSTRAINT chk_duration_positive CHECK (duration_minutes IS NULL OR duration_minutes >= 0),
+            CONSTRAINT chk_metadata_is_object CHECK (jsonb_typeof(metadata) = 'object')
+        );`
+    if _, err := db.Exec(createHistory); err != nil {
+        return fmt.Errorf("create job_status_history: %w", err)
+    }
+    // 索引
+    if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_job_status_hist_app ON job_status_history(job_application_id)"); err != nil {
+        log.Printf("Warning: create index idx_job_status_hist_app failed: %v", err)
+    }
+    if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_job_status_hist_user ON job_status_history(user_id)"); err != nil {
+        log.Printf("Warning: create index idx_job_status_hist_user failed: %v", err)
+    }
+
+    // 2) 扩展 job_applications 列
+    addCols := []string{
+        "ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS status_history JSONB DEFAULT '{\"history\": [], \"summary\": {}}'",
+        "ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS last_status_change TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
+        "ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS status_duration_stats JSONB DEFAULT '{}'",
+        "ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS status_version INTEGER DEFAULT 1",
+    }
+    for _, stmt := range addCols {
+        if _, err := db.Exec(stmt); err != nil {
+            log.Printf("Warning: failed to add status tracking column: %v", err)
+        }
+    }
+
+    // 3) 状态流转模板表（被 validate_status_transition 使用）
+    createTemplate := `
+        CREATE TABLE IF NOT EXISTS status_flow_templates (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            description TEXT,
+            flow_config JSONB NOT NULL DEFAULT '{"transitions": {}, "rules": {}}',
+            is_default BOOLEAN DEFAULT FALSE,
+            is_active  BOOLEAN DEFAULT TRUE,
+            created_by INTEGER,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            CONSTRAINT uk_status_flow_name UNIQUE(name),
+            CONSTRAINT chk_flow_config_is_object CHECK (jsonb_typeof(flow_config) = 'object')
+        );`
+    if _, err := db.Exec(createTemplate); err != nil {
+        return fmt.Errorf("create status_flow_templates: %w", err)
+    }
+
+    // 默认模板（若不存在）
+    seedDefault := `
+        INSERT INTO status_flow_templates (name, description, flow_config, is_default, is_active)
+        SELECT 'default_flow', '默认求职申请状态流转模板', '{"transitions": {}}', true, true
+        WHERE NOT EXISTS (SELECT 1 FROM status_flow_templates WHERE is_default = true);`
+    if _, err := db.Exec(seedDefault); err != nil {
+        log.Printf("Warning: seed default flow template failed: %v", err)
+    }
+
+    // 4) 用户偏好表（非强依赖）
+    if _, err := db.Exec(`
+        CREATE TABLE IF NOT EXISTS user_status_preferences (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            preference_config JSONB DEFAULT '{}',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );`); err != nil {
+        log.Printf("Warning: create user_status_preferences failed: %v", err)
+    }
+
+    // 5) 确保触发器存在（依赖 trigger_job_status_change() 已创建）
+    if _, err := db.Exec(`
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_trigger WHERE tgname = 'tr_job_applications_status_change'
+            ) THEN
+                CREATE TRIGGER tr_job_applications_status_change
+                BEFORE UPDATE ON job_applications
+                FOR EACH ROW
+                WHEN (OLD.status IS DISTINCT FROM NEW.status)
+                EXECUTE FUNCTION trigger_job_status_change();
+            END IF;
+        END $$;`); err != nil {
+        log.Printf("Warning: ensure trigger tr_job_applications_status_change failed: %v", err)
     }
     return nil
 }

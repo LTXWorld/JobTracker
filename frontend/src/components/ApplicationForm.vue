@@ -142,8 +142,8 @@ const statusOptions = computed(() => [
   { label: '流程结束', value: ApplicationStatus.PROCESS_FINISHED }
 ])
 
-// 表单验证规则
-const rules = {
+// 表单验证规则（编辑时企业属性可选，新建必填）
+const rules = computed(() => ({
   company_name: [
     { required: true, message: '请输入公司名称', trigger: 'blur' },
     { min: 1, max: 100, message: '公司名称长度应在1-100个字符之间', trigger: 'blur' }
@@ -153,7 +153,7 @@ const rules = {
     { min: 1, max: 100, message: '职位标题长度应在1-100个字符之间', trigger: 'blur' }
   ],
   company_attribute: [
-    { required: true, message: '请选择企业属性', trigger: 'change' }
+    { required: !isEdit.value, message: '请选择企业属性', trigger: 'change' }
   ],
   salary_range: [
     { max: 50, message: '薪资范围长度不能超过50个字符', trigger: 'blur' }
@@ -161,7 +161,7 @@ const rules = {
   work_location: [
     { max: 100, message: '工作地点长度不能超过100个字符', trigger: 'blur' }
   ]
-}
+}))
 
 // 计算属性
 const isEdit = computed(() => !!props.initialData)

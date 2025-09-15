@@ -1257,7 +1257,7 @@ func (s *StatusTrackingService) validateStatusTransition(userID uint, oldStatus,
     transitions, ok := config["transitions"].(map[string]interface{})
     if !ok {
         // 没有配置，采用内置直通规则放行
-        if s.isImplicitDirectTransitionAllowed(oldStatus, newStatus) {
+        if s.isImplicitDirectTransitionAllowed(oldStatus, newStatus) || s.isImplicitFailTransitionAllowed(oldStatus, newStatus) {
             return nil
         }
         return nil
@@ -1274,7 +1274,7 @@ func (s *StatusTrackingService) validateStatusTransition(userID uint, oldStatus,
     }
 
     // 不在模板中时，允许内置直通规则
-    if s.isImplicitDirectTransitionAllowed(oldStatus, newStatus) {
+    if s.isImplicitDirectTransitionAllowed(oldStatus, newStatus) || s.isImplicitFailTransitionAllowed(oldStatus, newStatus) {
         return nil
     }
 
@@ -1293,6 +1293,26 @@ func (s *StatusTrackingService) isImplicitDirectTransitionAllowed(oldStatus, new
         return next == newStatus
     }
     return false
+}
+
+// isImplicitFailTransitionAllowed 允许同阶段“进行中”到“未通过”的失败流转
+func (s *StatusTrackingService) isImplicitFailTransitionAllowed(oldStatus, newStatus model.ApplicationStatus) bool {
+    switch oldStatus {
+    case model.StatusResumeScreening:
+        return newStatus == model.StatusResumeScreeningFail
+    case model.StatusWrittenTest:
+        return newStatus == model.StatusWrittenTestFail
+    case model.StatusFirstInterview:
+        return newStatus == model.StatusFirstFail
+    case model.StatusSecondInterview:
+        return newStatus == model.StatusSecondFail
+    case model.StatusThirdInterview:
+        return newStatus == model.StatusThirdFail
+    case model.StatusHRInterview:
+        return newStatus == model.StatusHRFail
+    default:
+        return false
+    }
 }
 
 // isBackwardTransition 判断是否为回退（将状态从后往前调整）

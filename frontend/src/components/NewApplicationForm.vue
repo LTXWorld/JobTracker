@@ -269,8 +269,8 @@ const formData = reactive<{
   follow_up_date: null
 })
 
-// 表单验证规则
-const rules = {
+// 表单验证规则（编辑时企业属性可选）
+const rules = computed(() => ({
   company_name: [
     { required: true, message: '请输入公司名称', trigger: 'blur' }
   ],
@@ -278,9 +278,9 @@ const rules = {
     { required: true, message: '请输入职位标题', trigger: 'blur' }
   ],
   company_attribute: [
-    { required: true, message: '请选择企业属性', trigger: 'change' }
+    { required: !isEdit.value, message: '请选择企业属性', trigger: 'change' }
   ]
-}
+}))
 
 // 计算属性
 const isEdit = computed(() => !!props.initialData)
