@@ -12,7 +12,10 @@ const STORAGE_KEYS = {
   REFRESH_TOKEN: 'jobview_refresh_token',
   USER_DATA: 'jobview_user_data',
   RESUME_DATA: 'jobview_resume_data',
-  LAST_SYNC: 'jobview_last_sync'
+  LAST_SYNC: 'jobview_last_sync',
+  PENDING_APPLICATIONS: 'jobview_pending_applications',
+  RECENT_KEYS: 'jobview_recent_app_keys',
+  SETTINGS: 'jobview_settings'
 };
 
 // JobView API 基础配置
@@ -309,6 +312,9 @@ class BackgroundService {
 
     // 定期同步数据
     this.setupPeriodicSync();
+
+    // 定期重试待提交的投递记录
+    this.setupPendingRetry();
   }
 
   async handleMessage(request, sender, sendResponse) {
@@ -344,6 +350,75 @@ class BackgroundService {
           sendResponse({ accessToken: tokens.accessToken });
           break;
 
+        case 'SAVE_TOKENS':
+          try {
+            const { accessToken, refreshToken } = request;
+            if (!accessToken || !refreshToken) {
+              sendResponse({ success: false, error: 'Missing tokens' });
+              break;
+            }
+            await this.api.saveTokens(accessToken, refreshToken);
+            // 尝试校验并预同步数据（不阻塞太久）
+            let synced = false;
+            try {
+              const status = await this.api.checkLoginStatus();
+              if (status.isLoggedIn) {
+                await this.dataManager.syncResumeData();
+                synced = true;
+              }
+            } catch (e) {
+              // 同步失败不应影响存储结果
+              console.warn('Post-login sync failed:', e?.message || e);
+            }
+            // 通知可能打开的popup更新UI（非强依赖）
+            try { chrome.runtime.sendMessage({ type: 'UPDATE_UI' }); } catch {}
+            sendResponse({ success: true, synced });
+          } catch (e) {
+            console.error('SAVE_TOKENS error:', e);
+            sendResponse({ success: false, error: e?.message || String(e) });
+          }
+          break;
+
+        case 'CREATE_APPLICATION':
+          try {
+            const result = await this.createApplication(request.payload || {}, { force: !!request.force });
+            sendResponse(result);
+          } catch (e) {
+            sendResponse({ success: false, error: e?.message || String(e) });
+          }
+          break;
+
+        case 'GET_SETTINGS':
+          try {
+            const res = await chrome.storage.local.get([STORAGE_KEYS.SETTINGS]);
+            sendResponse({ success: true, data: res[STORAGE_KEYS.SETTINGS] || {} });
+          } catch (e) {
+            sendResponse({ success: false, error: e?.message || String(e) });
+          }
+          break;
+
+        case 'SAVE_SETTINGS':
+          try {
+            const current = (await chrome.storage.local.get([STORAGE_KEYS.SETTINGS]))[STORAGE_KEYS.SETTINGS] || {};
+            const next = { ...current, ...(request.data || {}) };
+            await chrome.storage.local.set({ [STORAGE_KEYS.SETTINGS]: next });
+            sendResponse({ success: true, data: next });
+          } catch (e) {
+            sendResponse({ success: false, error: e?.message || String(e) });
+          }
+          break;
+
+        case 'PROCESS_PENDING_APPLICATIONS':
+          try {
+            const processed = await this.processPendingApplications();
+            sendResponse({ success: true, processed });
+          } catch (e) {
+            sendResponse({ success: false, error: e?.message || String(e) });
+          }
+          break;
+
+        
+
         default:
           sendResponse({ success: false, error: 'Unknown message type' });
       }
@@ -375,6 +450,10 @@ class BackgroundService {
       'zhipin.com': {
         name: 'BOSS直聘',
         patterns: ['/web/geek/', '/job_detail/']
+      },
+      'mokahr.com': {
+        name: 'Moka 招聘',
+        patterns: ['/apply', '/campus-recruitment/', '/job/']
       }
     };
 
@@ -417,6 +496,111 @@ class BackgroundService {
           }
         } catch (error) {
           console.error('Auto-sync failed:', error);
+        }
+      }
+    });
+  }
+
+  // ============== 投递记录创建与重试 ==============
+  async createApplication(payload, options = {}) {
+    // 读取设置，补齐默认值
+    const settings = (await chrome.storage.local.get([STORAGE_KEYS.SETTINGS]))[STORAGE_KEYS.SETTINGS] || {};
+
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const defaultDate = `${yyyy}-${mm}-${dd}`;
+
+    const companyName = (payload.company_name || '').trim();
+    const positionTitle = (payload.position_title || '').trim();
+    const companyAttribute = (payload.company_attribute || settings.default_company_attribute || '').trim();
+    const applicationDate = (payload.application_date || defaultDate).trim();
+
+    if (!companyName) throw new Error('缺少公司名称');
+    if (!positionTitle) throw new Error('缺少职位名称');
+    if (!companyAttribute) throw new Error('缺少企业属性（央国企/私企）');
+
+    // 简单去重：同一日、同一域名、同一公司+职位
+    const domain = (() => { try { return new URL(payload.job_url || '').hostname || (payload.source_domain || ''); } catch { return payload.source_domain || ''; } })();
+    const key = `${companyName}||${positionTitle}||${applicationDate}||${domain}`;
+    const recent = (await chrome.storage.local.get([STORAGE_KEYS.RECENT_KEYS]))[STORAGE_KEYS.RECENT_KEYS] || [];
+    if (!options.force && recent.includes(key)) {
+      return { success: false, duplicate: true, message: '疑似重复记录（公司/职位/日期相同）' };
+    }
+
+    const notesPrefix = (payload.source_domain || payload.job_url)
+      ? `来源: ${payload.source_domain || ''} ${payload.job_url || ''}`.trim()
+      : '';
+    const notesText = [notesPrefix, payload.notes || ''].filter(Boolean).join(' | ');
+
+    const body = {
+      company_name: companyName,
+      position_title: positionTitle,
+      application_date: applicationDate,
+      status: '已投递',
+      company_attribute: companyAttribute,
+      job_description: payload.job_description || undefined,
+      salary_range: payload.salary_range || (payload.salary_text || undefined),
+      work_location: payload.work_location || (payload.location_text || undefined),
+      contact_info: payload.contact_info || undefined,
+      notes: notesText || undefined
+    };
+
+    try {
+      const resp = await this.api.request('/applications', { base: 'v1', method: 'POST', body });
+      // 写入最近键
+      const nextRecent = [key, ...recent.filter(k => k !== key)].slice(0, 100);
+      await chrome.storage.local.set({ [STORAGE_KEYS.RECENT_KEYS]: nextRecent });
+      return { success: true, data: resp?.data };
+    } catch (e) {
+      // 网络/鉴权问题：进入队列
+      const isNetwork = (e?.name === 'TypeError') || /Failed to fetch|NetworkError|timeout/i.test(e?.message || '');
+      if (isNetwork || !navigator.onLine) {
+        await this.enqueuePending({ body, key, createdAt: Date.now() });
+        return { success: false, queued: true, message: '网络不可用，已加入稍后提交队列' };
+      }
+      throw e;
+    }
+  }
+
+  async enqueuePending(item) {
+    const list = (await chrome.storage.local.get([STORAGE_KEYS.PENDING_APPLICATIONS]))[STORAGE_KEYS.PENDING_APPLICATIONS] || [];
+    list.push(item);
+    await chrome.storage.local.set({ [STORAGE_KEYS.PENDING_APPLICATIONS]: list });
+  }
+
+  async processPendingApplications() {
+    const result = await chrome.storage.local.get([STORAGE_KEYS.PENDING_APPLICATIONS, STORAGE_KEYS.RECENT_KEYS]);
+    let list = result[STORAGE_KEYS.PENDING_APPLICATIONS] || [];
+    let recent = result[STORAGE_KEYS.RECENT_KEYS] || [];
+    const processed = { success: 0, failed: 0 };
+
+    const remain = [];
+    for (const item of list) {
+      try {
+        const resp = await this.api.request('/applications', { base: 'v1', method: 'POST', body: item.body });
+        const key = item.key;
+        recent = [key, ...recent.filter(k => k !== key)].slice(0, 100);
+        processed.success++;
+      } catch (e) {
+        // 保留到下次
+        remain.push(item);
+        processed.failed++;
+      }
+    }
+    await chrome.storage.local.set({ [STORAGE_KEYS.PENDING_APPLICATIONS]: remain, [STORAGE_KEYS.RECENT_KEYS]: recent });
+    return processed;
+  }
+
+  setupPendingRetry() {
+    chrome.alarms.create('syncPendingApplications', { delayInMinutes: 5, periodInMinutes: 10 });
+    chrome.alarms.onAlarm.addListener(async (alarm) => {
+      if (alarm.name === 'syncPendingApplications') {
+        try {
+          await this.processPendingApplications();
+        } catch (e) {
+          console.warn('Retry pending applications failed:', e);
         }
       }
     });

@@ -255,6 +255,23 @@
       font-size: 14px;
       margin-bottom: 16px;
     }
+
+    .form {
+      background: white;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .form h4 { font-size: 14px; color: #262626; margin-bottom: 12px; }
+    .field { margin-bottom: 10px; }
+    .field label { display: block; font-size: 12px; color: #8c8c8c; margin-bottom: 4px; }
+    .field label .required-star { color: #ff4d4f; margin-left: 4px; }
+    .field input, .field select, .field textarea {
+      width: 100%; padding: 8px 10px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 13px; outline: none;
+    }
+    .field textarea { resize: vertical; min-height: 60px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   </style>
 </head>
 <body>
@@ -334,6 +351,65 @@
           </svg>
           同步简历数据
         </button>
+
+        <!-- 记录投递入口与表单 -->
+        <button class="btn btn-primary" id="recordBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="white" style="margin-right: 8px;">
+            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM7 9h10v2H7V9zm0 4h10v2H7v-2z"/>
+          </svg>
+          记录本页职位
+        </button>
+
+        <div id="recordForm" class="form" style="display:none;">
+          <h4>确认职位信息</h4>
+          <div class="field">
+            <label>公司名称 <span class="required-star">*</span></label>
+            <input id="recordCompany" placeholder="例如：字节跳动" required />
+          </div>
+          <div class="field">
+            <label>职位名称 <span class="required-star">*</span></label>
+            <input id="recordTitle" placeholder="例如：前端工程师" required />
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>投递日期</label>
+              <input id="recordDate" type="date" />
+            </div>
+            <div class="field">
+              <label>企业属性 <span class="required-star">*</span></label>
+              <select id="recordAttr" required>
+                <option value="">请选择</option>
+                <option value="私企">私企</option>
+                <option value="央国企">央国企</option>
+              </select>
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>地点（可选）</label>
+              <input id="recordLocation" placeholder="例如：北京" />
+            </div>
+            <div class="field">
+              <label>薪资（可选）</label>
+              <input id="recordSalary" placeholder="例如：20-30K/月" />
+            </div>
+          </div>
+          <div class="field">
+            <label>备注（会附带来源与链接）</label>
+            <textarea id="recordNotes" placeholder="可选"></textarea>
+          </div>
+          <div class="field" style="display:flex; align-items:center; gap:8px;">
+            <input id="rememberAttr" type="checkbox" />
+            <label for="rememberAttr" style="margin:0;">记住企业属性为默认</label>
+          </div>
+          <div class="field">
+            <button class="btn btn-primary" id="submitRecordBtn">记录岗位信息</button>
+          </div>
+          <div class="field" style="margin-top:8px;">
+            <button class="btn btn-secondary" id="trainBtn">选择页面字段</button>
+          </div>
+          <div id="recordError" class="error-message" style="display:none;"></div>
+        </div>
 
         <!-- 统计信息 -->
         <div class="stats-grid">
