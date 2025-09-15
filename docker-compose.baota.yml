@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  # PostgreSQL数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: jobview-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-jobview_db}
+      POSTGRES_USER: ${DB_USER:-jobview}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "127.0.0.1:5432:5432"  # 只绑定本地，不对外暴露
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - jobview-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-jobview} -d ${DB_NAME:-jobview_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 后端服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: jobview-backend
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-jobview}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-jobview_db}
+      JWT_SECRET: ${JWT_SECRET}
+      PORT: 8010
+      # 生产环境优化配置
+      DB_MAX_IDLE_CONNS: ${DB_MAX_IDLE_CONNS:-10}
+      DB_MAX_OPEN_CONNS: ${DB_MAX_OPEN_CONNS:-100}
+      DB_CONN_MAX_LIFETIME: ${DB_CONN_MAX_LIFETIME:-3600}
+      ENABLE_GZIP: ${ENABLE_GZIP:-true}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "127.0.0.1:8010:8010"  # 只绑定本地给Nginx代理
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - jobview-network
+    volumes:
+      - ./backend/uploads:/root/uploads
+      - ./logs/backend:/var/log/jobview
+
+  # 注意：前端不需要Docker容器，直接使用宝塔的Nginx服务
+
+networks:
+  jobview-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
