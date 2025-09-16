@@ -17,6 +17,11 @@
           <!-- 用户信息区域 -->
           <div class="user-section" v-if="authStore.isLoggedIn">
             <span class="welcome-text">欢迎，{{ authStore.userName }}</span>
+            <a-tooltip title="查看使用指导">
+              <a-button type="text" class="help-btn" @click="showUserGuide">
+                <QuestionCircleOutlined />
+              </a-button>
+            </a-tooltip>
             <a-tooltip :title="isDark ? '切换为日间模式' : '切换为夜间模式'">
               <a-button type="text" class="theme-btn" @click="toggleTheme">
                 <BulbOutlined />
@@ -137,7 +142,7 @@
     <a-layout-footer class="app-footer">
       <div class="footer-content">
         <p>
-          JobView 求职进程管理系统 © {{ currentYear }} 
+          JobView 求职进程管理系统 © {{ currentYear }}
           <a-divider type="vertical" />
           <a href="https://github.com" target="_blank">
             <GithubOutlined /> GitHub
@@ -145,11 +150,18 @@
         </p>
       </div>
     </a-layout-footer>
+
+    <!-- 用户指导组件 -->
+    <UserGuide
+      :visible="showGuide"
+      @close="closeUserGuide"
+      @finished="onGuideFinished"
+    />
   </a-layout>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h, onMounted } from 'vue'
+import { ref, computed, h, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
 import {
@@ -164,11 +176,14 @@ import {
   SettingOutlined,
   LogoutOutlined,
   GithubOutlined,
-  BulbOutlined
+  BulbOutlined,
+  QuestionCircleOutlined
 } from '@ant-design/icons-vue'
 import { useJobApplicationStore } from '../stores/jobApplication'
 import AssistantWidget from './AssistantWidget.vue'
+import UserGuide from './UserGuide.vue'
 import { useAuthStore } from '../stores/auth'
+import { UserGuideManager } from '../utils/userGuide'
 
 const router = useRouter()
 const route = useRoute()
@@ -283,6 +298,51 @@ const handleLogout = () => {
     }
   })
 }
+
+// 用户指导相关
+const showGuide = ref(false)
+
+// 显示用户指导
+const showUserGuide = () => {
+  showGuide.value = true
+}
+
+// 关闭用户指导
+const closeUserGuide = () => {
+  showGuide.value = false
+}
+
+// 用户指导完成
+const onGuideFinished = () => {
+  UserGuideManager.markGuideCompleted()
+  showGuide.value = false
+  message.success('欢迎使用 JobView！开始您的求职之旅吧！')
+}
+
+// 检查是否应该显示用户指导（在用户登录时调用）
+const checkAndShowGuide = () => {
+  console.log('检查用户指导显示条件:')
+  console.log('- 用户已登录:', authStore.isLoggedIn)
+  console.log('- 指导状态:', UserGuideManager.getGuideState())
+  console.log('- 应该显示指导:', UserGuideManager.shouldShowGuide())
+
+  if (authStore.isLoggedIn && UserGuideManager.shouldShowGuide()) {
+    console.log('✅ 准备显示用户指导')
+    // 延迟显示指导，确保页面已完全加载
+    setTimeout(() => {
+      showGuide.value = true
+    }, 1000)
+  } else {
+    console.log('❌ 不显示用户指导')
+  }
+}
+
+// 监听认证状态变化
+watch(() => authStore.isLoggedIn, (isLoggedIn) => {
+  if (isLoggedIn) {
+    checkAndShowGuide()
+  }
+}, { immediate: true })
 </script>
 
 <style scoped>
@@ -346,10 +406,13 @@ const handleLogout = () => {
   font-size: 14px;
 }
 
-.theme-btn {
+.theme-btn, .help-btn {
   color: rgba(255, 255, 255, 0.85);
 }
-.theme-btn:hover { color: #fff; background: rgba(255,255,255,0.1); }
+.theme-btn:hover, .help-btn:hover {
+  color: #fff;
+  background: rgba(255,255,255,0.1);
+}
 
 .user-avatar-btn {
   display: flex;
