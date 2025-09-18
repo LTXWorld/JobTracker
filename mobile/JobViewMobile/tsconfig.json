@@ -1,0 +1,34 @@
+{
+  "extends": "@react-native/typescript-config/tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitReturns": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "useUnknownInCatchVariables": true,
+    "exactOptionalPropertyTypes": true,
+    "skipLibCheck": true,
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["*"],
+      "@components/*": ["components/*"],
+      "@screens/*": ["screens/*"],
+      "@services/*": ["services/*"],
+      "@store/*": ["store/*"],
+      "@store": ["store"],
+      "@utils/*": ["utils/*"],
+      "@utils": ["utils"],
+      "@hooks/*": ["hooks/*"],
+      "@types/*": ["types/*"],
+      "@types": ["types"],
+      "@navigation/*": ["navigation/*"],
+      "@config/*": ["config/*"],
+      "@config": ["config"],
+      "@constants/*": ["constants/*"],
+      "@assets/*": ["assets/*"]
+    }
+  },
+  "include": ["src", "index.js"],
+  "exclude": ["node_modules", "android", "ios"]
+}

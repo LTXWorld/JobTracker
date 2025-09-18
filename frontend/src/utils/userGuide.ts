@@ -81,6 +81,7 @@ export class UserGuideManager {
 
 // 在开发模式下将重置方法暴露到全局
 if (typeof window !== 'undefined') {
-  (window as any).resetUserGuide = UserGuideManager.resetGuideState
-  (window as any).checkGuideState = UserGuideManager.getGuideState
+  // 使用绑定函数确保 this 上下文正确
+  (window as any).resetUserGuide = () => UserGuideManager.resetGuideState()
+  (window as any).checkGuideState = () => UserGuideManager.getGuideState()
 }

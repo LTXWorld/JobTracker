@@ -19,7 +19,19 @@
       "Bash(kill:*)",
       "Bash(rm:*)",
       "Bash(touch:*)",
-      "WebFetch(domain:localhost)"
+      "WebFetch(domain:localhost)",
+      "Bash(npx tsc:*)",
+      "Bash(cp:*)",
+      "Bash(npx react-native start:*)",
+      "Bash(npx react-native:*)",
+      "Bash(adb shell input keyevent:*)",
+      "Bash(adb shell am start:*)",
+      "Bash(./gradlew:*)",
+      "Bash(adb logcat:*)",
+      "Bash(adb:*)",
+      "Bash(./android/gradlew:*)",
+      "Bash(pkill:*)",
+      "Bash(xargs kill:*)"
     ],
     "deny": [],
     "ask": []

@@ -3,7 +3,7 @@
     <!-- 顶部导航栏 -->
     <a-layout-header class="app-header">
       <div class="header-content">
-        <div class="logo">
+        <div class="logo" @click="goToHome">
           <div class="logo-icon">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="3" y="4" width="18" height="18" rx="2" stroke="#1890ff" stroke-width="2" fill="none"/>
@@ -82,6 +82,14 @@
         type="card"
         class="main-tabs"
       >
+        <a-tab-pane key="home" tab="主页">
+          <template #tab>
+            <span>
+              <HomeOutlined />
+              主页
+            </span>
+          </template>
+        </a-tab-pane>
         <a-tab-pane key="kanban" tab="看板视图">
           <template #tab>
             <span>
@@ -177,7 +185,8 @@ import {
   LogoutOutlined,
   GithubOutlined,
   BulbOutlined,
-  QuestionCircleOutlined
+  QuestionCircleOutlined,
+  HomeOutlined
 } from '@ant-design/icons-vue'
 import { useJobApplicationStore } from '../stores/jobApplication'
 import AssistantWidget from './AssistantWidget.vue'
@@ -223,8 +232,11 @@ applyTheme()
 const activeTab = computed({
   get: () => {
     const routeName = route.name as string
-    if (!routeName || routeName === 'home') {
-      return 'kanban'
+    if (!routeName) {
+      return 'home'
+    }
+    if (routeName === 'home') {
+      return 'home'
     }
     // 如果当前在认证相关页面，不显示标签
     if (['login', 'register', 'profile'].includes(routeName)) {
@@ -249,8 +261,15 @@ onMounted(() => {
 
 // 标签切换处理
 const handleTabChange = (key: string) => {
-  const routeMap: Record<string, string> = { kanban: '/kanban', timeline: '/timeline', reminders: '/reminders', statistics: '/statistics', resume: '/resume' }
-  router.push(routeMap[key] || '/kanban')
+  const routeMap: Record<string, string> = {
+    home: '/',
+    kanban: '/kanban',
+    timeline: '/timeline',
+    reminders: '/reminders',
+    statistics: '/statistics',
+    resume: '/resume'
+  }
+  router.push(routeMap[key] || '/')
 }
 
 // 刷新数据
@@ -264,6 +283,11 @@ const handleRefresh = async () => {
   } finally {
     refreshing.value = false
   }
+}
+
+// 跳转到主页
+const goToHome = () => {
+  router.push('/')
 }
 
 // 跳转到个人资料页
@@ -375,6 +399,14 @@ watch(() => authStore.isLoggedIn, (isLoggedIn) => {
   display: flex;
   align-items: center;
   gap: 12px;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: background-color 0.3s ease;
+}
+
+.logo:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .logo-icon {

@@ -566,6 +566,7 @@ onUnmounted(() => {
 .guide-content {
   flex: 1;
   padding: 40px;
+  padding-right: 52px; /* 增加右侧内边距为滚动条腾出空间 */
   overflow-y: auto;
   display: flex;
   align-items: center;
@@ -587,6 +588,7 @@ onUnmounted(() => {
   overflow-y: auto;
   max-height: 100%;
   padding: 20px 0;
+  padding-right: 12px; /* 增加右侧内边距为滚动条腾出空间 */
 }
 
 /* 通用样式 */
@@ -1186,5 +1188,35 @@ onUnmounted(() => {
     padding: 10px 16px;
     font-size: 14px;
   }
+}
+
+/* 自定义滚动条样式 - 让滚动条更靠右边 */
+.guide-content::-webkit-scrollbar,
+.slide-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.guide-content::-webkit-scrollbar-track,
+.slide-content::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  margin: 4px;
+}
+
+.guide-content::-webkit-scrollbar-thumb,
+.slide-content::-webkit-scrollbar-thumb {
+  background: rgba(102, 126, 234, 0.3);
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+.guide-content::-webkit-scrollbar-thumb:hover,
+.slide-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(102, 126, 234, 0.5);
+}
+
+.guide-content::-webkit-scrollbar-corner,
+.slide-content::-webkit-scrollbar-corner {
+  background: transparent;
 }
 </style>

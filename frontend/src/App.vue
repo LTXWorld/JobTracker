@@ -13,22 +13,22 @@ const authStore = useAuthStore()
 onMounted(async () => {
   // 初始化认证状态
   authStore.initAuth()
-  
+
   // 检查后端连接
   try {
     const [jobApiHealth, authApiHealth] = await Promise.all([
       JobApplicationAPI.healthCheck(),
       AuthAPI.healthCheck()
     ])
-    
+
     if (!jobApiHealth) {
       message.warning('求职记录服务连接异常，部分功能可能不可用')
     }
-    
+
     if (!authApiHealth) {
       message.error('认证服务连接异常，请检查后端服务状态')
     }
-    
+
     if (jobApiHealth && authApiHealth) {
       console.log('✅ 所有后端服务连接正常')
     }

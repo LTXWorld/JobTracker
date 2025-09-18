@@ -9,7 +9,11 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      redirect: '/kanban'
+      component: () => import('../views/Home.vue'),
+      meta: {
+        title: 'JobView - 智能求职投递管理系统',
+        requiresAuth: false
+      }
     },
     
     // 认证相关路由
@@ -97,7 +101,7 @@ const router = createRouter({
         requiresAuth: true
       }
     },
-    
+
     // 404 页面
     {
       path: '/:pathMatch(.*)*',
