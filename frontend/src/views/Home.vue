@@ -38,7 +38,7 @@
       <div class="features-grid">
         <div class="feature-card" @click="goToKanban">
           <div class="feature-icon">📋</div>
-          <h3>看板管理</h3>
+          <h3>求职进程</h3>
           <p>拖拽式状态更新，直观管理求职进度</p>
           <div class="feature-badge">推荐</div>
         </div>

@@ -90,11 +90,11 @@
             </span>
           </template>
         </a-tab-pane>
-        <a-tab-pane key="kanban" tab="看板视图">
+        <a-tab-pane key="kanban" tab="求职进程">
           <template #tab>
             <span>
               <AppstoreOutlined />
-              看板视图
+              求职进程
             </span>
           </template>
         </a-tab-pane>
@@ -142,7 +142,8 @@
     <a-layout-content class="app-content" :class="{ 'no-tabs': !authStore.isLoggedIn }">
       <div class="content-wrapper">
         <router-view />
-        <AssistantWidget />
+        <RobotAssistant />
+        <MusicPlayer v-if="authStore.isLoggedIn" />
       </div>
     </a-layout-content>
 
@@ -189,8 +190,9 @@ import {
   HomeOutlined
 } from '@ant-design/icons-vue'
 import { useJobApplicationStore } from '../stores/jobApplication'
-import AssistantWidget from './AssistantWidget.vue'
+import RobotAssistant from './RobotAssistant.vue'
 import UserGuide from './UserGuide.vue'
+import MusicPlayer from './MusicPlayer.vue'
 import { useAuthStore } from '../stores/auth'
 import { UserGuideManager } from '../utils/userGuide'
 

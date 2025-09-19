@@ -2,7 +2,7 @@
   <div class="kanban-board">
     <!-- 看板头部 -->
     <div class="kanban-header">
-      <h2>求职看板</h2>
+      <h2>求职进程</h2>
       <div class="header-right">
         <!-- 搜索定位 -->
         <div class="kanban-search">
@@ -76,8 +76,8 @@
     <div class="kanban-main" v-if="!loading">
       <div class="kanban-columns">
         <div class="kanban-column" v-for="column in currentStatusColumns" :key="column.status">
-          <div class="column-header">
-            <h3>{{ column.title }}</h3>
+          <div class="column-header" :style="{ borderTop: `3px solid ${column.color}` }">
+            <h3 :style="{ color: column.color }">{{ column.title }}</h3>
             <a-badge :count="column.items.length" :color="column.color" />
           </div>
           

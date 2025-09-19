@@ -170,18 +170,18 @@ func (s *AuthService) UpdateProfile(userID uint, req *model.UpdateUserRequest) (
 	if err := s.validateUpdateUserRequest(req); err != nil {
 		return nil, err
 	}
-	
+
 	// 检查用户是否存在
 	user, err := s.getUserByID(userID)
 	if err != nil {
 		return nil, fmt.Errorf("用户不存在: %w", err)
 	}
-	
+
 	// 构建更新SQL
 	setParts := []string{}
 	args := []interface{}{}
 	argIndex := 1
-	
+
 	if req.Username != nil && *req.Username != user.Username {
 		// 检查新用户名是否已存在
 		if exists, err := s.usernameExists(*req.Username); err != nil {
@@ -189,12 +189,12 @@ func (s *AuthService) UpdateProfile(userID uint, req *model.UpdateUserRequest) (
 		} else if exists {
 			return nil, fmt.Errorf("用户名已存在")
 		}
-		
+
 		setParts = append(setParts, fmt.Sprintf("username = $%d", argIndex))
 		args = append(args, *req.Username)
 		argIndex++
 	}
-	
+
 	if req.Email != nil && *req.Email != user.Email {
 		// 检查新邮箱是否已存在
 		if exists, err := s.emailExists(*req.Email); err != nil {
@@ -202,58 +202,42 @@ func (s *AuthService) UpdateProfile(userID uint, req *model.UpdateUserRequest) (
 		} else if exists {
 			return nil, fmt.Errorf("邮箱已被注册")
 		}
-		
+
 		setParts = append(setParts, fmt.Sprintf("email = $%d", argIndex))
 		args = append(args, *req.Email)
 		argIndex++
 	}
-	
+
 	if len(setParts) == 0 {
 		return user.ToProfile(), nil
 	}
-	
-	// 添加更新时间和用户ID
+
+	// 添加更新时间
 	setParts = append(setParts, fmt.Sprintf("updated_at = $%d", argIndex))
 	args = append(args, time.Now())
 	argIndex++
-	
+
+	// 添加用户ID作为WHERE条件
 	args = append(args, userID)
-	
-	query := fmt.Sprintf(`
-		UPDATE users 
-		SET %s 
-		WHERE id = $%d
-	`, fmt.Sprintf("%s", setParts[0]), argIndex)
-	
-	for i := 1; i < len(setParts); i++ {
-		query = fmt.Sprintf("%s, %s", query[:len(query)-len(fmt.Sprintf("WHERE id = $%d", argIndex))], setParts[i]) + 
-			fmt.Sprintf(" WHERE id = $%d", argIndex)
-	}
-	
-	// 重构查询字符串
-	query = fmt.Sprintf("UPDATE users SET %s WHERE id = $%d", 
-		fmt.Sprintf("%s", setParts[0]), argIndex)
-	if len(setParts) > 1 {
-		for i := 1; i < len(setParts); i++ {
-			query = fmt.Sprintf("UPDATE users SET %s, %s WHERE id = $%d", 
-				fmt.Sprintf("%s", setParts[0]), setParts[i], argIndex)
-		}
-	}
-	
+
+	// 构建完整的SQL查询
+	query := fmt.Sprintf("UPDATE users SET %s WHERE id = $%d",
+		strings.Join(setParts, ", "), argIndex)
+
 	// 执行更新
 	_, err = s.db.Exec(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("更新用户信息失败: %w", err)
 	}
-	
+
 	log.Printf("[AUTH] User profile updated: ID=%d", userID)
-	
+
 	// 返回更新后的用户信息
 	updatedUser, err := s.getUserByID(userID)
 	if err != nil {
 		return nil, fmt.Errorf("获取更新后的用户信息失败: %w", err)
 	}
-	
+
 	return updatedUser.ToProfile(), nil
 }
 
