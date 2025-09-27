@@ -16,10 +16,10 @@ type User struct {
     Username  string    `json:"username" db:"username"`
     Email     string    `json:"email" db:"email"`
     Password  string    `json:"-" db:"password"` // 不在JSON中暴露密码
-    AvatarPath string   `json:"-" db:"avatar_path"`
-    AvatarETag string   `json:"-" db:"avatar_etag"`
-    AvatarVersion int   `json:"-" db:"avatar_version"`
-    AvatarUpdatedAt *time.Time `json:"-" db:"avatar_updated_at"`
+    AvatarPath string   `json:"-" db:"avatar_path" gorm:"column:avatar_path"`
+    AvatarETag string   `json:"-" db:"avatar_etag" gorm:"column:avatar_etag"`
+    AvatarVersion int   `json:"-" db:"avatar_version" gorm:"column:avatar_version"`
+    AvatarUpdatedAt *time.Time `json:"-" db:"avatar_updated_at" gorm:"column:avatar_updated_at"`
     CreatedAt time.Time `json:"created_at" db:"created_at"`
     UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 }
