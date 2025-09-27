@@ -24,6 +24,11 @@ type User struct {
     UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 }
 
+// TableName 映射到已有 users 表，避免 GORM 默认使用 "user"
+func (User) TableName() string {
+	return "users"
+}
+
 // RegisterRequest 用户注册请求
 type RegisterRequest struct {
 	Username string `json:"username" binding:"required,min=3,max=50"`

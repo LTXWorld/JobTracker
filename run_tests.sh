@@ -3,6 +3,45 @@
 # JobView 综合测试执行脚本
 # 执行前端和后端的完整测试套件，生成覆盖率报告
 
+usage() {
+    cat <<'EOF'
+用法: ./run_tests.sh [选项]
+
+选项说明:
+  --integration   额外执行带有 integration build tag 的后端测试
+  --loadtest      额外执行带有 loadtest build tag 的性能/负载测试
+  -h, --help      显示此帮助信息
+
+说明:
+- 默认仅执行前端单元测试与后端核心单元测试（包含占位测试提示）
+- integration / loadtest 会运行耗时更长的测试，请在资源充足的环境下使用
+EOF
+}
+
+RUN_INTEGRATION=0
+RUN_LOADTEST=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --integration)
+            RUN_INTEGRATION=1
+            ;;
+        --loadtest)
+            RUN_LOADTEST=1
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "未知参数: $1"
+            usage
+            exit 1
+            ;;
+    esac
+    shift
+done
+
 echo "🎯 JobView 测试套件执行开始..."
 echo "======================================"
 
@@ -16,6 +55,8 @@ NC='\033[0m' # No Color
 # 测试结果统计
 FRONTEND_TESTS_PASSED=0
 BACKEND_TESTS_PASSED=0
+INTEGRATION_TESTS_PASSED=-1   # -1 表示未执行
+LOADTEST_TESTS_PASSED=-1
 TOTAL_ERRORS=0
 
 echo -e "${BLUE}📂 项目结构检查...${NC}"
@@ -113,9 +154,55 @@ fi
 
 cd ..
 
-# 3. 集成测试（如果需要的话）
+# 3. 可选测试集
+if [ $RUN_INTEGRATION -eq 1 ]; then
+    echo
+    echo -e "${BLUE}🔧 执行 integration 测试 (build tag) ...${NC}"
+    echo "------------------------------"
+    pushd backend > /dev/null
+    go test -tags integration ./tests/auth ./tests/handler ./tests/api ./tests/database > backend_integration_tests.log 2>&1
+    EXIT_CODE=$?
+    popd > /dev/null
+
+    INTEGRATION_TESTS_PASSED=0
+    if [ $EXIT_CODE -eq 0 ]; then
+        echo -e "${GREEN}✅ integration 测试通过${NC}"
+        INTEGRATION_TESTS_PASSED=1
+    else
+        echo -e "${RED}❌ integration 测试失败${NC}"
+        echo -e "${YELLOW}详细错误信息:${NC}"
+        tail -20 backend/backend_integration_tests.log
+        TOTAL_ERRORS=$((TOTAL_ERRORS + 1))
+    fi
+fi
+
+if [ $RUN_LOADTEST -eq 1 ]; then
+    echo
+    echo -e "${BLUE}🔥 执行 loadtest 性能用例 (build tag) ...${NC}"
+    echo "------------------------------"
+    pushd backend > /dev/null
+    GO_TEST_CMD="go test -tags loadtest ./tests/service -run TestLoadTesting_ -count=1"
+    echo "命令: $GO_TEST_CMD"
+    eval "$GO_TEST_CMD" > backend_loadtest.log 2>&1
+    EXIT_CODE=$?
+    popd > /dev/null
+
+    LOADTEST_TESTS_PASSED=0
+    if [ $EXIT_CODE -eq 0 ]; then
+        echo -e "${GREEN}✅ loadtest 用例通过${NC}"
+        LOADTEST_TESTS_PASSED=1
+    else
+        echo -e "${RED}❌ loadtest 用例失败${NC}"
+        echo -e "${YELLOW}详细错误信息:${NC}"
+        tail -20 backend/backend_loadtest.log
+        TOTAL_ERRORS=$((TOTAL_ERRORS + 1))
+    fi
+    echo -e "${YELLOW}提示: loadtest 会真实执行性能压测，请确保环境资源充足${NC}"
+fi
+
+# 4. 运行状态检查
 echo
-echo -e "${BLUE}🔗 集成测试检查...${NC}"
+echo -e "${BLUE}🔗 服务运行状态检查...${NC}"
 echo "------------------------------"
 
 # 检查是否有运行的服务
@@ -154,6 +241,24 @@ else
 fi
 
 echo
+echo "🔄 可选测试 (build tags):"
+if [ $INTEGRATION_TESTS_PASSED -eq -1 ]; then
+    echo -e "  • integration: ${YELLOW}未执行${NC}（使用 --integration 启用）"
+elif [ $INTEGRATION_TESTS_PASSED -eq 1 ]; then
+    echo -e "  • integration: ${GREEN}✅ 通过${NC}"
+else
+    echo -e "  • integration: ${RED}❌ 失败${NC}"
+fi
+
+if [ $LOADTEST_TESTS_PASSED -eq -1 ]; then
+    echo -e "  • loadtest: ${YELLOW}未执行${NC}（使用 --loadtest 启用）"
+elif [ $LOADTEST_TESTS_PASSED -eq 1 ]; then
+    echo -e "  • loadtest: ${GREEN}✅ 通过${NC}"
+else
+    echo -e "  • loadtest: ${RED}❌ 失败${NC}"
+fi
+
+echo
 echo "🏃 服务运行状态:"
 if [ $BACKEND_RUNNING -eq 1 ]; then
     echo -e "  • 后端服务 (8010): ${GREEN}✅ 运行中${NC}"
@@ -173,6 +278,12 @@ echo "  • 前端覆盖率: frontend/coverage/index.html"
 echo "  • 后端覆盖率: backend/auth_coverage.html"
 echo "  • 前端测试日志: frontend/frontend_test_results.log"
 echo "  • 后端测试日志: backend/backend_auth_test_results.log"
+if [ $RUN_INTEGRATION -eq 1 ]; then
+    echo "  • integration 日志: backend/backend_integration_tests.log"
+fi
+if [ $RUN_LOADTEST -eq 1 ]; then
+    echo "  • loadtest 日志: backend/backend_loadtest.log"
+fi
 
 # 5. 最终状态
 echo

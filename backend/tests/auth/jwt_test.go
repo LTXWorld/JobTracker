@@ -12,7 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 注意：setupTestUser 函数已经在 middleware_test.go 中定义，这里不重复定义
+func setupTestUser() *model.User {
+	return &model.User{
+		ID:       1,
+		Username: "testuser",
+		Email:    "test@example.com",
+	}
+}
+
 
 func TestGenerateTokenPair(t *testing.T) {
 	user := setupTestUser()

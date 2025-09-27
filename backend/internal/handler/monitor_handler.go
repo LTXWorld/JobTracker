@@ -4,21 +4,21 @@ import (
 	"net/http"
 	"time"
 
-	"jobView-backend/internal/database"
 	"jobView-backend/internal/model"
+	"jobView-backend/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
 // MonitorHandler 数据库性能监控处理器
 type MonitorHandler struct {
-	db *database.DB
+	monitor service.MonitoringService
 }
 
 // NewMonitorHandler 创建监控处理器
-func NewMonitorHandler(db *database.DB) *MonitorHandler {
+func NewMonitorHandler(monitor service.MonitoringService) *MonitorHandler {
 	return &MonitorHandler{
-		db: db,
+		monitor: monitor,
 	}
 }
 
@@ -30,8 +30,8 @@ func NewMonitorHandler(db *database.DB) *MonitorHandler {
 // @Success 200 {object} model.APIResponse{data=database.PerformanceStats}
 // @Router /api/v1/monitor/db-stats [get]
 func (h *MonitorHandler) GetDatabaseStats(c *gin.Context) {
-	stats := h.db.GetStats()
-	
+	stats := h.monitor.GetPerformanceStats()
+
 	c.JSON(http.StatusOK, model.APIResponse{
 		Code:    0,
 		Message: "Database statistics retrieved successfully",
@@ -47,8 +47,8 @@ func (h *MonitorHandler) GetDatabaseStats(c *gin.Context) {
 // @Success 200 {object} model.APIResponse{data=map[string]interface{}}
 // @Router /api/v1/monitor/connection-stats [get]
 func (h *MonitorHandler) GetConnectionStats(c *gin.Context) {
-	stats := h.db.GetConnectionStats()
-	
+	stats := h.monitor.GetConnectionStats()
+
 	c.JSON(http.StatusOK, model.APIResponse{
 		Code:    0,
 		Message: "Connection pool statistics retrieved successfully",
@@ -64,14 +64,28 @@ func (h *MonitorHandler) GetConnectionStats(c *gin.Context) {
 // @Success 200 {object} model.APIResponse{data=map[string]interface{}}
 // @Router /api/v1/monitor/health [get]
 func (h *MonitorHandler) GetHealthStatus(c *gin.Context) {
-	isHealthy := h.db.IsHealthy()
-	
+	isHealthy := h.monitor.IsHealthy()
+	healthDetail := h.monitor.GetHealthStatus()
+
 	status := map[string]interface{}{
-		"healthy":    isHealthy,
-		"timestamp":  time.Now(),
-		"database":   "postgresql",
+		"healthy":   isHealthy,
+		"timestamp": time.Now(),
+		"database":  "postgresql",
 	}
-	
+
+	if !healthDetail.LastCheck.IsZero() {
+		status["last_check"] = healthDetail.LastCheck
+	}
+	if healthDetail.LastError != "" {
+		status["last_error"] = healthDetail.LastError
+	}
+	if healthDetail.ResponseTime > 0 {
+		status["response_time"] = healthDetail.ResponseTime
+	}
+	if healthDetail.Uptime > 0 {
+		status["uptime"] = healthDetail.Uptime
+	}
+
 	if isHealthy {
 		c.JSON(http.StatusOK, model.APIResponse{
 			Code:    0,
@@ -95,8 +109,8 @@ func (h *MonitorHandler) GetHealthStatus(c *gin.Context) {
 // @Success 200 {object} model.APIResponse
 // @Router /api/v1/monitor/reset-stats [post]
 func (h *MonitorHandler) ResetStats(c *gin.Context) {
-	h.db.Monitor.ResetStats()
-	
+	h.monitor.ResetPerformanceStats()
+
 	c.JSON(http.StatusOK, model.APIResponse{
 		Code:    0,
 		Message: "Database monitoring statistics reset successfully",
@@ -116,7 +130,7 @@ func (h *MonitorHandler) SetSlowThreshold(c *gin.Context) {
 	type ThresholdRequest struct {
 		ThresholdMs int `json:"threshold_ms" binding:"required,min=1,max=60000"`
 	}
-	
+
 	var req ThresholdRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, model.APIResponse{
@@ -125,10 +139,10 @@ func (h *MonitorHandler) SetSlowThreshold(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	threshold := time.Duration(req.ThresholdMs) * time.Millisecond
-	h.db.Monitor.SetSlowThreshold(threshold)
-	
+	h.monitor.UpdateSlowThreshold(threshold)
+
 	c.JSON(http.StatusOK, model.APIResponse{
 		Code:    0,
 		Message: "Slow query threshold updated successfully",
@@ -147,8 +161,8 @@ func (h *MonitorHandler) SetSlowThreshold(c *gin.Context) {
 // @Success 200 {object} model.APIResponse{data=map[string]interface{}}
 // @Router /api/v1/monitor/slow-threshold [get]
 func (h *MonitorHandler) GetSlowThreshold(c *gin.Context) {
-	threshold := h.db.Monitor.GetSlowThreshold()
-	
+	threshold := h.monitor.CurrentSlowThreshold()
+
 	c.JSON(http.StatusOK, model.APIResponse{
 		Code:    0,
 		Message: "Current slow query threshold retrieved",
@@ -167,10 +181,10 @@ func (h *MonitorHandler) GetSlowThreshold(c *gin.Context) {
 // @Success 200 {object} model.APIResponse{data=map[string]interface{}}
 // @Router /api/v1/monitor/dashboard [get]
 func (h *MonitorHandler) GetDashboard(c *gin.Context) {
-	stats := h.db.GetStats()
-	connectionStats := h.db.GetConnectionStats()
-	isHealthy := h.db.IsHealthy()
-	
+	stats := h.monitor.GetPerformanceStats()
+	connectionStats := h.monitor.GetConnectionStats()
+	isHealthy := h.monitor.IsHealthy()
+
 	dashboard := map[string]interface{}{
 		"health": map[string]interface{}{
 			"status":    isHealthy,
@@ -179,15 +193,15 @@ func (h *MonitorHandler) GetDashboard(c *gin.Context) {
 		"performance":     stats,
 		"connection_pool": connectionStats,
 		"summary": map[string]interface{}{
-			"total_queries":     stats.QueryStats.TotalQueries,
-			"slow_queries":      stats.QueryStats.SlowQueries,
-			"slow_query_rate":   stats.QueryStats.SlowQueryRate,
-			"average_latency":   stats.QueryStats.AverageLatency.String(),
-			"connection_usage":  connectionStats["connection_utilization"],
+			"total_queries":    stats.QueryStats.TotalQueries,
+			"slow_queries":     stats.QueryStats.SlowQueries,
+			"slow_query_rate":  stats.QueryStats.SlowQueryRate,
+			"average_latency":  stats.QueryStats.AverageLatency.String(),
+			"connection_usage": connectionStats["connection_utilization"],
 			"healthy":          isHealthy,
 		},
 	}
-	
+
 	c.JSON(http.StatusOK, model.APIResponse{
 		Code:    0,
 		Message: "Monitoring dashboard data retrieved successfully",

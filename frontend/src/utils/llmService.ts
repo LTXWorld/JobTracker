@@ -1,3 +1,5 @@
+import { getRobotResponse } from './robotKnowledge'
+
 // LLM模型配置
 export interface LLMConfig {
   provider: 'ollama' | 'openai' | 'qwen' | 'local';
@@ -202,25 +204,34 @@ export async function getEnhancedRobotResponse(
 ): Promise<string> {
   const questionType = classifyQuestion(userInput);
 
-  // 如果是求职相关问题，优先使用知识库
+  // 如果是求职相关问题，直接使用知识库
   if (questionType === 'job_related') {
     try {
-      const knowledgeResponse = await getRobotResponse(userInput, context);
-      // 如果知识库有满意的回答，直接返回
-      if (!knowledgeResponse.includes('暂时无法回答') && !knowledgeResponse.includes('换个方式问')) {
-        return knowledgeResponse;
-      }
+      return await getRobotResponse(userInput, context);
     } catch (error) {
       console.error('知识库查询失败:', error);
+      return '抱歉，银月暂时无法查询到相关信息，主人可以稍后再试。';
     }
   }
 
-  // 对于通用问题或个人问题，尝试调用LLM
+  // 对于通用问题或个人问题，先检查LLM可用性
   const config = { ...defaultLLMConfig, ...llmConfig };
+  const isLLMAvailable = await checkLLMAvailability(config);
+
+  if (!isLLMAvailable) {
+    // LLM不可用时的友好回复
+    return `😊 主人，银月的AI大脑暂时休息中～<br><br>
+    不过银月还是很乐意帮助主人处理求职相关的问题：<br>
+    • 如何使用看板功能<br>
+    • 面试提醒设置<br>
+    • 投递数据分析<br>
+    • 求职建议和技巧<br><br>
+    主人可以试试问银月这些问题哦！`;
+  }
 
   let llmResponse: LLMResponse;
 
-  // 优先尝试本地模型
+  // 调用可用的LLM模型
   if (config.provider === 'ollama') {
     llmResponse = await callOllamaAPI(userInput, config);
   } else if (config.provider === 'openai') {
@@ -233,8 +244,9 @@ export async function getEnhancedRobotResponse(
   if (llmResponse.success) {
     return llmResponse.content;
   } else {
-    // LLM失败时降级到知识库
-    return await getRobotResponse(userInput, context);
+    // LLM失败时的友好回复
+    return `😅 银月的AI大脑暂时有点忙，主人可以稍后再试～<br><br>
+    或者问银月一些求职相关的问题，银月很擅长这些呢！`;
   }
 }
 

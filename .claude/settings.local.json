@@ -31,7 +31,8 @@
       "Bash(adb:*)",
       "Bash(./android/gradlew:*)",
       "Bash(pkill:*)",
-      "Bash(xargs kill:*)"
+      "Bash(xargs kill:*)",
+      "Bash(mv:*)"
     ],
     "deny": [],
     "ask": []

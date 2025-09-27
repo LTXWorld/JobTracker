@@ -1,24 +1,37 @@
 package handler
 
 import (
-    "encoding/json"
-    "jobView-backend/internal/auth"
-    "jobView-backend/internal/model"
-    "jobView-backend/internal/service"
-    "jobView-backend/internal/utils"
-    "fmt"
-    "log"
-    "net/http"
-    "strconv"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"strconv"
 
-    "github.com/gorilla/mux"
+	"jobView-backend/internal/auth"
+	"jobView-backend/internal/model"
+	"jobView-backend/internal/utils"
+
+	"github.com/gorilla/mux"
 )
 
-type JobApplicationHandler struct {
-	service *service.JobApplicationService
+// JobApplicationUseCase 定义 handler 所依赖的领域服务接口
+type JobApplicationUseCase interface {
+	Create(userID uint, req *model.CreateJobApplicationRequest) (*model.JobApplication, error)
+	GetByID(userID uint, id int) (*model.JobApplication, error)
+	GetAll(userID uint) ([]model.JobApplication, error)
+	Update(userID uint, id int, req *model.UpdateJobApplicationRequest) (*model.JobApplication, error)
+	Delete(userID uint, id int) error
+	GetStatusStatistics(userID uint) (map[string]interface{}, error)
+	GetJobApplicationsWithStatusFilters(userID uint, status *model.ApplicationStatus, stage *string, req model.PaginationRequest) (*model.PaginationResponse, error)
+	SearchApplications(userID uint, query string, req model.PaginationRequest) (*model.PaginationResponse, error)
+	GetDashboardData(userID uint) (map[string]interface{}, error)
 }
 
-func NewJobApplicationHandler(service *service.JobApplicationService) *JobApplicationHandler {
+type JobApplicationHandler struct {
+	service JobApplicationUseCase
+}
+
+func NewJobApplicationHandler(service JobApplicationUseCase) *JobApplicationHandler {
 	return &JobApplicationHandler{service: service}
 }
 
@@ -127,11 +140,11 @@ func (h *JobApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    var req model.UpdateJobApplicationRequest
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-        h.writeErrorResponse(w, http.StatusBadRequest, "invalid request body", err)
-        return
-    }
+	var req model.UpdateJobApplicationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeErrorResponse(w, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
 
 	// 验证输入
 	if err := h.validateUpdateRequest(&req); err != nil {
@@ -139,26 +152,26 @@ func (h *JobApplicationHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    // 便于排查500，记录关键字段变化（不包含大字段）
-    log.Printf("[DEBUG] Update application id=%d by user=%d payload=%v", id, userID, map[string]interface{}{
-        "status": req.Status,
-        "company_name": req.CompanyName,
-        "position_title": req.PositionTitle,
-        "application_date": req.ApplicationDate,
-        "company_attribute": req.CompanyAttribute,
-    })
+	// 便于排查500，记录关键字段变化（不包含大字段）
+	log.Printf("[DEBUG] Update application id=%d by user=%d payload=%v", id, userID, map[string]interface{}{
+		"status":            req.Status,
+		"company_name":      req.CompanyName,
+		"position_title":    req.PositionTitle,
+		"application_date":  req.ApplicationDate,
+		"company_attribute": req.CompanyAttribute,
+	})
 
-    job, err := h.service.Update(userID, id, &req)
-    if err != nil {
-        // 打印后端实际错误，便于定位500根因
-        log.Printf("[ERROR] Update failed for application id=%d user=%d: %v", id, userID, err)
-        if err.Error() == "job application not found" {
-            h.writeErrorResponse(w, http.StatusNotFound, "job application not found", nil)
-        } else {
-            h.writeErrorResponse(w, http.StatusInternalServerError, "failed to update job application", err)
-        }
-        return
-    }
+	job, err := h.service.Update(userID, id, &req)
+	if err != nil {
+		// 打印后端实际错误，便于定位500根因
+		log.Printf("[ERROR] Update failed for application id=%d user=%d: %v", id, userID, err)
+		if err.Error() == "job application not found" {
+			h.writeErrorResponse(w, http.StatusNotFound, "job application not found", nil)
+		} else {
+			h.writeErrorResponse(w, http.StatusInternalServerError, "failed to update job application", err)
+		}
+		return
+	}
 
 	h.writeSuccessResponse(w, http.StatusOK, "job application updated successfully", job)
 }
@@ -231,68 +244,68 @@ func (h *JobApplicationHandler) writeSuccessResponse(w http.ResponseWriter, stat
 
 // writeErrorResponse 写入错误响应
 func (h *JobApplicationHandler) writeErrorResponse(w http.ResponseWriter, statusCode int, message string, err error) {
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(statusCode)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
 
-    response := model.APIResponse{
-        Code:    statusCode,
-        Message: message,
-    }
+	response := model.APIResponse{
+		Code:    statusCode,
+		Message: message,
+	}
 
-    if err != nil && statusCode >= 500 {
-        // 只在服务器内部错误时显示详细错误信息
-        response.Data = map[string]string{"error": fmt.Sprintf("%v", err)}
-    }
+	if err != nil && statusCode >= 500 {
+		// 只在服务器内部错误时显示详细错误信息
+		response.Data = map[string]string{"error": fmt.Sprintf("%v", err)}
+	}
 
-    json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(response)
 }
 
 // validateCreateRequest 验证创建请求
 func (h *JobApplicationHandler) validateCreateRequest(req *model.CreateJobApplicationRequest) error {
-    if err := utils.ValidateCompanyName(req.CompanyName); err != nil {
-        return err
-    }
-	
+	if err := utils.ValidateCompanyName(req.CompanyName); err != nil {
+		return err
+	}
+
 	if err := utils.ValidatePositionTitle(req.PositionTitle); err != nil {
 		return err
 	}
-	
+
 	if req.ApplicationDate != "" {
 		if err := utils.ValidateDate(req.ApplicationDate); err != nil {
 			return err
 		}
 	}
-	
+
 	if req.SalaryRange != nil {
 		if err := utils.ValidateSalaryRange(*req.SalaryRange); err != nil {
 			return err
 		}
 	}
-	
+
 	if req.WorkLocation != nil {
 		if err := utils.ValidateWorkLocation(*req.WorkLocation); err != nil {
 			return err
 		}
 	}
-	
+
 	if req.Notes != nil {
 		if err := utils.ValidateNotes(*req.Notes); err != nil {
 			return err
 		}
 	}
-	
-    if req.ContactInfo != nil {
-        if err := utils.ValidateContactInfo(*req.ContactInfo); err != nil {
-            return err
-        }
-    }
 
-    // 企业属性：新建为必填
-    if err := utils.ValidateCompanyAttribute(req.CompanyAttribute, true); err != nil {
-        return err
-    }
+	if req.ContactInfo != nil {
+		if err := utils.ValidateContactInfo(*req.ContactInfo); err != nil {
+			return err
+		}
+	}
 
-    return nil
+	// 企业属性：新建为必填
+	if err := utils.ValidateCompanyAttribute(req.CompanyAttribute, true); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // validateUpdateRequest 验证更新请求
@@ -302,50 +315,50 @@ func (h *JobApplicationHandler) validateUpdateRequest(req *model.UpdateJobApplic
 			return err
 		}
 	}
-	
+
 	if req.PositionTitle != nil {
 		if err := utils.ValidatePositionTitle(*req.PositionTitle); err != nil {
 			return err
 		}
 	}
-	
+
 	if req.ApplicationDate != nil {
 		if err := utils.ValidateDate(*req.ApplicationDate); err != nil {
 			return err
 		}
 	}
-	
+
 	if req.SalaryRange != nil {
 		if err := utils.ValidateSalaryRange(*req.SalaryRange); err != nil {
 			return err
 		}
 	}
-	
+
 	if req.WorkLocation != nil {
 		if err := utils.ValidateWorkLocation(*req.WorkLocation); err != nil {
 			return err
 		}
 	}
-	
+
 	if req.Notes != nil {
 		if err := utils.ValidateNotes(*req.Notes); err != nil {
 			return err
 		}
 	}
-	
-    if req.ContactInfo != nil {
-        if err := utils.ValidateContactInfo(*req.ContactInfo); err != nil {
-            return err
-        }
-    }
 
-    if req.CompanyAttribute != nil {
-        if err := utils.ValidateCompanyAttribute(*req.CompanyAttribute, false); err != nil {
-            return err
-        }
-    }
-    
-    return nil
+	if req.ContactInfo != nil {
+		if err := utils.ValidateContactInfo(*req.ContactInfo); err != nil {
+			return err
+		}
+	}
+
+	if req.CompanyAttribute != nil {
+		if err := utils.ValidateCompanyAttribute(*req.CompanyAttribute, false); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // GetJobApplicationsWithFilters 根据状态和阶段筛选获取岗位申请

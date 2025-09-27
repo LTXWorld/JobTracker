@@ -1,95 +1,234 @@
 package repository
 
 import (
-    "database/sql"
-    "context"
-    "encoding/json"
-    "fmt"
-    "time"
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"time"
 
-    "jobView-backend/internal/database"
-    "jobView-backend/internal/model"
+	"jobView-backend/internal/database"
+	"jobView-backend/internal/model"
+
+	"gorm.io/gorm"
 )
 
-// ResumeRepository 定义简历持久化接口（骨架版）
 type ResumeRepository interface {
-    CheckResumeOwnership(ctx context.Context, resumeID int, userID uint) (bool, error)
-    GetSectionsMap(ctx context.Context, resumeID int) (map[string]json.RawMessage, error)
-    UpsertSection(ctx context.Context, resumeID int, typ string, content json.RawMessage, now time.Time) (*model.ResumeSection, error)
-    UpdateResumeCompleteness(ctx context.Context, resumeID int, completeness int, isCompleted bool, now time.Time) error
-    InsertAttachment(ctx context.Context, resumeID int, headerFileName, relPath, mime string, createdAt time.Time) (*model.ResumeAttachment, error)
-    ListAttachments(ctx context.Context, resumeID int, userID uint) ([]model.ResumeAttachment, error)
+	GetLatestResume(ctx context.Context, userID uint) (*model.Resume, error)
+	CreateResume(ctx context.Context, userID uint, title string, privacy string, now time.Time) (*model.Resume, error)
+	GetResumeByID(ctx context.Context, id int, userID uint) (*model.Resume, error)
+	UpdateResumeMetadata(ctx context.Context, id int, userID uint, fields map[string]interface{}) error
+	ListSections(ctx context.Context, resumeID int, userID uint) ([]model.ResumeSection, error)
+	UpsertSection(ctx context.Context, resumeID int, sectionType string, content json.RawMessage, now time.Time) (*model.ResumeSection, error)
+	CheckResumeOwnership(ctx context.Context, resumeID int, userID uint) (bool, error)
+	InsertAttachment(ctx context.Context, resumeID int, filename, path, mime string, now time.Time) (*model.ResumeAttachment, error)
+	ListAttachments(ctx context.Context, resumeID int, userID uint) ([]model.ResumeAttachment, error)
+	GetSectionsMap(ctx context.Context, resumeID int) (map[string]json.RawMessage, error)
+	UpdateResumeCompleteness(ctx context.Context, resumeID int, completeness int, completed bool, now time.Time) error
 }
 
-type resumeRepo struct { db *database.DB }
-
-func NewResumeRepository(db *database.DB) ResumeRepository { return &resumeRepo{db: db} }
-
-func (r *resumeRepo) CheckResumeOwnership(ctx context.Context, resumeID int, userID uint) (bool, error) {
-    var exists int
-    if err := r.db.QueryRowContext(ctx, "SELECT COUNT(1) FROM resumes WHERE id=$1 AND user_id=$2", resumeID, userID).Scan(&exists); err != nil {
-        return false, err
-    }
-    return exists > 0, nil
+type resumeRepository struct {
+	db  *database.DB
+	orm *gorm.DB
 }
 
-func (r *resumeRepo) GetSectionsMap(ctx context.Context, resumeID int) (map[string]json.RawMessage, error) {
-    rows, err := r.db.QueryContext(ctx, "SELECT type, content FROM resume_sections WHERE resume_id=$1", resumeID)
-    if err != nil { return nil, err }
-    defer rows.Close()
-    sections := make(map[string]json.RawMessage)
-    for rows.Next() {
-        var t string; var c json.RawMessage
-        if err := rows.Scan(&t, &c); err != nil { return nil, err }
-        sections[t] = c
-    }
-    return sections, nil
+func NewResumeRepository(db *database.DB) ResumeRepository {
+	var orm *gorm.DB
+	if db != nil {
+		orm = db.ORM
+	}
+	return &resumeRepository{db: db, orm: orm}
 }
 
-func (r *resumeRepo) UpsertSection(ctx context.Context, resumeID int, typ string, content json.RawMessage, now time.Time) (*model.ResumeSection, error) {
-    var sectionID int
-    err := r.db.QueryRowContext(ctx, "SELECT id FROM resume_sections WHERE resume_id=$1 AND type=$2", resumeID, typ).Scan(&sectionID)
-    if err == nil {
-        if _, err := r.db.ExecContext(ctx, "UPDATE resume_sections SET content=$1, updated_at=$2 WHERE id=$3", content, now, sectionID); err != nil {
-            return nil, fmt.Errorf("update section: %w", err)
-        }
-    } else if err == sql.ErrNoRows {
-        if err := r.db.QueryRowContext(ctx, "INSERT INTO resume_sections (resume_id,type,content,created_at,updated_at) VALUES ($1,$2,$3,$4,$4) RETURNING id", resumeID, typ, content, now).Scan(&sectionID); err != nil {
-            return nil, fmt.Errorf("insert section: %w", err)
-        }
-    } else {
-        return nil, fmt.Errorf("query section: %w", err)
-    }
-    var sct model.ResumeSection
-    if err := r.db.QueryRowContext(ctx, "SELECT id,resume_id,type,sort_order,content,created_at,updated_at FROM resume_sections WHERE id=$1", sectionID).Scan(&sct.ID,&sct.ResumeID,&sct.Type,&sct.SortOrder,&sct.Content,&sct.CreatedAt,&sct.UpdatedAt); err != nil {
-        return nil, err
-    }
-    return &sct, nil
+func (r *resumeRepository) ormWithContext(ctx context.Context) (*gorm.DB, error) {
+	if r.orm == nil {
+		return nil, fmt.Errorf("gorm instance not initialized")
+	}
+	return r.orm.WithContext(ctx), nil
 }
 
-func (r *resumeRepo) UpdateResumeCompleteness(ctx context.Context, resumeID int, completeness int, isCompleted bool, now time.Time) error {
-    _, err := r.db.ExecContext(ctx, "UPDATE resumes SET completeness=$1, is_completed=$2, updated_at=$3 WHERE id=$4", completeness, isCompleted, now, resumeID)
-    return err
+func (r *resumeRepository) GetLatestResume(ctx context.Context, userID uint) (*model.Resume, error) {
+	orm, err := r.ormWithContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var resume model.Resume
+	if err := orm.Order("updated_at DESC").Where("user_id = ?", userID).First(&resume).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, sql.ErrNoRows
+		}
+		return nil, err
+	}
+	return &resume, nil
 }
 
-func (r *resumeRepo) InsertAttachment(ctx context.Context, resumeID int, headerFileName, relPath, mime string, createdAt time.Time) (*model.ResumeAttachment, error) {
-    var att model.ResumeAttachment
-    if err := r.db.QueryRowContext(ctx, "INSERT INTO resume_attachments (resume_id,file_name,file_path,mime_type,created_at) VALUES ($1,$2,$3,$4,$5) RETURNING id,resume_id,file_name,file_path,mime_type,created_at", resumeID, headerFileName, relPath, mime, createdAt).Scan(&att.ID,&att.ResumeID,&att.FileName,&att.FilePath,&att.MimeType,&att.CreatedAt); err != nil {
-        return nil, err
-    }
-    return &att, nil
+func (r *resumeRepository) CreateResume(ctx context.Context, userID uint, title string, privacy string, now time.Time) (*model.Resume, error) {
+	orm, err := r.ormWithContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	resume := &model.Resume{
+		UserID:         userID,
+		Title:          title,
+		Privacy:        privacy,
+		CurrentVersion: 1,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	if err := orm.Create(resume).Error; err != nil {
+		return nil, err
+	}
+	return resume, nil
 }
 
-func (r *resumeRepo) ListAttachments(ctx context.Context, resumeID int, userID uint) ([]model.ResumeAttachment, error) {
-    // ownership assumed validated by caller, but keep a join for safety
-    rows, err := r.db.QueryContext(ctx, "SELECT a.id,a.resume_id,a.file_name,a.file_path,a.mime_type,a.file_size,a.etag,a.created_at FROM resume_attachments a JOIN resumes r ON a.resume_id=r.id WHERE a.resume_id=$1 AND r.user_id=$2 ORDER BY a.created_at DESC, a.id DESC", resumeID, userID)
-    if err != nil { return nil, err }
-    defer rows.Close()
-    var list []model.ResumeAttachment
-    for rows.Next() {
-        var a model.ResumeAttachment
-        if err := rows.Scan(&a.ID,&a.ResumeID,&a.FileName,&a.FilePath,&a.MimeType,&a.FileSize,&a.ETag,&a.CreatedAt); err != nil { return nil, err }
-        list = append(list, a)
-    }
-    return list, nil
+func (r *resumeRepository) GetResumeByID(ctx context.Context, id int, userID uint) (*model.Resume, error) {
+	orm, err := r.ormWithContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var resume model.Resume
+	if err := orm.Where("id = ? AND user_id = ?", id, userID).First(&resume).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, sql.ErrNoRows
+		}
+		return nil, err
+	}
+	return &resume, nil
+}
+
+func (r *resumeRepository) UpdateResumeMetadata(ctx context.Context, id int, userID uint, fields map[string]interface{}) error {
+	orm, err := r.ormWithContext(ctx)
+	if err != nil {
+		return err
+	}
+	if err := orm.Model(&model.Resume{}).Where("id = ? AND user_id = ?", id, userID).Updates(fields).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *resumeRepository) ListSections(ctx context.Context, resumeID int, userID uint) ([]model.ResumeSection, error) {
+	orm, err := r.ormWithContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var sections []model.ResumeSection
+	if err := orm.
+		Where("resume_id = ?", resumeID).
+		Order("sort_order, id").
+		Find(&sections).Error; err != nil {
+		return nil, err
+	}
+	return sections, nil
+}
+
+func (r *resumeRepository) UpsertSection(ctx context.Context, resumeID int, sectionType string, content json.RawMessage, now time.Time) (*model.ResumeSection, error) {
+	orm, err := r.ormWithContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	section := model.ResumeSection{}
+	err = orm.Where("resume_id = ? AND type = ?", resumeID, sectionType).First(&section).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			section = model.ResumeSection{
+				ResumeID:  resumeID,
+				Type:      sectionType,
+				SortOrder: 0,
+				Content:   content,
+				CreatedAt: now,
+				UpdatedAt: now,
+			}
+			if err := orm.Create(&section).Error; err != nil {
+				return nil, err
+			}
+			return &section, nil
+		}
+		return nil, err
+	}
+	section.Content = content
+	section.UpdatedAt = now
+	if err := orm.Save(&section).Error; err != nil {
+		return nil, err
+	}
+	return &section, nil
+}
+
+func (r *resumeRepository) CheckResumeOwnership(ctx context.Context, resumeID int, userID uint) (bool, error) {
+	orm, err := r.ormWithContext(ctx)
+	if err != nil {
+		return false, err
+	}
+	var exists bool
+	if err := orm.Raw("SELECT EXISTS(SELECT 1 FROM resumes WHERE id = ? AND user_id = ?)", resumeID, userID).Scan(&exists).Error; err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
+func (r *resumeRepository) InsertAttachment(ctx context.Context, resumeID int, filename, path, mime string, now time.Time) (*model.ResumeAttachment, error) {
+	orm, err := r.ormWithContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	att := &model.ResumeAttachment{
+		ResumeID:  resumeID,
+		FileName:  filename,
+		FilePath:  path,
+		CreatedAt: now,
+	}
+	if mime != "" {
+		att.MimeType = &mime
+	}
+	if err := orm.Create(att).Error; err != nil {
+		return nil, err
+	}
+	return att, nil
+}
+
+func (r *resumeRepository) ListAttachments(ctx context.Context, resumeID int, userID uint) ([]model.ResumeAttachment, error) {
+	orm, err := r.ormWithContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var list []model.ResumeAttachment
+	if err := orm.Where("resume_id = ?", resumeID).Order("created_at DESC").Find(&list).Error; err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
+func (r *resumeRepository) GetSectionsMap(ctx context.Context, resumeID int) (map[string]json.RawMessage, error) {
+	orm, err := r.ormWithContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var sections []model.ResumeSection
+	if err := orm.Select("type", "content").Where("resume_id = ?", resumeID).Find(&sections).Error; err != nil {
+		return nil, err
+	}
+	result := make(map[string]json.RawMessage, len(sections))
+	for _, section := range sections {
+		if section.Content == nil {
+			continue
+		}
+		// 拷贝底层字节，避免后续被 GORM 复用缓冲区污染
+		copied := make([]byte, len(section.Content))
+		copy(copied, section.Content)
+		result[section.Type] = json.RawMessage(copied)
+	}
+	return result, nil
+}
+
+func (r *resumeRepository) UpdateResumeCompleteness(ctx context.Context, resumeID int, completeness int, completed bool, now time.Time) error {
+	orm, err := r.ormWithContext(ctx)
+	if err != nil {
+		return err
+	}
+	updates := map[string]interface{}{
+		"completeness": completeness,
+		"is_completed": completed,
+		"updated_at":   now,
+	}
+	return orm.Model(&model.Resume{}).Where("id = ?", resumeID).Updates(updates).Error
 }

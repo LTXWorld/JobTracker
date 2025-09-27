@@ -58,7 +58,7 @@ func Load() *Config {
             SSLMode:      getEnv("DB_SSLMODE", "disable"),
             MaxOpenConns: getEnvAsInt("DB_MAX_OPEN_CONNS", 0), // 0 表示使用自动计算
             MaxIdleConns: getEnvAsInt("DB_MAX_IDLE_CONNS", 0), // 0 表示使用自动计算
-            UseGorm:      getEnvAsBool("DB_USE_GORM", false),
+            UseGorm:      getEnvAsBool("DB_USE_GORM", true),
         },
 		Server: ServerConfig{
 			Port:        getEnv("SERVER_PORT", "8010"),

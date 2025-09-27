@@ -1,0 +1,6 @@
+./auth_repository.go
+./export_repository.go
+./job_application_repository.go
+./resume_repository.go
+./status_config_repository.go
+./status_tracking_repository.go

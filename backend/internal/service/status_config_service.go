@@ -6,26 +6,28 @@
 package service
 
 import (
-    "database/sql"
-    "encoding/json"
-    "fmt"
-    "jobView-backend/internal/database"
-    "jobView-backend/internal/repository"
-    "jobView-backend/internal/model"
-    "time"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"jobView-backend/internal/model"
+	"jobView-backend/internal/repository"
 )
 
 type StatusConfigService struct {
-    db *database.DB
-    repo repository.StatusConfigRepository
+	repo repository.StatusConfigRepository
 }
 
-func NewStatusConfigService(db *database.DB) *StatusConfigService {
-    var repo repository.StatusConfigRepository
-    if db != nil && db.UseGorm && db.ORM != nil {
-        repo = repository.NewStatusConfigRepository(db)
-    }
-    return &StatusConfigService{db: db, repo: repo}
+func NewStatusConfigService(repo repository.StatusConfigRepository) *StatusConfigService {
+	return &StatusConfigService{repo: repo}
+}
+
+func (s *StatusConfigService) ensureRepo() error {
+	if s.repo == nil {
+		return fmt.Errorf("status config repository not initialized")
+	}
+	return nil
 }
 
 // EnsureDirectTransitionsInDefaultTemplate 确保默认模板包含面试阶段的直通转移规则
@@ -35,756 +37,262 @@ func NewStatusConfigService(db *database.DB) *StatusConfigService {
 // 1) 幂等补齐面试阶段直通规则：笔试中→一面中→二面中→三面中→HR面中
 // 2) 幂等补齐基础默认规则：已投递→(简历筛选中/简历筛选未通过/已拒绝)，简历筛选中→(笔试中/简历筛选未通过)
 func (s *StatusConfigService) EnsureDirectTransitionsInDefaultTemplate() error {
-    if s.repo != nil {
-        id, cfgText, err := s.repo.GetDefaultFlowTemplate()
-        if err == sql.ErrNoRows { return nil }
-        if err != nil { return fmt.Errorf("failed to read default flow template: %w", err) }
-        var cfg map[string]interface{}
-        if err := json.Unmarshal([]byte(cfgText), &cfg); err != nil { cfg = map[string]interface{}{"transitions": map[string]interface{}{}, "rules": map[string]interface{}{}} }
-        transitionsMap, ok := cfg["transitions"].(map[string]interface{})
-        if !ok || transitionsMap == nil { transitionsMap = map[string]interface{}{}; cfg["transitions"]=transitionsMap }
-        direct := map[string]string{string(model.StatusWrittenTest): string(model.StatusFirstInterview), string(model.StatusFirstInterview): string(model.StatusSecondInterview), string(model.StatusSecondInterview): string(model.StatusThirdInterview), string(model.StatusThirdInterview): string(model.StatusHRInterview)}
-        // 基础默认规则
-        baseline := map[string][]string{
-            string(model.StatusApplied):         {string(model.StatusResumeScreening), "简历筛选未通过", string(model.StatusRejected)},
-            string(model.StatusResumeScreening): {string(model.StatusWrittenTest), "简历筛选未通过"},
-        }
-        changed := false
-        for from, to := range direct {
-            arr, _ := transitionsMap[from].([]interface{})
-            exists := false
-            for _, v := range arr { if sv, ok := v.(string); ok && sv == to { exists = true; break } }
-            if !exists { arr = append(arr, to); transitionsMap[from] = arr; changed = true }
-        }
-        // 合并基础默认规则（仅追加缺失项，不覆盖自定义）
-        for from, list := range baseline {
-            arr, _ := transitionsMap[from].([]interface{})
-            for _, to := range list {
-                exists := false
-                for _, v := range arr { if sv, ok := v.(string); ok && sv == to { exists = true; break } }
-                if !exists { arr = append(arr, to); changed = true }
-            }
-            if len(arr) > 0 { transitionsMap[from] = arr }
-        }
-        if !changed { return nil }
-        newBytes, _ := json.Marshal(cfg)
-        if err := s.repo.UpdateFlowConfigByID(id, string(newBytes)); err != nil { return fmt.Errorf("failed to update default flow template: %w", err) }
-        return nil
-    }
-    if s.db != nil && s.db.UseGorm && s.db.ORM != nil {
-        // 查询默认模板（GORM Raw）
-        var id int
-        var cfgText string
-        q := `SELECT id, COALESCE(flow_config::text, '{"transitions": {}, "rules": {}}') FROM status_flow_templates WHERE is_default = true AND is_active = true LIMIT 1`
-        row := s.db.ORM.Raw(q).Row()
-        if err := row.Scan(&id, &cfgText); err != nil {
-            if err == sql.ErrNoRows { return nil }
-            return fmt.Errorf("failed to read default flow template: %w", err)
-        }
+	if err := s.ensureRepo(); err != nil {
+		return err
+	}
 
-        var cfg map[string]interface{}
-        if err := json.Unmarshal([]byte(cfgText), &cfg); err != nil {
-            cfg = map[string]interface{}{"transitions": map[string]interface{}{}, "rules": map[string]interface{}{}}
-        }
-        transitionsMap, ok := cfg["transitions"].(map[string]interface{})
-        if !ok || transitionsMap == nil { transitionsMap = map[string]interface{}{}; cfg["transitions"] = transitionsMap }
-        direct := map[string]string{string(model.StatusWrittenTest): string(model.StatusFirstInterview), string(model.StatusFirstInterview): string(model.StatusSecondInterview), string(model.StatusSecondInterview): string(model.StatusThirdInterview), string(model.StatusThirdInterview): string(model.StatusHRInterview)}
-        baseline := map[string][]string{
-            string(model.StatusApplied):         {string(model.StatusResumeScreening), "简历筛选未通过", string(model.StatusRejected)},
-            string(model.StatusResumeScreening): {string(model.StatusWrittenTest), "简历筛选未通过"},
-        }
-        changed := false
-        for from, to := range direct {
-            arr, _ := transitionsMap[from].([]interface{})
-            exists := false
-            for _, v := range arr { if sv, ok := v.(string); ok && sv == to { exists = true; break } }
-            if !exists { arr = append(arr, to); transitionsMap[from] = arr; changed = true }
-        }
-        for from, list := range baseline {
-            arr, _ := transitionsMap[from].([]interface{})
-            for _, to := range list {
-                exists := false
-                for _, v := range arr { if sv, ok := v.(string); ok && sv == to { exists = true; break } }
-                if !exists { arr = append(arr, to); changed = true }
-            }
-            if len(arr) > 0 { transitionsMap[from] = arr }
-        }
-        if !changed { return nil }
-        newBytes, _ := json.Marshal(cfg)
-        if err := s.db.ORM.Exec(`UPDATE status_flow_templates SET flow_config=$1, updated_at=$2 WHERE id=$3`, string(newBytes), time.Now(), id).Error; err != nil {
-            return fmt.Errorf("failed to update default flow template: %w", err)
-        }
-        return nil
-    }
-    // 查询默认模板
-    var id int
-    var cfgBytes []byte
-    q := `SELECT id, COALESCE(flow_config::text, '{"transitions": {}, "rules": {}}') FROM status_flow_templates WHERE is_default = true AND is_active = true LIMIT 1`
-    err := s.db.QueryRow(q).Scan(&id, &cfgBytes)
-    if err == sql.ErrNoRows {
-        // 没有默认模板，交由外部迁移/初始化处理
-        return nil
-    }
-    if err != nil {
-        return fmt.Errorf("failed to read default flow template: %w", err)
-    }
+	id, cfgText, err := s.repo.GetDefaultFlowTemplate()
+	if err == sql.ErrNoRows {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to read default flow template: %w", err)
+	}
 
-    // 解析配置
-    var cfg map[string]interface{}
-    if err := json.Unmarshal(cfgBytes, &cfg); err != nil {
-        cfg = map[string]interface{}{"transitions": map[string]interface{}{}, "rules": map[string]interface{}{}}
-    }
+	var cfg map[string]interface{}
+	if err := json.Unmarshal([]byte(cfgText), &cfg); err != nil {
+		cfg = map[string]interface{}{
+			"transitions": map[string]interface{}{},
+			"rules":       map[string]interface{}{},
+		}
+	}
 
-    transitionsMap, ok := cfg["transitions"].(map[string]interface{})
-    if !ok || transitionsMap == nil {
-        transitionsMap = map[string]interface{}{}
-        cfg["transitions"] = transitionsMap
-    }
+	transitionsMap, ok := cfg["transitions"].(map[string]interface{})
+	if !ok || transitionsMap == nil {
+		transitionsMap = map[string]interface{}{}
+		cfg["transitions"] = transitionsMap
+	}
 
-    // 需要补充的直通规则 + 基础默认规则
-    direct := map[string]string{
-        string(model.StatusWrittenTest):      string(model.StatusFirstInterview),
-        string(model.StatusFirstInterview):  string(model.StatusSecondInterview),
-        string(model.StatusSecondInterview): string(model.StatusThirdInterview),
-        string(model.StatusThirdInterview):  string(model.StatusHRInterview),
-    }
-    baseline := map[string][]string{
-        string(model.StatusApplied):         {string(model.StatusResumeScreening), "简历筛选未通过", string(model.StatusRejected)},
-        string(model.StatusResumeScreening): {string(model.StatusWrittenTest), "简历筛选未通过"},
-    }
+	direct := map[string]string{
+		string(model.StatusWrittenTest):     string(model.StatusFirstInterview),
+		string(model.StatusFirstInterview):  string(model.StatusSecondInterview),
+		string(model.StatusSecondInterview): string(model.StatusThirdInterview),
+		string(model.StatusThirdInterview):  string(model.StatusHRInterview),
+	}
+	baseline := map[string][]string{
+		string(model.StatusApplied):         {string(model.StatusResumeScreening), "简历筛选未通过", string(model.StatusRejected)},
+		string(model.StatusResumeScreening): {string(model.StatusWrittenTest), "简历筛选未通过"},
+	}
 
-    changed := false
-    for from, to := range direct {
-        arr, _ := transitionsMap[from].([]interface{})
-        // 检查是否已存在
-        exists := false
-        for _, v := range arr {
-            if s, ok := v.(string); ok && s == to {
-                exists = true
-                break
-            }
-        }
-        if !exists {
-            // 追加
-            arr = append(arr, to)
-            transitionsMap[from] = arr
-            changed = true
-        }
-    }
-    for from, list := range baseline {
-        arr, _ := transitionsMap[from].([]interface{})
-        for _, to := range list {
-            exists := false
-            for _, v := range arr {
-                if s, ok := v.(string); ok && s == to {
-                    exists = true
-                    break
-                }
-            }
-            if !exists {
-                arr = append(arr, to)
-                changed = true
-            }
-        }
-        if len(arr) > 0 {
-            transitionsMap[from] = arr
-        }
-    }
+	changed := false
+	for from, to := range direct {
+		arr, _ := transitionsMap[from].([]interface{})
+		exists := false
+		for _, v := range arr {
+			if sv, ok := v.(string); ok && sv == to {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			arr = append(arr, to)
+			transitionsMap[from] = arr
+			changed = true
+		}
+	}
 
-    if !changed {
-        return nil
-    }
+	for from, list := range baseline {
+		arr, _ := transitionsMap[from].([]interface{})
+		for _, to := range list {
+			exists := false
+			for _, v := range arr {
+				if sv, ok := v.(string); ok && sv == to {
+					exists = true
+					break
+				}
+			}
+			if !exists {
+				arr = append(arr, to)
+				changed = true
+			}
+		}
+		if len(arr) > 0 {
+			transitionsMap[from] = arr
+		}
+	}
 
-    // 写回数据库
-    newBytes, _ := json.Marshal(cfg)
-    u := `UPDATE status_flow_templates SET flow_config = $1, updated_at = $2 WHERE id = $3`
-    if _, err := s.db.Exec(u, string(newBytes), time.Now(), id); err != nil {
-        return fmt.Errorf("failed to update default flow template: %w", err)
-    }
-    return nil
+	if !changed {
+		return nil
+	}
+
+	newBytes, _ := json.Marshal(cfg)
+	if err := s.repo.UpdateFlowConfigByID(id, string(newBytes)); err != nil {
+		return fmt.Errorf("failed to update default flow template: %w", err)
+	}
+	return nil
 }
 
 // GetStatusFlowTemplates 获取状态流转模板列表
 func (s *StatusConfigService) GetStatusFlowTemplates(userID uint) ([]model.StatusFlowTemplate, error) {
-    if s.repo != nil {
-        return s.repo.GetFlowTemplates(userID)
-    }
-    if s.db != nil && s.db.UseGorm && s.db.ORM != nil {
-        query := `
-            SELECT id, name, description, flow_config, is_default, is_active,
-                   created_by, created_at, updated_at
-            FROM status_flow_templates
-            WHERE is_active = true AND (created_by IS NULL OR created_by = $1)
-            ORDER BY is_default DESC, name ASC`
-        rows, err := s.db.ORM.Raw(query, userID).Rows()
-        if err != nil { return nil, fmt.Errorf("failed to get flow templates: %w", err) }
-        defer rows.Close()
-        var templates []model.StatusFlowTemplate
-        for rows.Next() {
-            var template model.StatusFlowTemplate
-            var flowConfigBytes []byte
-            var description sql.NullString
-            var createdBy sql.NullInt64
-            if err := rows.Scan(&template.ID, &template.Name, &description, &flowConfigBytes, &template.IsDefault, &template.IsActive, &createdBy, &template.CreatedAt, &template.UpdatedAt); err != nil {
-                return nil, fmt.Errorf("failed to scan flow template: %w", err)
-            }
-            if description.Valid { template.Description = &description.String }
-            if createdBy.Valid { v := uint(createdBy.Int64); template.CreatedBy = &v }
-            if len(flowConfigBytes) > 0 { var flowConfig map[string]interface{}; if json.Unmarshal(flowConfigBytes, &flowConfig) == nil { template.FlowConfig = flowConfig } }
-            templates = append(templates, template)
-        }
-        return templates, nil
-    }
-	query := `
-		SELECT id, name, description, flow_config, is_default, is_active, 
-		       created_by, created_at, updated_at
-		FROM status_flow_templates 
-		WHERE is_active = true AND (created_by IS NULL OR created_by = $1)
-		ORDER BY is_default DESC, name ASC
-	`
-
-	rows, err := s.db.Query(query, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get flow templates: %w", err)
+	if err := s.ensureRepo(); err != nil {
+		return nil, err
 	}
-	defer rows.Close()
-
-	var templates []model.StatusFlowTemplate
-	for rows.Next() {
-		var template model.StatusFlowTemplate
-		var flowConfigBytes []byte
-		var description sql.NullString
-		var createdBy sql.NullInt64
-
-		err := rows.Scan(
-			&template.ID,
-			&template.Name,
-			&description,
-			&flowConfigBytes,
-			&template.IsDefault,
-			&template.IsActive,
-			&createdBy,
-			&template.CreatedAt,
-			&template.UpdatedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan flow template: %w", err)
-		}
-
-		// 处理可选字段
-		if description.Valid {
-			template.Description = &description.String
-		}
-		if createdBy.Valid {
-			userIDUint := uint(createdBy.Int64)
-			template.CreatedBy = &userIDUint
-		}
-
-		// 解析flow_config
-		if len(flowConfigBytes) > 0 {
-			var flowConfig map[string]interface{}
-			if err := json.Unmarshal(flowConfigBytes, &flowConfig); err == nil {
-				template.FlowConfig = flowConfig
-			}
-		}
-
-		templates = append(templates, template)
-	}
-
-	return templates, nil
+	return s.repo.GetFlowTemplates(userID)
 }
 
 // CreateStatusFlowTemplate 创建自定义状态流转模板
 func (s *StatusConfigService) CreateStatusFlowTemplate(userID uint, name, description string, flowConfig map[string]interface{}) (*model.StatusFlowTemplate, error) {
-    if s.repo != nil {
-        exists, err := s.repo.CheckTemplateNameExists(name, nil)
-        if err != nil { return nil, fmt.Errorf("failed to check template name uniqueness: %w", err) }
-        if exists { return nil, fmt.Errorf("template name '%s' already exists", name) }
-        if err := s.validateFlowConfig(flowConfig); err != nil { return nil, fmt.Errorf("invalid flow config: %w", err) }
-        bytes, err := json.Marshal(flowConfig); if err != nil { return nil, fmt.Errorf("failed to marshal flow config: %w", err) }
-        var desc *string; if description != "" { desc = &description }
-        return s.repo.CreateFlowTemplate(userID, name, desc, bytes)
-    }
-    if s.db != nil && s.db.UseGorm && s.db.ORM != nil {
-        var exists bool
-        if err := s.db.ORM.Raw("SELECT EXISTS(SELECT 1 FROM status_flow_templates WHERE name=$1 AND is_active=true)", name).Row().Scan(&exists); err != nil {
-            return nil, fmt.Errorf("failed to check template name uniqueness: %w", err)
-        }
-        if exists { return nil, fmt.Errorf("template name '%s' already exists", name) }
-        if err := s.validateFlowConfig(flowConfig); err != nil { return nil, fmt.Errorf("invalid flow config: %w", err) }
-        flowConfigBytes, err := json.Marshal(flowConfig); if err != nil { return nil, fmt.Errorf("failed to marshal flow config: %w", err) }
-        insertQuery := `INSERT INTO status_flow_templates (name, description, flow_config, created_by, is_active) VALUES ($1,$2,$3,$4,true) RETURNING id, created_at, updated_at`
-        var template model.StatusFlowTemplate
-        var desc *string
-        if description != "" { desc = &description }
-        if err := s.db.ORM.Raw(insertQuery, name, desc, flowConfigBytes, userID).Row().Scan(&template.ID, &template.CreatedAt, &template.UpdatedAt); err != nil {
-            return nil, fmt.Errorf("failed to create flow template: %w", err)
-        }
-        template.Name = name; template.Description = desc; template.FlowConfig = flowConfig; template.IsDefault=false; template.IsActive=true; template.CreatedBy=&userID
-        return &template, nil
-    }
-	// 验证名称唯一性
-	var exists bool
-	checkQuery := "SELECT EXISTS(SELECT 1 FROM status_flow_templates WHERE name = $1 AND is_active = true)"
-	err := s.db.QueryRow(checkQuery, name).Scan(&exists)
+	if err := s.ensureRepo(); err != nil {
+		return nil, err
+	}
+
+	exists, err := s.repo.CheckTemplateNameExists(name, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check template name uniqueness: %w", err)
 	}
 	if exists {
 		return nil, fmt.Errorf("template name '%s' already exists", name)
 	}
-
-	// 验证流转配置格式
 	if err := s.validateFlowConfig(flowConfig); err != nil {
 		return nil, fmt.Errorf("invalid flow config: %w", err)
 	}
 
-	flowConfigBytes, err := json.Marshal(flowConfig)
+	bytes, err := json.Marshal(flowConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal flow config: %w", err)
 	}
 
-	insertQuery := `
-		INSERT INTO status_flow_templates (name, description, flow_config, created_by, is_active)
-		VALUES ($1, $2, $3, $4, true)
-		RETURNING id, created_at, updated_at
-	`
-
-	var template model.StatusFlowTemplate
 	var desc *string
 	if description != "" {
 		desc = &description
 	}
 
-	err = s.db.QueryRow(insertQuery, name, desc, flowConfigBytes, userID).Scan(
-		&template.ID,
-		&template.CreatedAt,
-		&template.UpdatedAt,
-	)
+	tpl, err := s.repo.CreateFlowTemplate(userID, name, desc, bytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create flow template: %w", err)
 	}
-
-	// 填充返回数据
-	template.Name = name
-	template.Description = desc
-	template.FlowConfig = flowConfig
-	template.IsDefault = false
-	template.IsActive = true
-	template.CreatedBy = &userID
-
-	return &template, nil
+	tpl.FlowConfig = flowConfig
+	return tpl, nil
 }
 
 // UpdateStatusFlowTemplate 更新状态流转模板
 func (s *StatusConfigService) UpdateStatusFlowTemplate(userID uint, templateID int, name, description string, flowConfig map[string]interface{}) (*model.StatusFlowTemplate, error) {
-    if s.repo != nil {
-        createdBy, isDefault, err := s.repo.GetTemplatePermissions(templateID)
-        if err != nil { if err == sql.ErrNoRows { return nil, fmt.Errorf("template not found") } ; return nil, fmt.Errorf("failed to check template permissions: %w", err) }
-        if isDefault { return nil, fmt.Errorf("cannot modify default template") }
-        if !createdBy.Valid || uint(createdBy.Int64) != userID { return nil, fmt.Errorf("permission denied: can only modify your own templates") }
-        exists, err := s.repo.CheckTemplateNameExists(name, &templateID)
-        if err != nil { return nil, fmt.Errorf("failed to check template name uniqueness: %w", err) }
-        if exists { return nil, fmt.Errorf("template name '%s' already exists", name) }
-        if err := s.validateFlowConfig(flowConfig); err != nil { return nil, fmt.Errorf("invalid flow config: %w", err) }
-        bytes, err := json.Marshal(flowConfig); if err != nil { return nil, fmt.Errorf("failed to marshal flow config: %w", err) }
-        var desc *string; if description != "" { desc = &description }
-        return s.repo.UpdateFlowTemplate(userID, templateID, name, desc, bytes)
-    }
-    if s.db != nil && s.db.UseGorm && s.db.ORM != nil {
-        var createdBy sql.NullInt64; var isDefault bool
-        if err := s.db.ORM.Raw("SELECT created_by, is_default FROM status_flow_templates WHERE id=$1 AND is_active=true", templateID).Row().Scan(&createdBy, &isDefault); err != nil {
-            if err == sql.ErrNoRows { return nil, fmt.Errorf("template not found") }
-            return nil, fmt.Errorf("failed to check template permissions: %w", err)
-        }
-        if isDefault { return nil, fmt.Errorf("cannot modify default template") }
-        if !createdBy.Valid || uint(createdBy.Int64) != userID { return nil, fmt.Errorf("permission denied: can only modify your own templates") }
-        var exists bool
-        if err := s.db.ORM.Raw("SELECT EXISTS(SELECT 1 FROM status_flow_templates WHERE name=$1 AND id<>$2 AND is_active=true)", name, templateID).Row().Scan(&exists); err != nil {
-            return nil, fmt.Errorf("failed to check template name uniqueness: %w", err)
-        }
-        if exists { return nil, fmt.Errorf("template name '%s' already exists", name) }
-        if err := s.validateFlowConfig(flowConfig); err != nil { return nil, fmt.Errorf("invalid flow config: %w", err) }
-        flowConfigBytes, err := json.Marshal(flowConfig); if err != nil { return nil, fmt.Errorf("failed to marshal flow config: %w", err) }
-        updateQuery := `UPDATE status_flow_templates SET name=$1, description=$2, flow_config=$3, updated_at=$4 WHERE id=$5 AND created_by=$6 RETURNING id,name,description,flow_config,is_default,is_active,created_by,created_at,updated_at`
-        var template model.StatusFlowTemplate
-        var desc sql.NullString; var flowConfigBytesResult []byte; var createdByResult sql.NullInt64
-        var descParam *string; if description != "" { descParam = &description }
-        row := s.db.ORM.Raw(updateQuery, name, descParam, flowConfigBytes, time.Now(), templateID, userID).Row()
-        if err := row.Scan(&template.ID,&template.Name,&desc,&flowConfigBytesResult,&template.IsDefault,&template.IsActive,&createdByResult,&template.CreatedAt,&template.UpdatedAt); err != nil {
-            return nil, fmt.Errorf("failed to update flow template: %w", err)
-        }
-        if desc.Valid { template.Description=&desc.String }
-        if createdByResult.Valid { v:=uint(createdByResult.Int64); template.CreatedBy=&v }
-        if len(flowConfigBytesResult)>0 { json.Unmarshal(flowConfigBytesResult, &template.FlowConfig) }
-        return &template, nil
-    }
-	// 检查权限 - 只能更新自己创建的模板
-	var createdBy sql.NullInt64
-	var isDefault bool
-	checkQuery := "SELECT created_by, is_default FROM status_flow_templates WHERE id = $1 AND is_active = true"
-	err := s.db.QueryRow(checkQuery, templateID).Scan(&createdBy, &isDefault)
+	if err := s.ensureRepo(); err != nil {
+		return nil, err
+	}
+
+	createdBy, isDefault, err := s.repo.GetTemplatePermissions(templateID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("template not found")
 		}
 		return nil, fmt.Errorf("failed to check template permissions: %w", err)
 	}
-
 	if isDefault {
 		return nil, fmt.Errorf("cannot modify default template")
 	}
-
 	if !createdBy.Valid || uint(createdBy.Int64) != userID {
 		return nil, fmt.Errorf("permission denied: can only modify your own templates")
 	}
 
-	// 验证名称唯一性（排除当前模板）
-	var exists bool
-	checkNameQuery := "SELECT EXISTS(SELECT 1 FROM status_flow_templates WHERE name = $1 AND id != $2 AND is_active = true)"
-	err = s.db.QueryRow(checkNameQuery, name, templateID).Scan(&exists)
+	exists, err := s.repo.CheckTemplateNameExists(name, &templateID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check template name uniqueness: %w", err)
 	}
 	if exists {
 		return nil, fmt.Errorf("template name '%s' already exists", name)
 	}
-
-	// 验证流转配置格式
 	if err := s.validateFlowConfig(flowConfig); err != nil {
 		return nil, fmt.Errorf("invalid flow config: %w", err)
 	}
 
-	flowConfigBytes, err := json.Marshal(flowConfig)
+	bytes, err := json.Marshal(flowConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal flow config: %w", err)
 	}
-
-	updateQuery := `
-		UPDATE status_flow_templates 
-		SET name = $1, description = $2, flow_config = $3, updated_at = $4
-		WHERE id = $5 AND created_by = $6
-		RETURNING id, name, description, flow_config, is_default, is_active, 
-		          created_by, created_at, updated_at
-	`
-
-	var template model.StatusFlowTemplate
-	var desc sql.NullString
-	var flowConfigBytesResult []byte
-	var createdByResult sql.NullInt64
-
-	var descParam *string
+	var desc *string
 	if description != "" {
-		descParam = &description
+		desc = &description
 	}
 
-	err = s.db.QueryRow(updateQuery, name, descParam, flowConfigBytes, time.Now(), templateID, userID).Scan(
-		&template.ID,
-		&template.Name,
-		&desc,
-		&flowConfigBytesResult,
-		&template.IsDefault,
-		&template.IsActive,
-		&createdByResult,
-		&template.CreatedAt,
-		&template.UpdatedAt,
-	)
+	tpl, err := s.repo.UpdateFlowTemplate(userID, templateID, name, desc, bytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update flow template: %w", err)
 	}
-
-	// 处理可选字段
-	if desc.Valid {
-		template.Description = &desc.String
-	}
-	if createdByResult.Valid {
-		userIDUint := uint(createdByResult.Int64)
-		template.CreatedBy = &userIDUint
-	}
-
-	// 解析flow_config
-	if len(flowConfigBytesResult) > 0 {
-		json.Unmarshal(flowConfigBytesResult, &template.FlowConfig)
-	}
-
-	return &template, nil
+	tpl.FlowConfig = flowConfig
+	return tpl, nil
 }
 
 // DeleteStatusFlowTemplate 删除状态流转模板（软删除）
 func (s *StatusConfigService) DeleteStatusFlowTemplate(userID uint, templateID int) error {
-    if s.repo != nil {
-        createdBy, isDefault, err := s.repo.GetTemplatePermissions(templateID)
-        if err != nil { if err == sql.ErrNoRows { return fmt.Errorf("template not found") } ; return fmt.Errorf("failed to check template permissions: %w", err) }
-        if isDefault { return fmt.Errorf("cannot delete default template") }
-        if !createdBy.Valid || uint(createdBy.Int64) != userID { return fmt.Errorf("permission denied: can only delete your own templates") }
-        if err := s.repo.DeleteFlowTemplate(userID, templateID); err != nil { return fmt.Errorf("failed to delete template: %w", err) }
-        return nil
-    }
-    if s.db != nil && s.db.UseGorm && s.db.ORM != nil {
-        var createdBy sql.NullInt64; var isDefault bool
-        if err := s.db.ORM.Raw("SELECT created_by, is_default FROM status_flow_templates WHERE id=$1 AND is_active=true", templateID).Row().Scan(&createdBy, &isDefault); err != nil {
-            if err == sql.ErrNoRows { return fmt.Errorf("template not found") }
-            return fmt.Errorf("failed to check template permissions: %w", err)
-        }
-        if isDefault { return fmt.Errorf("cannot delete default template") }
-        if !createdBy.Valid || uint(createdBy.Int64) != userID { return fmt.Errorf("permission denied: can only delete your own templates") }
-        res := s.db.ORM.Exec("UPDATE status_flow_templates SET is_active=false, updated_at=$1 WHERE id=$2 AND created_by=$3", time.Now(), templateID, userID)
-        if res.Error != nil { return fmt.Errorf("failed to delete template: %w", res.Error) }
-        if res.RowsAffected == 0 { return fmt.Errorf("template not found or permission denied") }
-        return nil
-    }
-	// 检查权限
-	var createdBy sql.NullInt64
-	var isDefault bool
-	checkQuery := "SELECT created_by, is_default FROM status_flow_templates WHERE id = $1 AND is_active = true"
-	err := s.db.QueryRow(checkQuery, templateID).Scan(&createdBy, &isDefault)
+	if err := s.ensureRepo(); err != nil {
+		return err
+	}
+
+	createdBy, isDefault, err := s.repo.GetTemplatePermissions(templateID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return fmt.Errorf("template not found")
 		}
 		return fmt.Errorf("failed to check template permissions: %w", err)
 	}
-
 	if isDefault {
 		return fmt.Errorf("cannot delete default template")
 	}
-
 	if !createdBy.Valid || uint(createdBy.Int64) != userID {
 		return fmt.Errorf("permission denied: can only delete your own templates")
 	}
-
-	// 软删除
-	deleteQuery := "UPDATE status_flow_templates SET is_active = false, updated_at = $1 WHERE id = $2 AND created_by = $3"
-	result, err := s.db.Exec(deleteQuery, time.Now(), templateID, userID)
-	if err != nil {
+	if err := s.repo.DeleteFlowTemplate(userID, templateID); err != nil {
 		return fmt.Errorf("failed to delete template: %w", err)
 	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to get affected rows: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		return fmt.Errorf("template not found or permission denied")
-	}
-
 	return nil
 }
 
 // GetUserStatusPreferences 获取用户状态偏好设置
 func (s *StatusConfigService) GetUserStatusPreferences(userID uint) (*model.UserStatusPreferences, error) {
-    if s.repo != nil {
-        pref, err := s.repo.GetPreferences(userID)
-        if err == sql.ErrNoRows {
-            // 返回默认配置
-            return &model.UserStatusPreferences{UserID: userID, PreferenceConfig: s.getDefaultPreferenceConfig(), CreatedAt: time.Now(), UpdatedAt: time.Now()}, nil
-        }
-        if err != nil { return nil, fmt.Errorf("failed to get user preferences: %w", err) }
-        return pref, nil
-    }
-    if s.db != nil && s.db.UseGorm && s.db.ORM != nil {
-        query := `SELECT id, user_id, preference_config, created_at, updated_at FROM user_status_preferences WHERE user_id=$1`
-        var preferences model.UserStatusPreferences
-        var preferenceConfigBytes []byte
-        row := s.db.ORM.Raw(query, userID).Row()
-        if err := row.Scan(&preferences.ID,&preferences.UserID,&preferenceConfigBytes,&preferences.CreatedAt,&preferences.UpdatedAt); err != nil {
-            if err == sql.ErrNoRows {
-                return &model.UserStatusPreferences{UserID:userID, PreferenceConfig:s.getDefaultPreferenceConfig(), CreatedAt: time.Now(), UpdatedAt: time.Now()}, nil
-            }
-            return nil, fmt.Errorf("failed to get user preferences: %w", err)
-        }
-        if len(preferenceConfigBytes)>0 { json.Unmarshal(preferenceConfigBytes, &preferences.PreferenceConfig) }
-        return &preferences, nil
-    }
-	query := `
-		SELECT id, user_id, preference_config, created_at, updated_at
-		FROM user_status_preferences 
-		WHERE user_id = $1
-	`
+	if err := s.ensureRepo(); err != nil {
+		return nil, err
+	}
 
-	var preferences model.UserStatusPreferences
-	var preferenceConfigBytes []byte
-
-	err := s.db.QueryRow(query, userID).Scan(
-		&preferences.ID,
-		&preferences.UserID,
-		&preferenceConfigBytes,
-		&preferences.CreatedAt,
-		&preferences.UpdatedAt,
-	)
-
+	pref, err := s.repo.GetPreferences(userID)
+	if err == sql.ErrNoRows {
+		now := time.Now()
+		return &model.UserStatusPreferences{UserID: userID, PreferenceConfig: s.getDefaultPreferenceConfig(), CreatedAt: now, UpdatedAt: now}, nil
+	}
 	if err != nil {
-		if err == sql.ErrNoRows {
-			// 返回默认配置
-			return &model.UserStatusPreferences{
-				UserID: userID,
-				PreferenceConfig: s.getDefaultPreferenceConfig(),
-			}, nil
-		}
 		return nil, fmt.Errorf("failed to get user preferences: %w", err)
 	}
-
-	// 解析preference_config
-	if len(preferenceConfigBytes) > 0 {
-		var preferenceConfig map[string]interface{}
-		if err := json.Unmarshal(preferenceConfigBytes, &preferenceConfig); err == nil {
-			preferences.PreferenceConfig = preferenceConfig
-		} else {
-			preferences.PreferenceConfig = s.getDefaultPreferenceConfig()
-		}
-	} else {
-		preferences.PreferenceConfig = s.getDefaultPreferenceConfig()
+	if pref.PreferenceConfig == nil {
+		pref.PreferenceConfig = s.getDefaultPreferenceConfig()
 	}
-
-	return &preferences, nil
+	return pref, nil
 }
 
 // UpdateUserStatusPreferences 更新用户状态偏好设置
 func (s *StatusConfigService) UpdateUserStatusPreferences(userID uint, preferenceConfig map[string]interface{}) (*model.UserStatusPreferences, error) {
-    if s.repo != nil {
-        if err := s.validatePreferenceConfig(preferenceConfig); err != nil { return nil, fmt.Errorf("invalid preference config: %w", err) }
-        bytes, err := json.Marshal(preferenceConfig); if err != nil { return nil, fmt.Errorf("failed to marshal preference config: %w", err) }
-        return s.repo.UpsertPreferences(userID, bytes, time.Now())
-    }
-    if s.db != nil && s.db.UseGorm && s.db.ORM != nil {
-        if err := s.validatePreferenceConfig(preferenceConfig); err != nil { return nil, fmt.Errorf("invalid preference config: %w", err) }
-        preferenceConfigBytes, err := json.Marshal(preferenceConfig); if err != nil { return nil, fmt.Errorf("failed to marshal preference config: %w", err) }
-        upsert := `
-            INSERT INTO user_status_preferences (user_id, preference_config, created_at, updated_at)
-            VALUES ($1,$2,$3,$3)
-            ON CONFLICT (user_id)
-            DO UPDATE SET preference_config = EXCLUDED.preference_config, updated_at = EXCLUDED.updated_at
-            RETURNING id, user_id, preference_config, created_at, updated_at`
-        var preferences model.UserStatusPreferences; var preferenceConfigBytesResult []byte
-        if err := s.db.ORM.Raw(upsert, userID, preferenceConfigBytes, time.Now()).Row().Scan(&preferences.ID,&preferences.UserID,&preferenceConfigBytesResult,&preferences.CreatedAt,&preferences.UpdatedAt); err != nil {
-            return nil, fmt.Errorf("failed to update user preferences: %w", err)
-        }
-        if len(preferenceConfigBytesResult)>0 { json.Unmarshal(preferenceConfigBytesResult, &preferences.PreferenceConfig) }
-        return &preferences, nil
-    }
-	// 验证配置格式
+	if err := s.ensureRepo(); err != nil {
+		return nil, err
+	}
+
 	if err := s.validatePreferenceConfig(preferenceConfig); err != nil {
 		return nil, fmt.Errorf("invalid preference config: %w", err)
 	}
-
-	preferenceConfigBytes, err := json.Marshal(preferenceConfig)
+	bytes, err := json.Marshal(preferenceConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal preference config: %w", err)
 	}
-
-	// 使用UPSERT语法
-	upsertQuery := `
-		INSERT INTO user_status_preferences (user_id, preference_config, created_at, updated_at)
-		VALUES ($1, $2, $3, $3)
-		ON CONFLICT (user_id) 
-		DO UPDATE SET preference_config = EXCLUDED.preference_config, updated_at = EXCLUDED.updated_at
-		RETURNING id, user_id, preference_config, created_at, updated_at
-	`
-
-	var preferences model.UserStatusPreferences
-	var preferenceConfigBytesResult []byte
-
-	err = s.db.QueryRow(upsertQuery, userID, preferenceConfigBytes, time.Now()).Scan(
-		&preferences.ID,
-		&preferences.UserID,
-		&preferenceConfigBytesResult,
-		&preferences.CreatedAt,
-		&preferences.UpdatedAt,
-	)
-
+	pref, err := s.repo.UpsertPreferences(userID, bytes, time.Now())
 	if err != nil {
 		return nil, fmt.Errorf("failed to update user preferences: %w", err)
 	}
-
-	// 解析返回的preference_config
-	if len(preferenceConfigBytesResult) > 0 {
-		json.Unmarshal(preferenceConfigBytesResult, &preferences.PreferenceConfig)
-	}
-
-	return &preferences, nil
+	pref.PreferenceConfig = preferenceConfig
+	return pref, nil
 }
 
 // GetAvailableStatusTransitions 获取指定状态的可用转换选项
 func (s *StatusConfigService) GetAvailableStatusTransitions(userID uint, currentStatus model.ApplicationStatus) ([]model.ApplicationStatus, error) {
-    if s.repo != nil {
-        flowConfig, err := func() (string, error) {
-            _, txt, e := s.repo.GetDefaultFlowTemplate(); return txt, e
-        }()
-        if err != nil && err != sql.ErrNoRows { return nil, fmt.Errorf("failed to get flow template: %w", err) }
-        transitionsSet := make(map[model.ApplicationStatus]bool)
-        if err == sql.ErrNoRows {
-            all := []model.ApplicationStatus{model.StatusApplied, model.StatusResumeScreening, model.StatusResumeScreeningFail, model.StatusWrittenTest, model.StatusWrittenTestPass, model.StatusWrittenTestFail, model.StatusFirstInterview, model.StatusFirstPass, model.StatusFirstFail, model.StatusSecondInterview, model.StatusSecondPass, model.StatusSecondFail, model.StatusThirdInterview, model.StatusThirdPass, model.StatusThirdFail, model.StatusHRInterview, model.StatusHRPass, model.StatusHRFail, model.StatusOfferWaiting, model.StatusRejected, model.StatusOfferReceived, model.StatusOfferAccepted, model.StatusProcessFinished}
-            for _, st := range all { if st != currentStatus { transitionsSet[st]=true } }
-            s.addImplicitDirectTransitions(currentStatus, transitionsSet)
-            return setToSlice(transitionsSet), nil
-        }
-        var cfg map[string]interface{}
-        if json.Unmarshal([]byte(flowConfig), &cfg) == nil {
-            if m, ok := cfg["transitions"].(map[string]interface{}); ok {
-                if allowed, ok := m[string(currentStatus)].([]interface{}); ok {
-                    for _, a := range allowed { if as, ok := a.(string); ok { st := model.ApplicationStatus(as); if st.IsValid() && st != currentStatus { transitionsSet[st]=true } } }
-                } else {
-                    // 配置中未找到该状态的转换，追加基础默认规则
-                    s.addBaselineDefaultTransitions(currentStatus, transitionsSet)
-                }
-            } else {
-                s.addBaselineDefaultTransitions(currentStatus, transitionsSet)
-            }
-        } else {
-            s.addBaselineDefaultTransitions(currentStatus, transitionsSet)
-        }
-        s.addImplicitDirectTransitions(currentStatus, transitionsSet)
-        return setToSlice(transitionsSet), nil
-    }
-    if s.db != nil && s.db.UseGorm && s.db.ORM != nil {
-        var flowConfig string
-        templateQuery := `SELECT COALESCE(sft.flow_config::text, '{"transitions": {}}') FROM status_flow_templates sft WHERE sft.is_default = true AND sft.is_active = true LIMIT 1`
-        err := s.db.ORM.Raw(templateQuery).Row().Scan(&flowConfig)
-        if err != nil && err != sql.ErrNoRows {
-            return nil, fmt.Errorf("failed to get flow template: %w", err)
-        }
-        transitionsSet := make(map[model.ApplicationStatus]bool)
-        if err == sql.ErrNoRows {
-            allStatuses := []model.ApplicationStatus{model.StatusApplied, model.StatusResumeScreening, model.StatusResumeScreeningFail, model.StatusWrittenTest, model.StatusWrittenTestPass, model.StatusWrittenTestFail, model.StatusFirstInterview, model.StatusFirstPass, model.StatusFirstFail, model.StatusSecondInterview, model.StatusSecondPass, model.StatusSecondFail, model.StatusThirdInterview, model.StatusThirdPass, model.StatusThirdFail, model.StatusHRInterview, model.StatusHRPass, model.StatusHRFail, model.StatusOfferWaiting, model.StatusRejected, model.StatusOfferReceived, model.StatusOfferAccepted, model.StatusProcessFinished}
-            for _, st := range allStatuses { if st != currentStatus { transitionsSet[st] = true } }
-            s.addImplicitDirectTransitions(currentStatus, transitionsSet)
-            return setToSlice(transitionsSet), nil
-        }
-        var config map[string]interface{}
-        if err := json.Unmarshal([]byte(flowConfig), &config); err != nil { s.addBaselineDefaultTransitions(currentStatus, transitionsSet); s.addImplicitDirectTransitions(currentStatus, transitionsSet); return setToSlice(transitionsSet), nil }
-        transitionsMap, ok := config["transitions"].(map[string]interface{}); if !ok { s.addBaselineDefaultTransitions(currentStatus, transitionsSet); s.addImplicitDirectTransitions(currentStatus, transitionsSet); return setToSlice(transitionsSet), nil }
-        if allowedStates, ok := transitionsMap[string(currentStatus)].([]interface{}); ok {
-            for _, allowed := range allowedStates {
-                if allowedStr, ok := allowed.(string); ok {
-                    st := model.ApplicationStatus(allowedStr)
-                    if st.IsValid() && st != currentStatus { transitionsSet[st] = true }
-                }
-            }
-        } else {
-            s.addBaselineDefaultTransitions(currentStatus, transitionsSet)
-        }
-        s.addImplicitDirectTransitions(currentStatus, transitionsSet)
-        return setToSlice(transitionsSet), nil
-    }
-	// 获取用户使用的模板配置
-	var flowConfig string
-	templateQuery := `
-		SELECT COALESCE(sft.flow_config::text, '{"transitions": {}}')
-		FROM status_flow_templates sft
-		WHERE sft.is_default = true AND sft.is_active = true
-		LIMIT 1
-	`
-	err := s.db.QueryRow(templateQuery).Scan(&flowConfig)
+	if err := s.ensureRepo(); err != nil {
+		return nil, err
+	}
+
+	_, flowConfigText, err := s.repo.GetDefaultFlowTemplate()
+	transitionsSet := make(map[model.ApplicationStatus]bool)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("failed to get flow template: %w", err)
 	}
 
-    transitionsSet := make(map[model.ApplicationStatus]bool)
-
 	if err == sql.ErrNoRows {
-		// 没有配置模板，返回所有有效状态
-		allStatuses := []model.ApplicationStatus{
+		all := []model.ApplicationStatus{
 			model.StatusApplied,
 			model.StatusResumeScreening,
 			model.StatusResumeScreeningFail,
@@ -809,86 +317,75 @@ func (s *StatusConfigService) GetAvailableStatusTransitions(userID uint, current
 			model.StatusOfferAccepted,
 			model.StatusProcessFinished,
 		}
+		for _, st := range all {
+			if st != currentStatus {
+				transitionsSet[st] = true
+			}
+		}
+		s.addImplicitDirectTransitions(currentStatus, transitionsSet)
+		return setToSlice(transitionsSet), nil
+	}
 
-        // 排除当前状态
-        for _, status := range allStatuses {
-            if status != currentStatus {
-                transitionsSet[status] = true
-            }
-        }
-        // 添加内置直通规则
-        s.addImplicitDirectTransitions(currentStatus, transitionsSet)
-        return setToSlice(transitionsSet), nil
-    }
+	var cfg map[string]interface{}
+	if err := json.Unmarshal([]byte(flowConfigText), &cfg); err != nil {
+		s.addBaselineDefaultTransitions(currentStatus, transitionsSet)
+		s.addImplicitDirectTransitions(currentStatus, transitionsSet)
+		return setToSlice(transitionsSet), nil
+	}
 
-    var config map[string]interface{}
-    if err := json.Unmarshal([]byte(flowConfig), &config); err != nil {
-        s.addBaselineDefaultTransitions(currentStatus, transitionsSet)
-        s.addImplicitDirectTransitions(currentStatus, transitionsSet)
-        return setToSlice(transitionsSet), nil
-    }
+	if transitions, ok := cfg["transitions"].(map[string]interface{}); ok {
+		if allowed, ok := transitions[string(currentStatus)].([]interface{}); ok {
+			for _, item := range allowed {
+				if as, ok := item.(string); ok {
+					st := model.ApplicationStatus(as)
+					if st.IsValid() && st != currentStatus {
+						transitionsSet[st] = true
+					}
+				}
+			}
+		} else {
+			s.addBaselineDefaultTransitions(currentStatus, transitionsSet)
+		}
+	} else {
+		s.addBaselineDefaultTransitions(currentStatus, transitionsSet)
+	}
 
-    transitionsMap, ok := config["transitions"].(map[string]interface{})
-    if !ok {
-        s.addBaselineDefaultTransitions(currentStatus, transitionsSet)
-        s.addImplicitDirectTransitions(currentStatus, transitionsSet)
-        return setToSlice(transitionsSet), nil
-    }
-
-    if allowedStates, ok := transitionsMap[string(currentStatus)].([]interface{}); ok {
-        // 转换为ApplicationStatus类型
-        for _, allowed := range allowedStates {
-            if allowedStr, ok := allowed.(string); ok {
-                status := model.ApplicationStatus(allowedStr)
-                if status.IsValid() && status != currentStatus {
-                    transitionsSet[status] = true
-                }
-            }
-        }
-    } else {
-        s.addBaselineDefaultTransitions(currentStatus, transitionsSet)
-    }
-
-    // 添加内置直通规则
-    s.addImplicitDirectTransitions(currentStatus, transitionsSet)
-
-    return setToSlice(transitionsSet), nil
+	s.addImplicitDirectTransitions(currentStatus, transitionsSet)
+	return setToSlice(transitionsSet), nil
 }
-
-// addImplicitDirectTransitions 添加内置直通转移，满足“一面中→二面中→三面中→HR面中”
 func (s *StatusConfigService) addImplicitDirectTransitions(currentStatus model.ApplicationStatus, set map[model.ApplicationStatus]bool) {
-    direct := map[model.ApplicationStatus]model.ApplicationStatus{
-        model.StatusWrittenTest:      model.StatusFirstInterview,
-        model.StatusFirstInterview:  model.StatusSecondInterview,
-        model.StatusSecondInterview: model.StatusThirdInterview,
-        model.StatusThirdInterview:  model.StatusHRInterview,
-    }
-    if next, ok := direct[currentStatus]; ok {
-        set[next] = true
-    }
+	direct := map[model.ApplicationStatus]model.ApplicationStatus{
+		model.StatusWrittenTest:     model.StatusFirstInterview,
+		model.StatusFirstInterview:  model.StatusSecondInterview,
+		model.StatusSecondInterview: model.StatusThirdInterview,
+		model.StatusThirdInterview:  model.StatusHRInterview,
+	}
+	if next, ok := direct[currentStatus]; ok {
+		set[next] = true
+	}
 }
 
 // addBaselineDefaultTransitions 在未配置或配置缺失时追加基础可用的转移规则
 // 目的：避免前端拖拽列表为空（例如：已投递→简历筛选中）
 func (s *StatusConfigService) addBaselineDefaultTransitions(currentStatus model.ApplicationStatus, set map[model.ApplicationStatus]bool) {
-    switch currentStatus {
-    case model.StatusApplied:
-        set[model.StatusResumeScreening] = true
-        set[model.ApplicationStatus("简历筛选未通过")] = true
-        set[model.StatusRejected] = true
-    case model.StatusResumeScreening:
-        set[model.StatusWrittenTest] = true
-        set[model.ApplicationStatus("简历筛选未通过")] = true
-    }
+	switch currentStatus {
+	case model.StatusApplied:
+		set[model.StatusResumeScreening] = true
+		set[model.ApplicationStatus("简历筛选未通过")] = true
+		set[model.StatusRejected] = true
+	case model.StatusResumeScreening:
+		set[model.StatusWrittenTest] = true
+		set[model.ApplicationStatus("简历筛选未通过")] = true
+	}
 }
 
 // setToSlice 将状态集合转换为去重后的切片（稳定顺序不强制）
 func setToSlice(set map[model.ApplicationStatus]bool) []model.ApplicationStatus {
-    res := make([]model.ApplicationStatus, 0, len(set))
-    for k := range set {
-        res = append(res, k)
-    }
-    return res
+	res := make([]model.ApplicationStatus, 0, len(set))
+	for k := range set {
+		res = append(res, k)
+	}
+	return res
 }
 
 // validateFlowConfig 验证流转配置格式
@@ -942,9 +439,9 @@ func (s *StatusConfigService) validatePreferenceConfig(preferenceConfig map[stri
 
 		// 验证通知类型
 		validNotificationTypes := map[string]bool{
-			"status_change":    true,
-			"reminder_alerts":  true,
-			"weekly_summary":   true,
+			"status_change":   true,
+			"reminder_alerts": true,
+			"weekly_summary":  true,
 		}
 
 		for key, value := range notificationsMap {
@@ -1007,29 +504,29 @@ func (s *StatusConfigService) getDefaultPreferenceConfig() map[string]interface{
 		"display": map[string]interface{}{
 			"timeline_view": "chronological",
 			"status_colors": map[string]string{
-				"已投递":        "#6366f1",
-				"简历筛选中":      "#f59e0b",
-				"简历筛选未通过":    "#ef4444",
-				"笔试中":        "#8b5cf6",
-				"笔试通过":       "#059669",
-				"笔试未通过":      "#ef4444",
-				"一面中":        "#3b82f6",
-				"一面通过":       "#10b981",
-				"一面未通过":      "#ef4444",
-				"二面中":        "#3b82f6",
-				"二面通过":       "#10b981",
-				"二面未通过":      "#ef4444",
-				"三面中":        "#3b82f6",
-				"三面通过":       "#10b981",
-				"三面未通过":      "#ef4444",
-				"HR面中":       "#8b5cf6",
-				"HR面通过":      "#10b981",
-				"HR面未通过":     "#ef4444",
-				"待发offer":    "#f59e0b",
-				"已收到offer":  "#059669",
-				"已接受offer":  "#10b981",
-				"已拒绝":        "#ef4444",
-				"流程结束":       "#6b7280",
+				"已投递":      "#6366f1",
+				"简历筛选中":    "#f59e0b",
+				"简历筛选未通过":  "#ef4444",
+				"笔试中":      "#8b5cf6",
+				"笔试通过":     "#059669",
+				"笔试未通过":    "#ef4444",
+				"一面中":      "#3b82f6",
+				"一面通过":     "#10b981",
+				"一面未通过":    "#ef4444",
+				"二面中":      "#3b82f6",
+				"二面通过":     "#10b981",
+				"二面未通过":    "#ef4444",
+				"三面中":      "#3b82f6",
+				"三面通过":     "#10b981",
+				"三面未通过":    "#ef4444",
+				"HR面中":     "#8b5cf6",
+				"HR面通过":    "#10b981",
+				"HR面未通过":   "#ef4444",
+				"待发offer":  "#f59e0b",
+				"已收到offer": "#059669",
+				"已接受offer": "#10b981",
+				"已拒绝":      "#ef4444",
+				"流程结束":     "#6b7280",
 			},
 			"show_duration": true,
 		},

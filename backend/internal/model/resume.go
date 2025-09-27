@@ -19,6 +19,11 @@ type Resume struct {
     UpdatedAt      time.Time `json:"updated_at" db:"updated_at"`
 }
 
+// TableName 指定主简历表名
+func (Resume) TableName() string {
+	return "resumes"
+}
+
 // ResumeSection 每个区块一条记录
 type ResumeSection struct {
     ID        int             `json:"id" db:"id"`
@@ -28,6 +33,11 @@ type ResumeSection struct {
     Content   json.RawMessage `json:"content" db:"content"`
     CreatedAt time.Time       `json:"created_at" db:"created_at"`
     UpdatedAt time.Time       `json:"updated_at" db:"updated_at"`
+}
+
+// TableName 指定简历区块表名
+func (ResumeSection) TableName() string {
+	return "resume_sections"
 }
 
 // ResumeAttachment 附件
@@ -42,6 +52,11 @@ type ResumeAttachment struct {
     CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
+// TableName 指定简历附件表名
+func (ResumeAttachment) TableName() string {
+	return "resume_attachments"
+}
+
 // ResumeAggregate 返回聚合视图
 type ResumeAggregate struct {
     Resume   Resume                     `json:"resume"`
@@ -54,4 +69,3 @@ type ResumeSummary struct {
     SectionTypes  []string `json:"sections"`
     MissingFields []string `json:"missing_required,omitempty"`
 }
-

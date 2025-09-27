@@ -1,8 +1,12 @@
+//go:build integration
+// +build integration
+
 package service
 
 import (
 	"jobView-backend/internal/database"
 	"jobView-backend/internal/model"
+	"jobView-backend/internal/repository"
 	"os"
 	"testing"
 	"time"
@@ -31,16 +35,16 @@ func TestJobApplicationService_OptimizedQueries(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotEmpty(t, jobs)
 		assert.LessOrEqual(t, len(jobs), 500, "GetAll应该有LIMIT限制")
-		
+
 		// 验证性能：应该在100ms内完成
-		assert.Less(t, duration.Milliseconds(), int64(100), 
+		assert.Less(t, duration.Milliseconds(), int64(100),
 			"GetAll查询应该在100ms内完成，实际耗时: %v", duration)
-		
+
 		// 验证排序正确性
 		for i := 1; i < len(jobs); i++ {
 			prev := jobs[i-1]
 			curr := jobs[i]
-			assert.True(t, prev.ApplicationDate >= curr.ApplicationDate, 
+			assert.True(t, prev.ApplicationDate >= curr.ApplicationDate,
 				"结果应该按application_date DESC排序")
 		}
 	})
@@ -59,11 +63,11 @@ func TestJobApplicationService_OptimizedQueries(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, response)
-		
+
 		// 验证性能：应该在50ms内完成
-		assert.Less(t, duration.Milliseconds(), int64(50), 
+		assert.Less(t, duration.Milliseconds(), int64(50),
 			"分页查询应该在50ms内完成，实际耗时: %v", duration)
-		
+
 		// 验证分页数据正确性
 		assert.LessOrEqual(t, len(response.Data), 20, "页面大小应该受限制")
 		assert.Equal(t, int64(100), response.Total, "总数应该正确")
@@ -80,20 +84,20 @@ func TestJobApplicationService_OptimizedQueries(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, stats)
-		
+
 		// 验证性能：应该在30ms内完成（使用覆盖索引）
-		assert.Less(t, duration.Milliseconds(), int64(30), 
+		assert.Less(t, duration.Milliseconds(), int64(30),
 			"统计查询应该在30ms内完成，实际耗时: %v", duration)
-		
+
 		// 验证统计数据正确性
 		totalApps, ok := stats["total_applications"].(int)
 		require.True(t, ok, "total_applications应该是int类型")
 		assert.Equal(t, 100, totalApps, "总申请数应该正确")
-		
+
 		breakdown, ok := stats["status_breakdown"].(map[string]int)
 		require.True(t, ok, "status_breakdown应该是map[string]int类型")
 		assert.NotEmpty(t, breakdown, "状态分解不应该为空")
-		
+
 		// 验证通过率计算
 		_, hasPassRate := stats["pass_rate"]
 		assert.True(t, hasPassRate, "应该计算通过率")
@@ -104,7 +108,7 @@ func TestJobApplicationService_OptimizedQueries(t *testing.T) {
 		testJob := testJobs[0]
 		newStatus := model.StatusFirstInterview
 		newCompany := "优化后的公司名称"
-		
+
 		req := &model.UpdateJobApplicationRequest{
 			Status:      &newStatus,
 			CompanyName: &newCompany,
@@ -116,11 +120,11 @@ func TestJobApplicationService_OptimizedQueries(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, updatedJob)
-		
+
 		// 验证性能：应该在20ms内完成（避免N+1查询）
-		assert.Less(t, duration.Milliseconds(), int64(20), 
+		assert.Less(t, duration.Milliseconds(), int64(20),
 			"Update应该在20ms内完成，实际耗时: %v", duration)
-		
+
 		// 验证更新结果正确性
 		assert.Equal(t, newStatus, updatedJob.Status, "状态应该更新成功")
 		assert.Equal(t, newCompany, updatedJob.CompanyName, "公司名应该更新成功")
@@ -144,11 +148,11 @@ func TestJobApplicationService_BatchOperations(t *testing.T) {
 
 		require.NoError(t, err)
 		require.Len(t, results, 25, "应该创建25条记录")
-		
+
 		// 验证性能：批量创建应该比逐个创建快得多
-		assert.Less(t, duration.Milliseconds(), int64(100), 
+		assert.Less(t, duration.Milliseconds(), int64(100),
 			"批量创建25条记录应该在100ms内完成，实际耗时: %v", duration)
-		
+
 		// 验证数据完整性
 		for i, result := range results {
 			assert.NotZero(t, result.ID, "记录%d应该有有效ID", i)
@@ -176,11 +180,11 @@ func TestJobApplicationService_BatchOperations(t *testing.T) {
 		duration := time.Since(start)
 
 		require.NoError(t, err)
-		
+
 		// 验证性能：批量更新应该在50ms内完成
-		assert.Less(t, duration.Milliseconds(), int64(50), 
+		assert.Less(t, duration.Milliseconds(), int64(50),
 			"批量更新10条记录应该在50ms内完成，实际耗时: %v", duration)
-		
+
 		// 验证更新结果
 		for _, update := range updates {
 			job, err := service.GetByID(userID, update.ID)
@@ -201,11 +205,11 @@ func TestJobApplicationService_BatchOperations(t *testing.T) {
 		duration := time.Since(start)
 
 		require.NoError(t, err)
-		
+
 		// 验证性能：批量删除应该在30ms内完成
-		assert.Less(t, duration.Milliseconds(), int64(30), 
+		assert.Less(t, duration.Milliseconds(), int64(30),
 			"批量删除10条记录应该在30ms内完成，实际耗时: %v", duration)
-		
+
 		// 验证删除结果
 		for _, id := range idsToDelete {
 			_, err := service.GetByID(userID, id)
@@ -235,17 +239,17 @@ func TestJobApplicationService_SearchOptimization(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, results)
-		
+
 		// 验证性能：搜索应该在100ms内完成
-		assert.Less(t, duration.Milliseconds(), int64(100), 
+		assert.Less(t, duration.Milliseconds(), int64(100),
 			"搜索查询应该在100ms内完成，实际耗时: %v", duration)
-		
+
 		// 验证搜索结果相关性
 		for _, job := range results.Data {
 			// 应该包含搜索关键词（在公司名或职位标题中）
-			containsKeyword := contains(job.CompanyName, "腾讯") || 
-							 contains(job.PositionTitle, "腾讯")
-			assert.True(t, containsKeyword, 
+			containsKeyword := contains(job.CompanyName, "腾讯") ||
+				contains(job.PositionTitle, "腾讯")
+			assert.True(t, containsKeyword,
 				"搜索结果应该包含关键词：%s - %s", job.CompanyName, job.PositionTitle)
 		}
 	})
@@ -253,7 +257,7 @@ func TestJobApplicationService_SearchOptimization(t *testing.T) {
 	t.Run("GetApplicationsByDateRange日期范围查询优化验证", func(t *testing.T) {
 		startDate := time.Now().AddDate(0, 0, -30).Format("2006-01-02")
 		endDate := time.Now().Format("2006-01-02")
-		
+
 		req := model.PaginationRequest{
 			Page:     1,
 			PageSize: 20,
@@ -265,16 +269,16 @@ func TestJobApplicationService_SearchOptimization(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, results)
-		
+
 		// 验证性能：日期范围查询应该在50ms内完成
-		assert.Less(t, duration.Milliseconds(), int64(50), 
+		assert.Less(t, duration.Milliseconds(), int64(50),
 			"日期范围查询应该在50ms内完成，实际耗时: %v", duration)
-		
+
 		// 验证日期范围正确性
 		for _, job := range results.Data {
-			assert.True(t, job.ApplicationDate >= startDate, 
+			assert.True(t, job.ApplicationDate >= startDate,
 				"记录日期应该在范围内：%s", job.ApplicationDate)
-			assert.True(t, job.ApplicationDate <= endDate, 
+			assert.True(t, job.ApplicationDate <= endDate,
 				"记录日期应该在范围内：%s", job.ApplicationDate)
 		}
 	})
@@ -291,23 +295,23 @@ func TestJobApplicationService_IndexUsageValidation(t *testing.T) {
 	t.Run("验证索引在查询计划中被使用", func(t *testing.T) {
 		// 测试主要查询的执行计划
 		testQueries := []struct {
-			name  string
-			query string
+			name            string
+			query           string
 			expectedIndexes []string
 		}{
 			{
-				name:  "用户ID查询",
-				query: "EXPLAIN (FORMAT JSON) SELECT * FROM job_applications WHERE user_id = $1 LIMIT 10",
+				name:            "用户ID查询",
+				query:           "EXPLAIN (FORMAT JSON) SELECT * FROM job_applications WHERE user_id = $1 LIMIT 10",
 				expectedIndexes: []string{"idx_job_applications_user_id", "idx_job_applications_user_date"},
 			},
 			{
-				name:  "用户+状态查询",
-				query: "EXPLAIN (FORMAT JSON) SELECT * FROM job_applications WHERE user_id = $1 AND status = $2",
+				name:            "用户+状态查询",
+				query:           "EXPLAIN (FORMAT JSON) SELECT * FROM job_applications WHERE user_id = $1 AND status = $2",
 				expectedIndexes: []string{"idx_job_applications_user_status"},
 			},
 			{
-				name:  "统计查询",
-				query: "EXPLAIN (FORMAT JSON) SELECT status, COUNT(*) FROM job_applications WHERE user_id = $1 GROUP BY status",
+				name:            "统计查询",
+				query:           "EXPLAIN (FORMAT JSON) SELECT status, COUNT(*) FROM job_applications WHERE user_id = $1 GROUP BY status",
 				expectedIndexes: []string{"idx_job_applications_status_stats"},
 			},
 		}
@@ -317,10 +321,10 @@ func TestJobApplicationService_IndexUsageValidation(t *testing.T) {
 				var planJSON string
 				err := db.QueryRow(tc.query, userID, model.StatusApplied).Scan(&planJSON)
 				require.NoError(t, err, "执行计划查询应该成功")
-				
+
 				// 验证执行计划中包含预期的索引（简化验证）
 				t.Logf("执行计划 - %s:\n%s", tc.name, planJSON)
-				
+
 				// 实际项目中，这里应该解析JSON并验证索引使用
 				// 为了演示，我们只检查是否包含索引相关关键词
 				assert.Contains(t, planJSON, "Index", "执行计划应该使用索引")
@@ -386,7 +390,8 @@ func setupTestService(t *testing.T) (*database.DB, *JobApplicationService) {
 	db, err := database.New(cfg)
 	require.NoError(t, err, "数据库连接应该成功")
 
-	service := NewJobApplicationService(db)
+	repo := repository.NewJobApplicationRepository(db)
+	service := NewJobApplicationService(repo)
 	return db, service
 }
 
@@ -442,8 +447,8 @@ func getEnvOrDefault(key, defaultValue string) string {
 }
 
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && 
-		   (s == substr || 
+	return len(s) >= len(substr) &&
+		(s == substr ||
 			findSubstring(s, substr))
 }
 
@@ -454,7 +459,7 @@ func findSubstring(s, substr string) bool {
 	if len(s) < len(substr) {
 		return false
 	}
-	
+
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {
 			return true

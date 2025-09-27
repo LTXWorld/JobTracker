@@ -1,0 +1,9 @@
+# test log
+getenv TMPDIR
+stat /var/folders/yw/nhl00n5x4rjgb2_lzhwfc7pm0000gn/T//jobview_exports
+getenv TMPDIR
+open /var/folders/yw/nhl00n5x4rjgb2_lzhwfc7pm0000gn/T/TestExportService_StartExport_Sync4201923001/001/export_20250927_175110_user10.xlsx
+stat /var/folders/yw/nhl00n5x4rjgb2_lzhwfc7pm0000gn/T/TestExportService_StartExport_Sync4201923001/001/export_20250927_175110_user10.xlsx
+stat /var/folders/yw/nhl00n5x4rjgb2_lzhwfc7pm0000gn/T/TestExportService_StartExport_Sync4201923001/001/export_20250927_175110_user10.xlsx
+open /var/folders/yw/nhl00n5x4rjgb2_lzhwfc7pm0000gn/T
+getenv ALLOW_BACKWARD_STATUS
