@@ -160,6 +160,7 @@ export interface JobApplication {
   interview_time?: string | null; // 面试时间
   reminder_time?: string | null; // 提醒时间
   reminder_enabled?: boolean; // 是否启用提醒
+  reminder_category?: 'interview' | 'written' | 'follow_up';
   follow_up_date?: string | null; // 跟进日期
   hr_name?: string | null; // HR姓名
   hr_phone?: string | null; // HR电话
@@ -185,6 +186,7 @@ export interface CreateJobApplicationRequest {
   interview_time?: string;
   reminder_time?: string;
   reminder_enabled?: boolean;
+  reminder_category?: 'interview' | 'written' | 'follow_up';
   follow_up_date?: string;
   hr_name?: string;
   hr_phone?: string;
@@ -208,6 +210,7 @@ export interface UpdateJobApplicationRequest {
   interview_time?: string;
   reminder_time?: string;
   reminder_enabled?: boolean;
+  reminder_category?: 'interview' | 'written' | 'follow_up';
   follow_up_date?: string;
   hr_name?: string;
   hr_phone?: string;

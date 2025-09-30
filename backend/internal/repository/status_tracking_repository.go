@@ -327,7 +327,7 @@ type statusTrackingTx struct {
 func (t *statusTrackingTx) GetJobApplicationForUpdate(userID uint, jobApplicationID int) (*JobStatusSnapshot, error) {
 	query := `SELECT id, user_id, company_name, position_title, application_date, status,
                      job_description, salary_range, work_location, contact_info, notes,
-                     interview_time, reminder_time, reminder_enabled, follow_up_date,
+                     interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
                      hr_name, hr_phone, hr_email, interview_location, interview_type,
                      created_at, updated_at, last_status_change, status_version,
                      status_history, status_duration_stats
@@ -338,6 +338,7 @@ func (t *statusTrackingTx) GetJobApplicationForUpdate(userID uint, jobApplicatio
 	var version sql.NullInt32
 	var history sql.NullString
 	var duration sql.NullString
+	var reminderCategory sql.NullString
 	if err := t.tx.Raw(query, jobApplicationID, userID).Row().Scan(
 		&record.ID,
 		&record.UserID,
@@ -353,6 +354,7 @@ func (t *statusTrackingTx) GetJobApplicationForUpdate(userID uint, jobApplicatio
 		&record.InterviewTime,
 		&record.ReminderTime,
 		&record.ReminderEnabled,
+		&reminderCategory,
 		&record.FollowUpDate,
 		&record.HRName,
 		&record.HRPhone,
@@ -372,6 +374,10 @@ func (t *statusTrackingTx) GetJobApplicationForUpdate(userID uint, jobApplicatio
 		return nil, fmt.Errorf("failed to fetch job application: %w", err)
 	}
 
+	if reminderCategory.Valid {
+		rc := reminderCategory.String
+		record.ReminderCategory = &rc
+	}
 	snapshot := &JobStatusSnapshot{Job: record}
 	if lastChange.Valid {
 		tm := lastChange.Time
@@ -421,10 +427,11 @@ func (t *statusTrackingTx) UpdateJobApplication(params UpdateJobApplicationParam
 		query := `UPDATE job_applications SET status = $1, updated_at = $2 WHERE id = $3 AND user_id = $4
                   RETURNING id, user_id, company_name, position_title, application_date, status,
                             job_description, salary_range, work_location, contact_info, notes,
-                            interview_time, reminder_time, reminder_enabled, follow_up_date,
+                            interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
                             hr_name, hr_phone, hr_email, interview_location, interview_type,
                             created_at, updated_at`
 		var job model.JobApplication
+		var reminderCategory sql.NullString
 		if err := t.tx.Raw(query, params.NewStatus, params.Now, params.JobApplicationID, params.UserID).Row().Scan(
 			&job.ID,
 			&job.UserID,
@@ -440,6 +447,7 @@ func (t *statusTrackingTx) UpdateJobApplication(params UpdateJobApplicationParam
 			&job.InterviewTime,
 			&job.ReminderTime,
 			&job.ReminderEnabled,
+			&reminderCategory,
 			&job.FollowUpDate,
 			&job.HRName,
 			&job.HRPhone,
@@ -450,6 +458,12 @@ func (t *statusTrackingTx) UpdateJobApplication(params UpdateJobApplicationParam
 			&job.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to update job application: %w", err)
+		}
+		if reminderCategory.Valid {
+			rc := reminderCategory.String
+			job.ReminderCategory = &rc
+		} else {
+			job.ReminderCategory = nil
 		}
 		return &job, nil
 	}
@@ -490,11 +504,12 @@ func (t *statusTrackingTx) UpdateJobApplication(params UpdateJobApplicationParam
 
 	query += `id, user_id, company_name, position_title, application_date, status,
               job_description, salary_range, work_location, contact_info, notes,
-              interview_time, reminder_time, reminder_enabled, follow_up_date,
+              interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
               hr_name, hr_phone, hr_email, interview_location, interview_type,
               created_at, updated_at`
 
 	var job model.JobApplication
+	var reminderCategory sql.NullString
 	if err := t.tx.Raw(query, args...).Row().Scan(
 		&job.ID,
 		&job.UserID,
@@ -510,6 +525,7 @@ func (t *statusTrackingTx) UpdateJobApplication(params UpdateJobApplicationParam
 		&job.InterviewTime,
 		&job.ReminderTime,
 		&job.ReminderEnabled,
+		&reminderCategory,
 		&job.FollowUpDate,
 		&job.HRName,
 		&job.HRPhone,
@@ -520,6 +536,12 @@ func (t *statusTrackingTx) UpdateJobApplication(params UpdateJobApplicationParam
 		&job.UpdatedAt,
 	); err != nil {
 		return nil, fmt.Errorf("failed to update job application: %w", err)
+	}
+	if reminderCategory.Valid {
+		rc := reminderCategory.String
+		job.ReminderCategory = &rc
+	} else {
+		job.ReminderCategory = nil
 	}
 	return &job, nil
 }

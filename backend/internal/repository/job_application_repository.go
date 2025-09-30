@@ -80,13 +80,20 @@ func (r *jobAppRepo) Create(userID uint, req *model.CreateJobApplicationRequest)
 		reminderEnabled = *req.ReminderEnabled
 	}
 
+	var reminderCategory interface{}
+	if req.ReminderCategory != nil {
+		if trimmed := strings.TrimSpace(*req.ReminderCategory); trimmed != "" {
+			reminderCategory = trimmed
+		}
+	}
+
 	query := `INSERT INTO job_applications (
         user_id, company_name, position_title, application_date, status,
         job_description, salary_range, work_location, contact_info, notes,
-        interview_time, reminder_time, reminder_enabled, follow_up_date,
+        interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
         hr_name, hr_phone, hr_email, interview_location, interview_type,
         company_attribute
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
     RETURNING id, created_at, updated_at`
 
 	var job model.JobApplication
@@ -104,6 +111,7 @@ func (r *jobAppRepo) Create(userID uint, req *model.CreateJobApplicationRequest)
 		req.InterviewTime,
 		req.ReminderTime,
 		reminderEnabled,
+		reminderCategory,
 		req.FollowUpDate,
 		req.HRName,
 		req.HRPhone,
@@ -134,6 +142,12 @@ func (r *jobAppRepo) Create(userID uint, req *model.CreateJobApplicationRequest)
 	job.InterviewTime = req.InterviewTime
 	job.ReminderTime = req.ReminderTime
 	job.ReminderEnabled = reminderEnabled
+	if req.ReminderCategory != nil {
+		if trimmed := strings.TrimSpace(*req.ReminderCategory); trimmed != "" {
+			rc := trimmed
+			job.ReminderCategory = &rc
+		}
+	}
 	job.FollowUpDate = req.FollowUpDate
 	job.HRName = req.HRName
 	job.HRPhone = req.HRPhone
@@ -153,16 +167,17 @@ func (r *jobAppRepo) GetByID(userID uint, id int) (*model.JobApplication, error)
 	}
 	query := `SELECT id, user_id, company_name, position_title, application_date, status,
         job_description, salary_range, work_location, contact_info, notes,
-        interview_time, reminder_time, reminder_enabled, follow_up_date,
+        interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
         hr_name, hr_phone, hr_email, interview_location, interview_type,
         company_attribute,
         created_at, updated_at FROM job_applications WHERE id=$1 AND user_id=$2`
 	var job model.JobApplication
+	var reminderCategory sql.NullString
 	row := r.db.ORM.Raw(query, id, userID).Row()
 	if err := row.Scan(
 		&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status,
 		&job.JobDescription, &job.SalaryRange, &job.WorkLocation, &job.ContactInfo, &job.Notes,
-		&job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &job.FollowUpDate,
+		&job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &reminderCategory, &job.FollowUpDate,
 		&job.HRName, &job.HRPhone, &job.HREmail, &job.InterviewLocation, &job.InterviewType,
 		&job.CompanyAttribute,
 		&job.CreatedAt, &job.UpdatedAt,
@@ -172,6 +187,10 @@ func (r *jobAppRepo) GetByID(userID uint, id int) (*model.JobApplication, error)
 		}
 		return nil, fmt.Errorf("failed to get job application: %w", err)
 	}
+	if reminderCategory.Valid {
+		rc := reminderCategory.String
+		job.ReminderCategory = &rc
+	}
 	return &job, nil
 }
 
@@ -180,8 +199,8 @@ func (r *jobAppRepo) GetAll(userID uint) ([]model.JobApplication, error) {
 		return nil, fmt.Errorf("gorm not initialized")
 	}
 	query := `SELECT id, user_id, company_name, position_title, application_date, status,
-        job_description, salary_range, work_location, contact_info, notes,
-        interview_time, reminder_time, reminder_enabled, follow_up_date,
+    job_description, salary_range, work_location, contact_info, notes,
+        interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
         hr_name, hr_phone, hr_email, interview_location, interview_type,
         company_attribute,
         created_at, updated_at FROM job_applications WHERE user_id = $1
@@ -194,13 +213,18 @@ func (r *jobAppRepo) GetAll(userID uint) ([]model.JobApplication, error) {
 	var list []model.JobApplication
 	for rows.Next() {
 		var job model.JobApplication
+		var reminderCategory sql.NullString
 		if err := rows.Scan(&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status,
 			&job.JobDescription, &job.SalaryRange, &job.WorkLocation, &job.ContactInfo, &job.Notes,
-			&job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &job.FollowUpDate,
+			&job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &reminderCategory, &job.FollowUpDate,
 			&job.HRName, &job.HRPhone, &job.HREmail, &job.InterviewLocation, &job.InterviewType,
 			&job.CompanyAttribute,
 			&job.CreatedAt, &job.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan job application: %w", err)
+		}
+		if reminderCategory.Valid {
+			rc := reminderCategory.String
+			job.ReminderCategory = &rc
 		}
 		list = append(list, job)
 	}
@@ -236,7 +260,7 @@ func (r *jobAppRepo) GetAllPaginated(userID uint, req model.PaginationRequest) (
 	}
 	dataSQL := fmt.Sprintf(`SELECT id, user_id, company_name, position_title, application_date, status,
         job_description, salary_range, work_location, contact_info, notes,
-        interview_time, reminder_time, reminder_enabled, follow_up_date,
+        interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
         hr_name, hr_phone, hr_email, interview_location, interview_type,
         company_attribute,
         created_at, updated_at FROM job_applications %s ORDER BY %s %s, created_at DESC LIMIT $%d OFFSET $%d`,
@@ -250,13 +274,18 @@ func (r *jobAppRepo) GetAllPaginated(userID uint, req model.PaginationRequest) (
 	var jobs []model.JobApplication
 	for rows.Next() {
 		var job model.JobApplication
+		var reminderCategory sql.NullString
 		if err := rows.Scan(&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status,
 			&job.JobDescription, &job.SalaryRange, &job.WorkLocation, &job.ContactInfo, &job.Notes,
-			&job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &job.FollowUpDate,
+			&job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &reminderCategory, &job.FollowUpDate,
 			&job.HRName, &job.HRPhone, &job.HREmail, &job.InterviewLocation, &job.InterviewType,
 			&job.CompanyAttribute,
 			&job.CreatedAt, &job.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan job application: %w", err)
+		}
+		if reminderCategory.Valid {
+			rc := reminderCategory.String
+			job.ReminderCategory = &rc
 		}
 		jobs = append(jobs, job)
 	}
@@ -331,6 +360,15 @@ func (r *jobAppRepo) Update(userID uint, id int, req *model.UpdateJobApplication
 		args = append(args, *req.ReminderEnabled)
 		idx++
 	}
+	if req.ReminderCategory != nil {
+		setParts = append(setParts, fmt.Sprintf("reminder_category=$%d", idx))
+		if trimmed := strings.TrimSpace(*req.ReminderCategory); trimmed == "" {
+			args = append(args, nil)
+		} else {
+			args = append(args, trimmed)
+		}
+		idx++
+	}
 	if req.FollowUpDate != nil {
 		setParts = append(setParts, fmt.Sprintf("follow_up_date=$%d", idx))
 		args = append(args, *req.FollowUpDate)
@@ -379,17 +417,24 @@ func (r *jobAppRepo) Update(userID uint, id int, req *model.UpdateJobApplication
 	args = append(args, id, userID)
 	query := fmt.Sprintf(`UPDATE job_applications SET %s WHERE id=$%d AND user_id=$%d RETURNING id, user_id, company_name, position_title, application_date, status,
         job_description, salary_range, work_location, contact_info, notes,
-        interview_time, reminder_time, reminder_enabled, follow_up_date,
+        interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
         hr_name, hr_phone, hr_email, interview_location, interview_type,
         company_attribute,
         created_at, updated_at`, strings.Join(setParts, ", "), idx, idx+1)
 	var job model.JobApplication
 	row := r.db.ORM.Raw(query, args...).Row()
-	if err := row.Scan(&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status, &job.JobDescription, &job.SalaryRange, &job.WorkLocation, &job.ContactInfo, &job.Notes, &job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &job.FollowUpDate, &job.HRName, &job.HRPhone, &job.HREmail, &job.InterviewLocation, &job.InterviewType, &job.CompanyAttribute, &job.CreatedAt, &job.UpdatedAt); err != nil {
+	var reminderCategory sql.NullString
+	if err := row.Scan(&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status, &job.JobDescription, &job.SalaryRange, &job.WorkLocation, &job.ContactInfo, &job.Notes, &job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &reminderCategory, &job.FollowUpDate, &job.HRName, &job.HRPhone, &job.HREmail, &job.InterviewLocation, &job.InterviewType, &job.CompanyAttribute, &job.CreatedAt, &job.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("job application not found")
 		}
 		return nil, fmt.Errorf("failed to update job application: %w", err)
+	}
+	if reminderCategory.Valid {
+		rc := reminderCategory.String
+		job.ReminderCategory = &rc
+	} else {
+		job.ReminderCategory = nil
 	}
 	return &job, nil
 }
@@ -461,14 +506,18 @@ func (r *jobAppRepo) BatchCreate(userID uint, applications []model.CreateJobAppl
 		if req.ReminderEnabled != nil {
 			reminderEnabled = *req.ReminderEnabled
 		}
+		var reminderCategory interface{}
+		if req.ReminderCategory != nil {
+			if trimmed := strings.TrimSpace(*req.ReminderCategory); trimmed != "" {
+				reminderCategory = trimmed
+			}
+		}
 
-		valueStrings = append(valueStrings, fmt.Sprintf(
-			"($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
-			argIndex, argIndex+1, argIndex+2, argIndex+3, argIndex+4,
-			argIndex+5, argIndex+6, argIndex+7, argIndex+8, argIndex+9,
-			argIndex+10, argIndex+11, argIndex+12, argIndex+13, argIndex+14,
-			argIndex+15, argIndex+16, argIndex+17, argIndex+18, argIndex+19,
-		))
+		placeholders := make([]string, 21)
+		for i := range placeholders {
+			placeholders[i] = fmt.Sprintf("$%d", argIndex+i)
+		}
+		valueStrings = append(valueStrings, fmt.Sprintf("(%s)", strings.Join(placeholders, ",")))
 		valueArgs = append(valueArgs,
 			userID,
 			req.CompanyName,
@@ -483,6 +532,7 @@ func (r *jobAppRepo) BatchCreate(userID uint, applications []model.CreateJobAppl
 			req.InterviewTime,
 			req.ReminderTime,
 			reminderEnabled,
+			reminderCategory,
 			req.FollowUpDate,
 			req.HRName,
 			req.HRPhone,
@@ -496,20 +546,21 @@ func (r *jobAppRepo) BatchCreate(userID uint, applications []model.CreateJobAppl
 				return req.CompanyAttribute
 			}(),
 		)
-		argIndex += 20
+		argIndex += 21
+
 	}
 
 	query := fmt.Sprintf(`
         INSERT INTO job_applications (
             user_id, company_name, position_title, application_date, status,
             job_description, salary_range, work_location, contact_info, notes,
-            interview_time, reminder_time, reminder_enabled, follow_up_date,
+            interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
             hr_name, hr_phone, hr_email, interview_location, interview_type,
             company_attribute
         ) VALUES %s
         RETURNING id, user_id, company_name, position_title, application_date, status,
             job_description, salary_range, work_location, contact_info, notes,
-            interview_time, reminder_time, reminder_enabled, follow_up_date,
+            interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
             hr_name, hr_phone, hr_email, interview_location, interview_type,
             company_attribute,
             created_at, updated_at
@@ -530,6 +581,7 @@ func (r *jobAppRepo) BatchCreate(userID uint, applications []model.CreateJobAppl
 	var results []model.JobApplication
 	for rows.Next() {
 		var job model.JobApplication
+		var reminderCategory sql.NullString
 		if err := rows.Scan(
 			&job.ID,
 			&job.UserID,
@@ -545,6 +597,7 @@ func (r *jobAppRepo) BatchCreate(userID uint, applications []model.CreateJobAppl
 			&job.InterviewTime,
 			&job.ReminderTime,
 			&job.ReminderEnabled,
+			&reminderCategory,
 			&job.FollowUpDate,
 			&job.HRName,
 			&job.HRPhone,
@@ -556,6 +609,10 @@ func (r *jobAppRepo) BatchCreate(userID uint, applications []model.CreateJobAppl
 			&job.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan batch create result: %w", err)
+		}
+		if reminderCategory.Valid {
+			rc := reminderCategory.String
+			job.ReminderCategory = &rc
 		}
 		results = append(results, job)
 	}
@@ -699,7 +756,7 @@ func (r *jobAppRepo) Search(userID uint, searchQuery string, req model.Paginatio
 	dataQuery := fmt.Sprintf(`
         SELECT id, user_id, company_name, position_title, application_date, status,
                job_description, salary_range, work_location, contact_info, notes,
-               interview_time, reminder_time, reminder_enabled, follow_up_date,
+               interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
                hr_name, hr_phone, hr_email, interview_location, interview_type,
                company_attribute,
                created_at, updated_at
@@ -718,15 +775,20 @@ func (r *jobAppRepo) Search(userID uint, searchQuery string, req model.Paginatio
 	var jobs []model.JobApplication
 	for rows.Next() {
 		var job model.JobApplication
+		var reminderCategory sql.NullString
 		if err := rows.Scan(
 			&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status,
 			&job.JobDescription, &job.SalaryRange, &job.WorkLocation, &job.ContactInfo, &job.Notes,
-			&job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &job.FollowUpDate,
+			&job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &reminderCategory, &job.FollowUpDate,
 			&job.HRName, &job.HRPhone, &job.HREmail, &job.InterviewLocation, &job.InterviewType,
 			&job.CompanyAttribute,
 			&job.CreatedAt, &job.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan search result: %w", err)
+		}
+		if reminderCategory.Valid {
+			rc := reminderCategory.String
+			job.ReminderCategory = &rc
 		}
 		jobs = append(jobs, job)
 	}
@@ -773,7 +835,7 @@ func (r *jobAppRepo) ListByDateRange(userID uint, startDate, endDate string, req
 	dataQuery := fmt.Sprintf(`
         SELECT id, user_id, company_name, position_title, application_date, status,
                job_description, salary_range, work_location, contact_info, notes,
-               interview_time, reminder_time, reminder_enabled, follow_up_date,
+               interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
                hr_name, hr_phone, hr_email, interview_location, interview_type,
                company_attribute,
                created_at, updated_at
@@ -792,15 +854,20 @@ func (r *jobAppRepo) ListByDateRange(userID uint, startDate, endDate string, req
 	var jobs []model.JobApplication
 	for rows.Next() {
 		var job model.JobApplication
+		var reminderCategory sql.NullString
 		if err := rows.Scan(
 			&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status,
 			&job.JobDescription, &job.SalaryRange, &job.WorkLocation, &job.ContactInfo, &job.Notes,
-			&job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &job.FollowUpDate,
+			&job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &reminderCategory, &job.FollowUpDate,
 			&job.HRName, &job.HRPhone, &job.HREmail, &job.InterviewLocation, &job.InterviewType,
 			&job.CompanyAttribute,
 			&job.CreatedAt, &job.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan job application: %w", err)
+		}
+		if reminderCategory.Valid {
+			rc := reminderCategory.String
+			job.ReminderCategory = &rc
 		}
 		jobs = append(jobs, job)
 	}
@@ -865,7 +932,7 @@ func (r *jobAppRepo) ListWithStatusFilters(userID uint, status *model.Applicatio
 
 	dataQuery := fmt.Sprintf(`SELECT id, user_id, company_name, position_title, application_date, status,
             job_description, salary_range, work_location, contact_info, notes,
-            interview_time, reminder_time, reminder_enabled, follow_up_date,
+            interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
             hr_name, hr_phone, hr_email, interview_location, interview_type,
             company_attribute,
             created_at, updated_at
@@ -883,15 +950,20 @@ func (r *jobAppRepo) ListWithStatusFilters(userID uint, status *model.Applicatio
 	var jobs []model.JobApplication
 	for rows.Next() {
 		var job model.JobApplication
+		var reminderCategory sql.NullString
 		if err := rows.Scan(
 			&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status,
 			&job.JobDescription, &job.SalaryRange, &job.WorkLocation, &job.ContactInfo, &job.Notes,
-			&job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &job.FollowUpDate,
+			&job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &reminderCategory, &job.FollowUpDate,
 			&job.HRName, &job.HRPhone, &job.HREmail, &job.InterviewLocation, &job.InterviewType,
 			&job.CompanyAttribute,
 			&job.CreatedAt, &job.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan job application: %w", err)
+		}
+		if reminderCategory.Valid {
+			rc := reminderCategory.String
+			job.ReminderCategory = &rc
 		}
 		jobs = append(jobs, job)
 	}

@@ -63,7 +63,7 @@
           <a-divider />
           
           <a-row :gutter="16">
-            <a-col :span="12">
+            <a-col :span="8">
               <a-statistic 
                 title="面试提醒" 
                 :value="interviewCount"
@@ -73,7 +73,17 @@
                 </template>
               </a-statistic>
             </a-col>
-            <a-col :span="12">
+            <a-col :span="8">
+              <a-statistic 
+                title="笔试提醒" 
+                :value="writtenCount"
+              >
+                <template #prefix>
+                  <CalendarOutlined />
+                </template>
+              </a-statistic>
+            </a-col>
+            <a-col :span="8">
               <a-statistic 
                 title="跟进提醒" 
                 :value="followUpCount"
@@ -174,13 +184,19 @@ const weekCount = computed(() => {
 
 const interviewCount = computed(() => 
   applications.value.filter(app => 
-    app.interview_time && app.reminder_enabled
+    app.reminder_enabled && app.interview_type !== '笔试' && app.interview_time
   ).length
 )
 
 const followUpCount = computed(() => 
   applications.value.filter(app => 
     app.follow_up_date && app.reminder_enabled && !app.interview_time
+  ).length
+)
+
+const writtenCount = computed(() =>
+  applications.value.filter(app =>
+    app.reminder_enabled && app.interview_type === '笔试'
   ).length
 )
 

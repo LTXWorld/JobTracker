@@ -166,9 +166,20 @@
         />
       </a-form-item>
 
-      <a-divider orientation="left">面试提醒设置</a-divider>
+      <a-divider orientation="left">考试/面试提醒设置</a-divider>
 
-      <a-form-item label="面试时间" name="interview_time">
+      <a-form-item label="提醒类别" name="reminder_type">
+        <a-select
+          v-model:value="formData.reminder_category"
+          placeholder="选择提醒类别"
+          style="width: 100%"
+        >
+          <a-select-option value="interview">面试提醒</a-select-option>
+          <a-select-option value="written">笔试提醒</a-select-option>
+        </a-select>
+      </a-form-item>
+
+      <a-form-item v-if="formData.reminder_category === 'interview'" label="面试时间" name="interview_time">
         <a-date-picker
           v-model:value="formData.interview_time"
           show-time
@@ -178,16 +189,22 @@
         />
       </a-form-item>
 
-      <a-form-item label="启用提醒" name="reminder_enabled">
-        <a-switch v-model:checked="formData.reminder_enabled" />
-        <span style="margin-left: 10px">在面试前提醒</span>
+      <a-form-item v-if="formData.reminder_category === 'written'" label="笔试时间" name="written_time">
+        <a-date-picker
+          v-model:value="formData.written_time"
+          show-time
+          placeholder="选择笔试时间"
+          format="YYYY-MM-DD HH:mm"
+          style="width: 100%"
+        />
       </a-form-item>
 
-      <a-form-item 
-        v-if="formData.reminder_enabled" 
-        label="提醒时间" 
-        name="reminder_time"
-      >
+      <a-form-item label="启用提醒" name="reminder_enabled">
+        <a-switch v-model:checked="formData.reminder_enabled" />
+        <span style="margin-left: 10px">开启提醒</span>
+      </a-form-item>
+
+      <a-form-item v-if="formData.reminder_enabled" label="提醒时间" name="reminder_time">
         <a-date-picker
           v-model:value="formData.reminder_time"
           show-time
@@ -197,9 +214,9 @@
         />
         <div style="margin-top: 5px">
           <a-space>
-            <a-button size="small" @click="setReminderTime(15)">面试前15分钟</a-button>
-            <a-button size="small" @click="setReminderTime(30)">面试前30分钟</a-button>
-            <a-button size="small" @click="setReminderTime(60)">面试前1小时</a-button>
+            <a-button size="small" @click="setReminderTime(15)">提前15分钟</a-button>
+            <a-button size="small" @click="setReminderTime(30)">提前30分钟</a-button>
+            <a-button size="small" @click="setReminderTime(60)">提前1小时</a-button>
           </a-space>
         </div>
       </a-form-item>
@@ -251,8 +268,10 @@ const formData = reactive<{
   work_location: string
   notes: string
   interview_time: Dayjs | null
+  written_time: Dayjs | null
   reminder_time: Dayjs | null
   reminder_enabled: boolean
+  reminder_category: 'interview' | 'written' | 'follow_up'
   follow_up_date: Dayjs | null
 }>({
   company_name: '',
@@ -264,8 +283,10 @@ const formData = reactive<{
   work_location: '',
   notes: '',
   interview_time: null,
+  written_time: null,
   reminder_time: null,
   reminder_enabled: false,
+  reminder_category: 'interview',
   follow_up_date: null
 })
 
@@ -285,10 +306,18 @@ const rules = computed(() => ({
 // 计算属性
 const isEdit = computed(() => !!props.initialData)
 
+// 将 Dayjs 值转换为 ISO 字符串，便于后端解析
+const toISOStringOrUndefined = (value: Dayjs | null) => {
+  return value ? value.toDate().toISOString() : undefined
+}
+
 // 设置提醒时间（提前N分钟）
 const setReminderTime = (minutes: number) => {
-  if (formData.interview_time) {
-    formData.reminder_time = formData.interview_time.subtract(minutes, 'minute')
+  const baseTime = formData.reminder_category === 'written'
+    ? formData.written_time
+    : formData.interview_time
+  if (baseTime) {
+    formData.reminder_time = baseTime.subtract(minutes, 'minute')
   }
 }
 
@@ -303,8 +332,10 @@ const resetForm = () => {
   formData.work_location = ''
   formData.notes = ''
   formData.interview_time = null
+  formData.written_time = null
   formData.reminder_time = null
   formData.reminder_enabled = false
+  formData.reminder_category = 'interview'
   formData.follow_up_date = null
   formRef.value?.clearValidate()
 }
@@ -320,9 +351,25 @@ watch(() => props.initialData, (app) => {
     formData.salary_range = app.salary_range || ''
     formData.work_location = app.work_location || ''
     formData.notes = app.notes || ''
-    formData.interview_time = app.interview_time ? dayjs(app.interview_time) : null
+    formData.interview_time = app.interview_time && app.interview_type !== '笔试'
+      ? dayjs(app.interview_time)
+      : null
+    formData.written_time = app.interview_time && app.interview_type === '笔试'
+      ? dayjs(app.interview_time)
+      : null
     formData.reminder_time = app.reminder_time ? dayjs(app.reminder_time) : null
     formData.reminder_enabled = app.reminder_enabled || false
+    if (app.reminder_enabled) {
+      if (app.interview_time && app.interview_type === '笔试') {
+        formData.reminder_category = 'written'
+      } else if (app.interview_time) {
+        formData.reminder_category = 'interview'
+      } else {
+        formData.reminder_category = 'follow_up'
+      }
+    } else {
+      formData.reminder_category = 'interview'
+    }
     formData.follow_up_date = app.follow_up_date ? dayjs(app.follow_up_date) : null
   } else {
     resetForm()
@@ -344,10 +391,19 @@ const handleSubmit = async () => {
       salary_range: formData.salary_range || undefined,
       work_location: formData.work_location || undefined,
       notes: formData.notes || undefined,
-      interview_time: formData.interview_time?.format('YYYY-MM-DD HH:mm:ss') || undefined,
-      reminder_time: formData.reminder_time?.format('YYYY-MM-DD HH:mm:ss') || undefined,
+      interview_time: formData.reminder_category === 'interview'
+        ? toISOStringOrUndefined(formData.interview_time)
+        : toISOStringOrUndefined(formData.written_time),
+      reminder_time: toISOStringOrUndefined(formData.reminder_time),
       reminder_enabled: formData.reminder_enabled,
-      follow_up_date: formData.follow_up_date?.format('YYYY-MM-DD') || undefined
+      follow_up_date: formData.follow_up_date?.format('YYYY-MM-DD') || undefined,
+      hr_name: formData.hr_name || undefined,
+      hr_phone: formData.hr_phone || undefined,
+      hr_email: formData.hr_email || undefined,
+      interview_location: formData.interview_location || undefined,
+      interview_type: formData.reminder_category === 'written'
+        ? '笔试'
+        : formData.interview_type || undefined
     }
 
     if (isEdit.value && props.initialData) {

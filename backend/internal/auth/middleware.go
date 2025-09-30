@@ -113,6 +113,12 @@ func RateLimitMiddleware(requests int, window time.Duration) func(http.Handler) 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// 使用IP作为限流键
 			ip := getClientIP(r)
+
+			// 针对内部调用与健康检查放宽限制
+			if ip == "127.0.0.1" || ip == "::1" {
+				next.ServeHTTP(w, r)
+				return
+			}
 			now := time.Now()
 			
 			mu.Lock() // 加锁保护map操作

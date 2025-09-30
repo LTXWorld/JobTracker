@@ -13,6 +13,7 @@
         <a-radio-group v-model:value="filterType" button-style="solid">
           <a-radio-button value="all">全部</a-radio-button>
           <a-radio-button value="interview">面试提醒</a-radio-button>
+          <a-radio-button value="written">笔试提醒</a-radio-button>
           <a-radio-button value="follow_up">跟进提醒</a-radio-button>
           <a-radio-button value="today">今日待办</a-radio-button>
           <a-radio-button value="upcoming">即将到来</a-radio-button>
@@ -119,6 +120,7 @@
         <a-form-item label="提醒类型" required>
           <a-radio-group v-model:value="reminderForm.type">
             <a-radio value="interview">面试提醒</a-radio>
+            <a-radio value="written">笔试提醒</a-radio>
             <a-radio value="follow_up">跟进提醒</a-radio>
           </a-radio-group>
         </a-form-item>
@@ -132,6 +134,20 @@
             v-model:value="reminderForm.interview_time"
             show-time
             placeholder="选择面试时间"
+            style="width: 100%"
+            :format="'YYYY-MM-DD HH:mm'"
+          />
+        </a-form-item>
+
+        <a-form-item 
+          v-if="reminderForm.type === 'written'"
+          label="笔试时间" 
+          required
+        >
+          <a-date-picker
+            v-model:value="reminderForm.written_time"
+            show-time
+            placeholder="选择笔试时间"
             style="width: 100%"
             :format="'YYYY-MM-DD HH:mm'"
           />
@@ -173,7 +189,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { 
   BellOutlined, CalendarOutlined, ClockCircleOutlined,
   MessageOutlined
@@ -206,12 +222,22 @@ const filterType = ref('all')
 const showReminderModal = ref(false)
 const reminders = ref<any[]>([])
 const reminderForm = ref({
-  type: 'interview' as 'interview' | 'follow_up',
+  type: 'interview' as 'interview' | 'written' | 'follow_up',
   interview_time: null as any,
+  written_time: null as any,
   reminder_time: null as any,
   notification_methods: ['browser', 'sound'],
   message: '',
   repeat: true
+})
+
+watch(() => reminderForm.value.type, (type) => {
+  if (type === 'interview') {
+    reminderForm.value.written_time = null
+  }
+  if (type === 'written') {
+    reminderForm.value.interview_time = null
+  }
 })
 
 // 定时器
@@ -233,6 +259,9 @@ const filteredReminders = computed(() => {
     case 'follow_up':
       result = result.filter(r => r.type === 'follow_up')
       break
+    case 'written':
+      result = result.filter(r => r.type === 'written')
+      break
     case 'today':
       result = result.filter(r => 
         dayjs(r.reminder_time).isSame(dayjs(), 'day')
@@ -246,7 +275,6 @@ const filteredReminders = computed(() => {
       break
   }
 
-  // 按时间排序
   return result.sort((a, b) => 
     dayjs(a.reminder_time).valueOf() - dayjs(b.reminder_time).valueOf()
   )
@@ -292,12 +320,16 @@ const getUrgencyColor = (reminderTime: string) => {
 
 // 获取提醒类型文本
 const getReminderTypeText = (type: string) => {
-  return type === 'interview' ? '面试提醒' : '跟进提醒'
+  if (type === 'interview') return '面试提醒'
+  if (type === 'written') return '笔试提醒'
+  return '跟进提醒'
 }
 
 // 获取提醒颜色
 const getReminderColor = (reminder: any) => {
-  return reminder.type === 'interview' ? 'blue' : 'green'
+  if (reminder.type === 'interview') return 'blue'
+  if (reminder.type === 'written') return 'purple'
+  return 'green'
 }
 
 // 查看申请详情
@@ -330,14 +362,29 @@ const saveReminder = async () => {
     message.error('请选择面试时间')
     return
   }
+  if (reminderForm.value.type === 'written' && !reminderForm.value.written_time) {
+    message.error('请选择笔试时间')
+    return
+  }
 
   try {
     // 更新应用数据
     if (props.application) {
+      const baseTime = reminderForm.value.type === 'written'
+        ? reminderForm.value.written_time
+        : reminderForm.value.interview_time
+      const interviewTypePayload = reminderForm.value.type === 'written'
+        ? '笔试'
+        : reminderForm.value.type === 'interview'
+          ? props.application?.interview_type || undefined
+          : undefined
       await jobStore.updateApplication(props.application.id, {
-        interview_time: reminderForm.value.interview_time?.format('YYYY-MM-DD HH:mm:ss'),
-        reminder_time: reminderForm.value.reminder_time?.format('YYYY-MM-DD HH:mm:ss'),
-        reminder_enabled: true
+        interview_time: baseTime ? baseTime.toDate().toISOString() : undefined,
+        reminder_time: reminderForm.value.reminder_time
+          ? reminderForm.value.reminder_time.toDate().toISOString()
+          : undefined,
+        reminder_enabled: true,
+        interview_type: interviewTypePayload
       })
     }
 
@@ -367,6 +414,7 @@ const resetReminderForm = () => {
   reminderForm.value = {
     type: 'interview',
     interview_time: null,
+    written_time: null,
     reminder_time: null,
     notification_methods: ['browser', 'sound'],
     message: '',
@@ -436,10 +484,13 @@ const loadReminders = async () => {
     // 使用 store 中的 applications
     jobStore.applications.forEach((app: JobApplication) => {
       if (app.reminder_enabled && app.reminder_time) {
+        const reminderType = app.interview_type === '笔试'
+          ? 'written'
+          : (app.interview_time ? 'interview' : 'follow_up')
         generatedReminders.push({
           id: app.id,
           application_id: app.id,
-          type: app.interview_time ? 'interview' : 'follow_up',
+          type: reminderType,
           reminder_time: app.reminder_time,
           interview_time: app.interview_time || '',
           is_sent: false,
@@ -462,11 +513,20 @@ const loadReminders = async () => {
 const openReminderModal = (application?: JobApplication) => {
   if (application) {
     // 预填充数据
-    if (application.interview_time) {
+    if (application.interview_time && application.interview_type !== '笔试') {
       reminderForm.value.interview_time = dayjs(application.interview_time)
+      reminderForm.value.written_time = null
+      reminderForm.value.type = 'interview'
+    } else if (application.interview_time && application.interview_type === '笔试') {
+      reminderForm.value.written_time = dayjs(application.interview_time)
+      reminderForm.value.interview_time = null
+      reminderForm.value.type = 'written'
     }
     if (application.reminder_time) {
       reminderForm.value.reminder_time = dayjs(application.reminder_time)
+    }
+    if (!application.interview_time && application.follow_up_date) {
+      reminderForm.value.type = 'follow_up'
     }
   }
   showReminderModal.value = true

@@ -169,19 +169,25 @@ const toggleExpanded = () => {
 }
 
 // 播放/暂停
-const togglePlay = () => {
+const togglePlay = async () => {
   if (!audioRef.value) return
 
   if (isPlaying.value) {
     audioRef.value.pause()
     isPlaying.value = false
-  } else {
-    audioRef.value.play().catch((error) => {
-      console.error('音频播放失败:', error)
-      hasError.value = true
-      errorMessage.value = '音频文件加载失败，请检查文件是否存在'
-      isPlaying.value = false
-    })
+    return
+  }
+
+  try {
+    await audioRef.value.play()
+    isPlaying.value = true
+    hasError.value = false
+    errorMessage.value = ''
+  } catch (error) {
+    console.error('音频播放失败:', error)
+    hasError.value = true
+    errorMessage.value = '音频文件加载失败，请检查文件是否存在'
+    isPlaying.value = false
   }
 }
 
@@ -205,9 +211,16 @@ const loadCurrentSong = () => {
   audioRef.value.load()
 
   if (isPlaying.value) {
-    audioRef.value.play().catch(() => {
-      isPlaying.value = false
-    })
+    audioRef.value
+      .play()
+      .then(() => {
+        hasError.value = false
+        errorMessage.value = ''
+      })
+      .catch((error) => {
+        console.error('音频播放失败:', error)
+        isPlaying.value = false
+      })
   }
 }
 

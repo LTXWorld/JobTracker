@@ -1,13 +1,13 @@
 package database
 
 import (
-    "fmt"
-    "log"
+	"fmt"
+	"log"
 )
 
 // RunMigrations 运行数据库迁移
 func (db *DB) RunMigrations() error {
-    log.Println("Running database migrations...")
+	log.Println("Running database migrations...")
 
 	// 首先创建用户表
 	createUsersTable := `
@@ -30,7 +30,7 @@ func (db *DB) RunMigrations() error {
 	if err != nil {
 		return fmt.Errorf("failed to check job_applications table: %w", err)
 	}
-	
+
 	if !hasTable {
 		// 表不存在，创建完整的表
 		createJobApplicationsTable := `
@@ -49,6 +49,7 @@ func (db *DB) RunMigrations() error {
 				interview_time TIMESTAMP WITH TIME ZONE,
 				reminder_time TIMESTAMP WITH TIME ZONE,
 				reminder_enabled BOOLEAN DEFAULT FALSE,
+				reminder_category VARCHAR(32),
 				follow_up_date VARCHAR(10),
 				hr_name VARCHAR(255),
 				hr_phone VARCHAR(255),
@@ -70,19 +71,20 @@ func (db *DB) RunMigrations() error {
 		if err != nil {
 			return fmt.Errorf("failed to check user_id column: %w", err)
 		}
-		
+
 		if !hasUserIDColumn {
 			// 添加user_id列
 			if _, err := db.Exec("ALTER TABLE job_applications ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;"); err != nil {
 				return fmt.Errorf("failed to add user_id column: %w", err)
 			}
 		}
-		
+
 		// 添加其他可能缺失的字段
 		alterTableSQL := []string{
 			"ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS interview_time TIMESTAMP WITH TIME ZONE;",
 			"ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS reminder_time TIMESTAMP WITH TIME ZONE;",
 			"ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS reminder_enabled BOOLEAN DEFAULT FALSE;",
+			"ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS reminder_category VARCHAR(32);",
 			"ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS follow_up_date VARCHAR(10);",
 			"ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS hr_name VARCHAR(255);",
 			"ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS hr_phone VARCHAR(255);",
@@ -145,8 +147,6 @@ END $$;`)
 		}
 	}
 
-
-
 	// 兼容旧版数据库：如果使用了 PostgreSQL enum 类型 application_status，
 	// 确保枚举包含所有最新状态值，避免更新到新状态时报错 500（invalid input value for enum）。
 	if err := db.ensureApplicationStatusEnumValues(); err != nil {
@@ -170,26 +170,26 @@ END $$;`)
 		return fmt.Errorf("failed to create resume tables: %w", err)
 	}
 
-    // 确保状态流转校验函数存在且支持应用层放行回退（基于GUC）
-    if err := db.ensureStatusTransitionFunctions(); err != nil {
-        log.Printf("Warning: failed to ensure status transition functions: %v", err)
-    }
+	// 确保状态流转校验函数存在且支持应用层放行回退（基于GUC）
+	if err := db.ensureStatusTransitionFunctions(); err != nil {
+		log.Printf("Warning: failed to ensure status transition functions: %v", err)
+	}
 
-    // 确保状态跟踪相关表、列、触发器存在（幂等）
-    if err := db.ensureStatusTrackingInfrastructure(); err != nil {
-        return fmt.Errorf("failed to ensure status tracking infrastructure: %w", err)
-    }
+	// 确保状态跟踪相关表、列、触发器存在（幂等）
+	if err := db.ensureStatusTrackingInfrastructure(); err != nil {
+		return fmt.Errorf("failed to ensure status tracking infrastructure: %w", err)
+	}
 
-    log.Println("Database migrations completed successfully")
-    return nil
+	log.Println("Database migrations completed successfully")
+	return nil
 }
 
 // ensureApplicationStatusEnumValues 在数据库存在 application_status 枚举时，
 // 将缺失的状态值补齐（幂等）。
 func (db *DB) ensureApplicationStatusEnumValues() error {
-    // 检查是否存在名为 application_status 的枚举类型
-    var exists bool
-    checkEnumSQL := `
+	// 检查是否存在名为 application_status 的枚举类型
+	var exists bool
+	checkEnumSQL := `
         SELECT EXISTS (
             SELECT 1
             FROM pg_type t
@@ -197,27 +197,27 @@ func (db *DB) ensureApplicationStatusEnumValues() error {
               AND t.typtype = 'e' -- enum type
         )
     `
-    if err := db.QueryRow(checkEnumSQL).Scan(&exists); err != nil {
-        return err
-    }
-    if !exists {
-        // 当前数据库不是使用 enum（例如使用 VARCHAR），无需处理
-        return nil
-    }
+	if err := db.QueryRow(checkEnumSQL).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		// 当前数据库不是使用 enum（例如使用 VARCHAR），无需处理
+		return nil
+	}
 
-    // 需要补齐的新增状态（与后端枚举保持一致）
-    values := []string{
-        "简历筛选未通过",
-        "笔试未通过",
-        "一面未通过",
-        "二面未通过",
-        "三面未通过",
-        "HR面未通过",
-    }
+	// 需要补齐的新增状态（与后端枚举保持一致）
+	values := []string{
+		"简历筛选未通过",
+		"笔试未通过",
+		"一面未通过",
+		"二面未通过",
+		"三面未通过",
+		"HR面未通过",
+	}
 
-    // 使用 DO $$ ... $$ + 条件判断，兼容低版本 PG（没有 ADD VALUE IF NOT EXISTS）
-    for _, v := range values {
-        stmt := fmt.Sprintf(`
+	// 使用 DO $$ ... $$ + 条件判断，兼容低版本 PG（没有 ADD VALUE IF NOT EXISTS）
+	for _, v := range values {
+		stmt := fmt.Sprintf(`
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -229,28 +229,28 @@ BEGIN
     END IF;
 END $$;`, v, v)
 
-        if _, err := db.Exec(stmt); err != nil {
-            // 记录警告但不中断，以免影响应用启动
-            log.Printf("Warning: failed adding enum value '%s' to application_status: %v", v, err)
-        }
-    }
-    return nil
+		if _, err := db.Exec(stmt); err != nil {
+			// 记录警告但不中断，以免影响应用启动
+			log.Printf("Warning: failed adding enum value '%s' to application_status: %v", v, err)
+		}
+	}
+	return nil
 }
 
 // ensureStatusTransitionFunctions 确保存在 validate_status_transition 函数，
 // 并内置基于会话GUC变量 jobview.allow_backward 的回退放行能力。
 func (db *DB) ensureStatusTransitionFunctions() error {
-    // 检查 job_applications 是否存在
-    hasJA, err := db.checkTableExists("job_applications")
-    if err != nil {
-        return err
-    }
-    if !hasJA {
-        return nil
-    }
+	// 检查 job_applications 是否存在
+	hasJA, err := db.checkTableExists("job_applications")
+	if err != nil {
+		return err
+	}
+	if !hasJA {
+		return nil
+	}
 
-    // 使用 VARCHAR 版本的函数定义，兼容未创建 enum 的环境
-    stmt := `
+	// 使用 VARCHAR 版本的函数定义，兼容未创建 enum 的环境
+	stmt := `
 CREATE OR REPLACE FUNCTION validate_status_transition(
     p_user_id INTEGER,
     p_old_status VARCHAR,
@@ -326,16 +326,16 @@ END;
 $$ LANGUAGE plpgsql;
 `
 
-    if _, err := db.Exec(stmt); err != nil {
-        return err
-    }
+	if _, err := db.Exec(stmt); err != nil {
+		return err
+	}
 
-    // 如果存在 application_status 枚举类型，则再创建一个重载版本以匹配触发器定义
-    var hasEnum bool
-    if err := db.QueryRow(`SELECT EXISTS (
+	// 如果存在 application_status 枚举类型，则再创建一个重载版本以匹配触发器定义
+	var hasEnum bool
+	if err := db.QueryRow(`SELECT EXISTS (
         SELECT 1 FROM pg_type t WHERE t.typname = 'application_status' AND t.typtype = 'e'
     )`).Scan(&hasEnum); err == nil && hasEnum {
-        stmtEnum := `
+		stmtEnum := `
 CREATE OR REPLACE FUNCTION validate_status_transition(
     p_user_id INTEGER,
     p_old_status application_status,
@@ -399,14 +399,14 @@ BEGIN
     RETURN FALSE;
 END;
 $$ LANGUAGE plpgsql;`
-        if _, err := db.Exec(stmtEnum); err != nil {
-            // 不阻断启动
-            log.Printf("Warning: failed to create enum overload for validate_status_transition: %v", err)
-        }
-    }
+		if _, err := db.Exec(stmtEnum); err != nil {
+			// 不阻断启动
+			log.Printf("Warning: failed to create enum overload for validate_status_transition: %v", err)
+		}
+	}
 
-    // 覆盖触发器函数：支持基于 GUC 跳过写历史（jobview.skip_history='on'）
-    triggerFn := `
+	// 覆盖触发器函数：支持基于 GUC 跳过写历史（jobview.skip_history='on'）
+	triggerFn := `
 CREATE OR REPLACE FUNCTION trigger_job_status_change() 
 RETURNS TRIGGER AS $$
 DECLARE
@@ -485,16 +485,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;`
 
-    if _, err := db.Exec(triggerFn); err != nil {
-        log.Printf("Warning: failed to ensure trigger_job_status_change(): %v", err)
-    }
-    return nil
+	if _, err := db.Exec(triggerFn); err != nil {
+		log.Printf("Warning: failed to ensure trigger_job_status_change(): %v", err)
+	}
+	return nil
 }
 
 // ensureStatusTrackingInfrastructure 创建/补齐状态历史相关的表、列与触发器（幂等）
 func (db *DB) ensureStatusTrackingInfrastructure() error {
-    // 1) job_status_history 表
-    createHistory := `
+	// 1) job_status_history 表
+	createHistory := `
         CREATE TABLE IF NOT EXISTS job_status_history (
             id BIGSERIAL PRIMARY KEY,
             job_application_id INTEGER NOT NULL REFERENCES job_applications(id) ON DELETE CASCADE,
@@ -509,32 +509,32 @@ func (db *DB) ensureStatusTrackingInfrastructure() error {
             CONSTRAINT chk_duration_positive CHECK (duration_minutes IS NULL OR duration_minutes >= 0),
             CONSTRAINT chk_metadata_is_object CHECK (jsonb_typeof(metadata) = 'object')
         );`
-    if _, err := db.Exec(createHistory); err != nil {
-        return fmt.Errorf("create job_status_history: %w", err)
-    }
-    // 索引
-    if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_job_status_hist_app ON job_status_history(job_application_id)"); err != nil {
-        log.Printf("Warning: create index idx_job_status_hist_app failed: %v", err)
-    }
-    if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_job_status_hist_user ON job_status_history(user_id)"); err != nil {
-        log.Printf("Warning: create index idx_job_status_hist_user failed: %v", err)
-    }
+	if _, err := db.Exec(createHistory); err != nil {
+		return fmt.Errorf("create job_status_history: %w", err)
+	}
+	// 索引
+	if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_job_status_hist_app ON job_status_history(job_application_id)"); err != nil {
+		log.Printf("Warning: create index idx_job_status_hist_app failed: %v", err)
+	}
+	if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_job_status_hist_user ON job_status_history(user_id)"); err != nil {
+		log.Printf("Warning: create index idx_job_status_hist_user failed: %v", err)
+	}
 
-    // 2) 扩展 job_applications 列
-    addCols := []string{
-        "ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS status_history JSONB DEFAULT '{\"history\": [], \"summary\": {}}'",
-        "ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS last_status_change TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
-        "ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS status_duration_stats JSONB DEFAULT '{}'",
-        "ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS status_version INTEGER DEFAULT 1",
-    }
-    for _, stmt := range addCols {
-        if _, err := db.Exec(stmt); err != nil {
-            log.Printf("Warning: failed to add status tracking column: %v", err)
-        }
-    }
+	// 2) 扩展 job_applications 列
+	addCols := []string{
+		"ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS status_history JSONB DEFAULT '{\"history\": [], \"summary\": {}}'",
+		"ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS last_status_change TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
+		"ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS status_duration_stats JSONB DEFAULT '{}'",
+		"ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS status_version INTEGER DEFAULT 1",
+	}
+	for _, stmt := range addCols {
+		if _, err := db.Exec(stmt); err != nil {
+			log.Printf("Warning: failed to add status tracking column: %v", err)
+		}
+	}
 
-    // 3) 状态流转模板表（被 validate_status_transition 使用）
-    createTemplate := `
+	// 3) 状态流转模板表（被 validate_status_transition 使用）
+	createTemplate := `
         CREATE TABLE IF NOT EXISTS status_flow_templates (
             id SERIAL PRIMARY KEY,
             name VARCHAR(100) NOT NULL,
@@ -548,12 +548,12 @@ func (db *DB) ensureStatusTrackingInfrastructure() error {
             CONSTRAINT uk_status_flow_name UNIQUE(name),
             CONSTRAINT chk_flow_config_is_object CHECK (jsonb_typeof(flow_config) = 'object')
         );`
-    if _, err := db.Exec(createTemplate); err != nil {
-        return fmt.Errorf("create status_flow_templates: %w", err)
-    }
+	if _, err := db.Exec(createTemplate); err != nil {
+		return fmt.Errorf("create status_flow_templates: %w", err)
+	}
 
-    // 默认模板（若不存在）——种子包含基础可用的流转规则，避免前端无法拖拽
-    seedDefault := `
+	// 默认模板（若不存在）——种子包含基础可用的流转规则，避免前端无法拖拽
+	seedDefault := `
         INSERT INTO status_flow_templates (name, description, flow_config, is_default, is_active)
         SELECT
             'default_flow',
@@ -568,12 +568,12 @@ func (db *DB) ensureStatusTrackingInfrastructure() error {
             true,
             true
         WHERE NOT EXISTS (SELECT 1 FROM status_flow_templates WHERE is_default = true);`
-    if _, err := db.Exec(seedDefault); err != nil {
-        log.Printf("Warning: seed default flow template failed: %v", err)
-    }
+	if _, err := db.Exec(seedDefault); err != nil {
+		log.Printf("Warning: seed default flow template failed: %v", err)
+	}
 
-    // 4) 用户偏好表（非强依赖）
-    if _, err := db.Exec(`
+	// 4) 用户偏好表（非强依赖）
+	if _, err := db.Exec(`
         CREATE TABLE IF NOT EXISTS user_status_preferences (
             id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL,
@@ -581,11 +581,11 @@ func (db *DB) ensureStatusTrackingInfrastructure() error {
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );`); err != nil {
-        log.Printf("Warning: create user_status_preferences failed: %v", err)
-    }
+		log.Printf("Warning: create user_status_preferences failed: %v", err)
+	}
 
-    // 5) 确保触发器存在（依赖 trigger_job_status_change() 已创建）
-    if _, err := db.Exec(`
+	// 5) 确保触发器存在（依赖 trigger_job_status_change() 已创建）
+	if _, err := db.Exec(`
         DO $$
         BEGIN
             IF NOT EXISTS (
@@ -598,9 +598,9 @@ func (db *DB) ensureStatusTrackingInfrastructure() error {
                 EXECUTE FUNCTION trigger_job_status_change();
             END IF;
         END $$;`); err != nil {
-        log.Printf("Warning: ensure trigger tr_job_applications_status_change failed: %v", err)
-    }
-    return nil
+		log.Printf("Warning: ensure trigger tr_job_applications_status_change failed: %v", err)
+	}
+	return nil
 }
 
 // checkTableExists 检查表是否存在
@@ -610,13 +610,13 @@ func (db *DB) checkTableExists(tableName string) (bool, error) {
 		FROM information_schema.tables 
 		WHERE table_name = $1
 	`
-	
+
 	var count int
 	err := db.QueryRow(query, tableName).Scan(&count)
 	if err != nil {
 		return false, err
 	}
-	
+
 	return count > 0, nil
 }
 
@@ -627,13 +627,13 @@ func (db *DB) checkColumnExists(tableName, columnName string) (bool, error) {
 		FROM information_schema.columns 
 		WHERE table_name = $1 AND column_name = $2
 	`
-	
+
 	var count int
 	err := db.QueryRow(query, tableName, columnName).Scan(&count)
 	if err != nil {
 		return false, err
 	}
-	
+
 	return count > 0, nil
 }
 
@@ -645,25 +645,25 @@ func (db *DB) createDefaultUserIfNeeded() error {
 	if err != nil {
 		return err
 	}
-	
+
 	// 如果没有用户，创建一个默认的测试用户
 	if userCount == 0 {
 		// 使用bcrypt加密默认密码
 		hashedPassword := "$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewqCQx.Lk5FYR7.G" // 密码: TestPass123!
-		
+
 		query := `
 			INSERT INTO users (username, email, password, created_at, updated_at)
 			VALUES ($1, $2, $3, NOW(), NOW())
 		`
-		
+
 		_, err = db.Exec(query, "testuser", "test@example.com", hashedPassword)
 		if err != nil {
 			return err
 		}
-		
+
 		log.Println("Created default test user: username=testuser, password=TestPass123!")
 	}
-	
+
 	return nil
 }
 
@@ -674,7 +674,7 @@ func (db *DB) createExportTasksTable() error {
 	if err != nil {
 		return fmt.Errorf("failed to check export_tasks table: %w", err)
 	}
-	
+
 	if hasTable {
 		return nil // 表已存在，跳过创建
 	}
@@ -739,11 +739,13 @@ func (db *DB) createExportTasksTable() error {
 
 // createResumeTables 创建简历相关表
 func (db *DB) createResumeTables() error {
-    // resumes
-    hasResumes, err := db.checkTableExists("resumes")
-    if err != nil { return fmt.Errorf("failed to check resumes table: %w", err) }
-    if !hasResumes {
-        create := `
+	// resumes
+	hasResumes, err := db.checkTableExists("resumes")
+	if err != nil {
+		return fmt.Errorf("failed to check resumes table: %w", err)
+	}
+	if !hasResumes {
+		create := `
             CREATE TABLE resumes (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -757,17 +759,19 @@ func (db *DB) createResumeTables() error {
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             );
         `
-        if _, err := db.Exec(create); err != nil {
-            return fmt.Errorf("failed to create resumes table: %w", err)
-        }
-        log.Println("Created table resumes")
-    }
+		if _, err := db.Exec(create); err != nil {
+			return fmt.Errorf("failed to create resumes table: %w", err)
+		}
+		log.Println("Created table resumes")
+	}
 
-    // resume_sections
-    hasSections, err := db.checkTableExists("resume_sections")
-    if err != nil { return fmt.Errorf("failed to check resume_sections table: %w", err) }
-    if !hasSections {
-        create := `
+	// resume_sections
+	hasSections, err := db.checkTableExists("resume_sections")
+	if err != nil {
+		return fmt.Errorf("failed to check resume_sections table: %w", err)
+	}
+	if !hasSections {
+		create := `
             CREATE TABLE resume_sections (
                 id SERIAL PRIMARY KEY,
                 resume_id INTEGER NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
@@ -778,17 +782,19 @@ func (db *DB) createResumeTables() error {
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             );
         `
-        if _, err := db.Exec(create); err != nil {
-            return fmt.Errorf("failed to create resume_sections table: %w", err)
-        }
-        log.Println("Created table resume_sections")
-    }
+		if _, err := db.Exec(create); err != nil {
+			return fmt.Errorf("failed to create resume_sections table: %w", err)
+		}
+		log.Println("Created table resume_sections")
+	}
 
-    // resume_attachments
-    hasAtt, err := db.checkTableExists("resume_attachments")
-    if err != nil { return fmt.Errorf("failed to check resume_attachments table: %w", err) }
-    if !hasAtt {
-        create := `
+	// resume_attachments
+	hasAtt, err := db.checkTableExists("resume_attachments")
+	if err != nil {
+		return fmt.Errorf("failed to check resume_attachments table: %w", err)
+	}
+	if !hasAtt {
+		create := `
             CREATE TABLE resume_attachments (
                 id SERIAL PRIMARY KEY,
                 resume_id INTEGER NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
@@ -800,21 +806,21 @@ func (db *DB) createResumeTables() error {
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             );
         `
-        if _, err := db.Exec(create); err != nil {
-            return fmt.Errorf("failed to create resume_attachments table: %w", err)
-        }
-        log.Println("Created table resume_attachments")
-    }
+		if _, err := db.Exec(create); err != nil {
+			return fmt.Errorf("failed to create resume_attachments table: %w", err)
+		}
+		log.Println("Created table resume_attachments")
+	}
 
-    // indexes
-    idx := []string{
-        "CREATE INDEX IF NOT EXISTS idx_resumes_user_id ON resumes(user_id)",
-        "CREATE INDEX IF NOT EXISTS idx_sections_resume_type ON resume_sections(resume_id, type)",
-    }
-    for _, s := range idx {
-        if _, err := db.Exec(s); err != nil {
-            log.Printf("Warning: failed to create resume index: %v", err)
-        }
-    }
-    return nil
+	// indexes
+	idx := []string{
+		"CREATE INDEX IF NOT EXISTS idx_resumes_user_id ON resumes(user_id)",
+		"CREATE INDEX IF NOT EXISTS idx_sections_resume_type ON resume_sections(resume_id, type)",
+	}
+	for _, s := range idx {
+		if _, err := db.Exec(s); err != nil {
+			log.Printf("Warning: failed to create resume index: %v", err)
+		}
+	}
+	return nil
 }

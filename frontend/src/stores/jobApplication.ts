@@ -35,7 +35,22 @@ export const useJobApplicationStore = defineStore('jobApplication', () => {
     loading.value = true
     try {
       const data = await JobApplicationAPI.getAll()
-      applications.value = Array.isArray(data) ? data : []
+      if (Array.isArray(data)) {
+        applications.value = data.map(app => {
+          if (app.reminder_enabled) {
+            if (!app.interview_time && app.interview_type === '笔试') {
+              ;(app as any).reminder_category = 'written'
+            } else if (!app.interview_time) {
+              ;(app as any).reminder_category = 'follow_up'
+            } else {
+              ;(app as any).reminder_category = 'interview'
+            }
+          }
+          return app
+        })
+      } else {
+        applications.value = []
+      }
     } catch (error) {
       console.error('获取应用数据失败:', error)
       // 确保即使出错也有一个空数组
@@ -69,6 +84,16 @@ export const useJobApplicationStore = defineStore('jobApplication', () => {
       if (!Array.isArray(applications.value)) {
         applications.value = []
       }
+      // 如果是笔试提醒，确保前端有正确的类别信息
+      if (newApp.reminder_enabled) {
+        if (!newApp.interview_time && newApp.interview_type === '笔试') {
+          ;(newApp as any).reminder_category = 'written'
+        } else if (!newApp.interview_time) {
+          ;(newApp as any).reminder_category = 'follow_up'
+        } else {
+          ;(newApp as any).reminder_category = 'interview'
+        }
+      }
       applications.value.unshift(newApp) // 添加到列表开头
       message.success('创建成功')
       return newApp
@@ -85,6 +110,15 @@ export const useJobApplicationStore = defineStore('jobApplication', () => {
     loading.value = true
     try {
       const updatedApp = await JobApplicationAPI.update(id, data)
+      if (updatedApp.reminder_enabled) {
+        if (!updatedApp.interview_time && updatedApp.interview_type === '笔试') {
+          ;(updatedApp as any).reminder_category = 'written'
+        } else if (!updatedApp.interview_time) {
+          ;(updatedApp as any).reminder_category = 'follow_up'
+        } else {
+          ;(updatedApp as any).reminder_category = 'interview'
+        }
+      }
       const index = applications.value.findIndex(app => app.id === id)
       if (index !== -1) {
         applications.value[index] = updatedApp

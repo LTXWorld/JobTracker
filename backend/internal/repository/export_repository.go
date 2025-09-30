@@ -331,6 +331,7 @@ func (r *exportRepository) FetchExportData(ctx context.Context, userID uint, fil
 	var list []model.JobApplication
 	for rows.Next() {
 		var app model.JobApplication
+		var reminderCategory sql.NullString
 		if err := rows.Scan(
 			&app.ID,
 			&app.UserID,
@@ -346,6 +347,7 @@ func (r *exportRepository) FetchExportData(ctx context.Context, userID uint, fil
 			&app.InterviewTime,
 			&app.ReminderTime,
 			&app.ReminderEnabled,
+			&reminderCategory,
 			&app.FollowUpDate,
 			&app.HRName,
 			&app.HRPhone,
@@ -357,6 +359,10 @@ func (r *exportRepository) FetchExportData(ctx context.Context, userID uint, fil
 			&app.UpdatedAt,
 		); err != nil {
 			return nil, err
+		}
+		if reminderCategory.Valid {
+			rc := reminderCategory.String
+			app.ReminderCategory = &rc
 		}
 		list = append(list, app)
 	}
@@ -451,7 +457,7 @@ func buildExportDataQuery(userID uint, filters *model.ExportFilters, offset, lim
 	query := `
         SELECT id, user_id, company_name, position_title, application_date, status,
                job_description, salary_range, work_location, contact_info, notes,
-               interview_time, reminder_time, reminder_enabled, follow_up_date,
+               interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
                hr_name, hr_phone, hr_email, interview_location, interview_type,
                company_attribute,
                created_at, updated_at
