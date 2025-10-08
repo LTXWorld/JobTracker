@@ -1,124 +1,109 @@
-# 工作流名称
-name: Deploy JobView Project
+name: Deploy Production
 
-# 触发条件：当有代码推送到 main 分支时触发
 on:
   push:
     branches: [ main ]
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - '.github/workflows/deploy.yml'
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 concurrency:
-  group: deploy-${{ github.ref }}
-  cancel-in-progress: true
+  group: deploy-production
+  cancel-in-progress: false
 
-# 任务
 jobs:
-  build-and-deploy:
-    # 运行环境：使用最新的 Ubuntu 系统
+  deploy:
     runs-on: ubuntu-latest
-
-    # 步骤
+    env:
+      # 默认路径（如未在 Secrets 中提供自定义路径则使用这些）
+      APP_DIR: /root/JobTracker
+      WEB_ROOT: /www/wwwroot/jobview.bfsmlt.top
+      REPO: ${{ github.repository }}
     steps:
-      # 第一步：检出代码
-      - name: Checkout repository
+      - name: Checkout (for metadata only)
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      # 第二步：设置 Go 环境
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          # 以 go.mod 为准，避免版本不匹配
-          go-version-file: backend/go.mod
-          cache: true
-          cache-dependency-path: backend/go.sum
-
-      # 第三步：设置 Node.js 环境
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      # 第四步：编译后端
-      - name: Build Backend
-        working-directory: backend
+      - name: Show commit
         run: |
-          go mod download
-          # 交叉编译 Linux amd64，便于部署到大多数服务器
-          GOOS=linux GOARCH=amd64 go build -o jobview-backend ./cmd
+          echo "Deploying $GITHUB_SHA on $GITHUB_REF"
 
-      # 第五步：打包前端
-      - name: Build Frontend
-        working-directory: frontend
-        run: |
-          npm ci
-          npm run build
-
-      
-      # 在部署后端文件之前，先停止服务，避免 "Text file busy" 错误
-      - name: Stop Backend Service
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          APP_DIR: ${{ env.APP_DIR }}
+          WEB_ROOT: ${{ env.WEB_ROOT }}
+          REPO: ${{ env.REPO }}
+          GIT_READ_TOKEN: ${{ secrets.GIT_READ_TOKEN }}
+          # 可选：在仓库 Secrets 中设置 REMOTE_PATH_BACKEND / REMOTE_PATH_FRONTEND 覆盖默认路径
+          REMOTE_PATH_BACKEND: ${{ secrets.REMOTE_PATH_BACKEND }}
+          REMOTE_PATH_FRONTEND: ${{ secrets.REMOTE_PATH_FRONTEND }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_SSH_PORT }}
+          envs: APP_DIR,WEB_ROOT,REPO,GIT_READ_TOKEN,REMOTE_PATH_BACKEND,REMOTE_PATH_FRONTEND
           script: |
-            sudo systemctl stop jobview-backend    
+            set -euo pipefail
+            echo "==> Starting deploy to $APP_DIR"
 
-      # 第六步：部署后端二进制文件
-      - name: Deploy Backend
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "backend/jobview-backend"
-          target: "${{ secrets.REMOTE_PATH_BACKEND }}"
-          strip_components: 1
-          overwrite: true
+            # 覆盖默认路径（如 Secrets 提供了自定义路径）
+            if [ -n "${REMOTE_PATH_BACKEND:-}" ]; then
+              APP_DIR="$REMOTE_PATH_BACKEND"
+              echo "==> Using APP_DIR from REMOTE_PATH_BACKEND: $APP_DIR"
+            fi
+            if [ -n "${REMOTE_PATH_FRONTEND:-}" ]; then
+              WEB_ROOT="$REMOTE_PATH_FRONTEND"
+              echo "==> Using WEB_ROOT from REMOTE_PATH_FRONTEND: $WEB_ROOT"
+            fi
 
-      # 第七步：部署前端静态文件
-      - name: Deploy Frontend
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "frontend/dist/**"
-          target: "${{ secrets.REMOTE_PATH_FRONTEND }}"
-          strip_components: 2 # 去掉 frontend/dist 两层目录
-          overwrite: true
+            # Ensure repo exists; clone if missing (supports private repo via token)
+            if [ ! -d "$APP_DIR/.git" ]; then
+              echo "==> Repo not found, cloning..."
+              mkdir -p "$(dirname "$APP_DIR")"
+              if [ -n "${GIT_READ_TOKEN:-}" ]; then
+                git clone "https://${GIT_READ_TOKEN}@github.com/${REPO}.git" "$APP_DIR"
+              else
+                git clone "https://github.com/${REPO}.git" "$APP_DIR"
+              fi
+            fi
 
-      # 可选：部署前清理远端前端目录（避免旧文件残留）
-      # - name: Clean remote frontend dir
-      #   uses: appleboy/ssh-action@v1.0.3
-      #   with:
-      #     host: ${{ secrets.SERVER_HOST }}
-      #     username: ${{ secrets.SERVER_USER }}
-      #     key: ${{ secrets.SERVER_SSH_KEY }}
-      #     script: |
-      #       mkdir -p "${{ secrets.REMOTE_PATH_FRONTEND }}"
-      #       rm -rf "${{ secrets.REMOTE_PATH_FRONTEND }}"/*
+            # Fetch latest code
+            git config --global --add safe.directory "$APP_DIR"
+            cd "$APP_DIR"
+            git fetch --all --prune
+            if git show-ref --verify --quiet refs/heads/main; then
+              git checkout -f main
+            else
+              git checkout -f -B main origin/main
+            fi
+            git reset --hard origin/main
 
-      # 第八步：重启服务器上的后端服务
-      - name: Restart Backend Service
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          script: |
-            sudo systemctl daemon-reload || true
-            sudo systemctl restart jobview-backend
-            sleep 2
-            sudo systemctl status jobview-backend --no-pager -l || true
+            # Ensure env and dirs
+            mkdir -p "$APP_DIR/logs/backend" "$APP_DIR/backend/uploads" "$WEB_ROOT"
+
+            echo "==> Rebuild and restart backend stack (docker-compose.baota.yml)"
+            if command -v docker-compose >/dev/null 2>&1; then
+              docker-compose -f docker-compose.baota.yml up -d --build
+            else
+              echo "docker-compose not found on server; please install or symlink" >&2
+              exit 1
+            fi
+
+            echo "==> Build frontend with dockerized Node"
+            cd "$APP_DIR/frontend"
+            docker run --rm -v "$PWD":/app -w /app node:20-alpine sh -lc 'npm ci && ./node_modules/.bin/vite build'
+
+            echo "==> Publish frontend to Baota web root"
+            rsync -a --delete --exclude='.user.ini' "$APP_DIR/frontend/dist/" "$WEB_ROOT/"
+
+            echo "==> Reload Nginx"
+            if command -v bt >/dev/null 2>&1; then
+              bt nginx || true
+            elif command -v systemctl >/dev/null 2>&1; then
+              nginx -t && systemctl reload nginx || true
+            else
+              nginx -t && nginx -s reload || true
+            fi
+
+            echo "==> Health checks"
+            curl -fsS http://127.0.0.1:8010/health | sed -n '1,120p'
+            curl -I --max-time 10 https://jobview.bfsmlt.top 2>/dev/null | sed -n '1,10p'
