@@ -27,8 +27,9 @@ function detectEnvironment() {
   return 'production';
 }
 
-// 获取当前环境配置
-const CONFIG = ENV_CONFIG[detectEnvironment()];
+function getEnvironmentConfig(env) {
+  return ENV_CONFIG[env] || ENV_CONFIG.production;
+}
 
 class PopupManager {
   constructor() {
@@ -38,6 +39,12 @@ class PopupManager {
     this.siteInfo = null;
     this.settings = { default_company_attribute: '' };
     this.recordData = null;
+    this.enabledSites = {};
+    this.currentHost = '';
+    this.siteEnabled = false;
+    this.stats = { totalFills: 0, timeSaved: 0 };
+    this.environment = detectEnvironment();
+    this.envConfig = getEnvironmentConfig(this.environment);
 
     this.init();
   }
@@ -45,6 +52,12 @@ class PopupManager {
   async init() {
     // 获取当前标签页
     await this.getCurrentTab();
+
+    // 预加载站点配置
+    await this.loadEnabledSites();
+
+    // 加载环境配置
+    await this.loadEnvironment();
 
     // 绑定事件监听
     this.bindEvents();
@@ -65,6 +78,15 @@ class PopupManager {
     return new Promise((resolve) => {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         this.currentTab = tabs[0];
+        try {
+          if (this.currentTab?.url) {
+            const url = new URL(this.currentTab.url);
+            this.currentHost = url.hostname;
+          }
+        } catch (e) {
+          console.warn('解析当前标签页地址失败:', e);
+          this.currentHost = '';
+        }
         resolve();
       });
     });
@@ -92,6 +114,15 @@ class PopupManager {
 
     const trainBtn = document.getElementById('trainBtn');
     trainBtn?.addEventListener('click', this.handleStartTraining.bind(this));
+
+    const toggleSiteBtn = document.getElementById('toggleSiteBtn');
+    toggleSiteBtn?.addEventListener('click', this.handleToggleSite.bind(this));
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    logoutBtn?.addEventListener('click', this.handleLogout.bind(this));
+
+    const envSelect = document.getElementById('envSelect');
+    envSelect?.addEventListener('change', this.handleEnvironmentChange.bind(this));
   }
 
   async checkLoginStatus() {
@@ -101,9 +132,13 @@ class PopupManager {
 
         if (this.isLoggedIn) {
           this.showElement('mainContent');
+          this.hideElement('loginPrompt');
+          this.showLogoutButton();
           this.updateConnectionStatus('已连接', true);
         } else {
+          this.hideElement('mainContent');
           this.showElement('loginPrompt');
+          this.hideLogoutButton();
           this.updateConnectionStatus('未登录', false);
         }
 
@@ -171,6 +206,9 @@ class PopupManager {
       this.enableButton('fillBtn');
     }
 
+    this.siteEnabled = this.isSiteEnabled(this.currentHost);
+    this.updateSiteControl();
+
     // 更新简历信息
     if (this.resumeData) {
       const completeness = this.resumeData.meta?.completeness || 0;
@@ -230,7 +268,7 @@ class PopupManager {
 
   async handleLogin() {
     // 打开登录页面
-    chrome.tabs.create({ url: CONFIG.FRONTEND_URL + '/login' });
+    chrome.tabs.create({ url: this.envConfig.FRONTEND_URL + '/login' });
     window.close();
   }
 
@@ -296,6 +334,162 @@ class PopupManager {
         resolve();
       });
     });
+  }
+
+  async loadEnabledSites() {
+    try {
+      const res = await this.sendMessage({ type: 'GET_ENABLED_SITES' });
+      if (res?.success) {
+        this.enabledSites = res.data || {};
+      }
+    } catch (e) {
+      console.warn('加载站点配置失败:', e);
+    }
+    this.siteEnabled = this.isSiteEnabled(this.currentHost);
+    this.updateSiteControl();
+  }
+
+  async loadEnvironment() {
+    try {
+      const res = await this.sendMessage({ type: 'GET_ENVIRONMENT' });
+      if (res?.success) {
+        this.environment = res.environment || this.environment;
+        this.envConfig = res.config || getEnvironmentConfig(this.environment);
+      }
+    } catch (e) {
+      console.warn('读取环境配置失败:', e);
+      this.environment = this.environment || 'production';
+      this.envConfig = getEnvironmentConfig(this.environment);
+    }
+
+    const select = document.getElementById('envSelect');
+    if (select) {
+      select.value = this.environment;
+    }
+  }
+
+  isSiteEnabled(host) {
+    if (!host) return false;
+    const cleanHost = sanitizeHost(host);
+    if (!cleanHost) return false;
+    if (this.enabledSites[cleanHost]?.enabled) return true;
+    const parts = cleanHost.split('.');
+    for (let i = 0; i < parts.length - 1; i++) {
+      const suffix = parts.slice(i).join('.');
+      const wildcard = `*.${suffix}`;
+      if (this.enabledSites[wildcard]?.enabled) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  updateSiteControl() {
+    const hostEl = document.getElementById('siteHost');
+    if (hostEl) {
+      hostEl.textContent = this.currentHost || '未知';
+    }
+    const statusEl = document.getElementById('siteStatus');
+    const toggleBtn = document.getElementById('toggleSiteBtn');
+    const hintEl = document.getElementById('siteHint');
+    if (!statusEl || !toggleBtn) return;
+
+    if (this.siteEnabled) {
+      statusEl.textContent = '已启用';
+      statusEl.style.color = '#52c41a';
+      toggleBtn.textContent = '停用此站点监听';
+      toggleBtn.classList.remove('btn-secondary');
+      toggleBtn.classList.add('btn-primary');
+      if (hintEl) hintEl.textContent = '已启用。点击“投递/申请”按钮后，会提示您保存岗位信息。';
+    } else {
+      statusEl.textContent = '未启用';
+      statusEl.style.color = '#ff4d4f';
+      toggleBtn.textContent = '启用此站点监听';
+      toggleBtn.classList.add('btn-secondary');
+      toggleBtn.classList.remove('btn-primary');
+      if (hintEl) hintEl.textContent = '启用后，当您点击该网站的“投递/申请”按钮时，插件会提示保存岗位信息。';
+    }
+
+    toggleBtn.disabled = !this.currentHost;
+  }
+
+  async handleToggleSite() {
+    if (!this.currentHost) return;
+    const target = !this.siteEnabled;
+    try {
+      const res = await this.sendMessage({
+        type: 'SET_SITE_ENABLED',
+        host: this.currentHost,
+        enabled: target,
+        tabId: this.currentTab?.id
+      });
+      if (res?.success) {
+        this.enabledSites = res.data || {};
+        this.siteEnabled = target;
+        this.updateSiteControl();
+        this.showSuccess(target ? '已启用当前站点监听' : '已停用当前站点监听');
+      } else {
+        throw new Error(res?.error || '操作失败');
+      }
+    } catch (e) {
+      this.showError(e?.message || '无法更新站点状态');
+    }
+  }
+
+  async handleEnvironmentChange(event) {
+    const targetEnv = event?.target?.value;
+    if (!targetEnv || targetEnv === this.environment) {
+      return;
+    }
+
+    const select = document.getElementById('envSelect');
+    if (select) select.disabled = true;
+
+    try {
+      const res = await this.sendMessage({ type: 'SET_ENVIRONMENT', environment: targetEnv });
+      if (!res?.success) {
+        throw new Error(res?.error || '环境切换失败');
+      }
+      this.environment = res.environment;
+      this.envConfig = res.config || getEnvironmentConfig(this.environment);
+      if (select) select.value = this.environment;
+      this.performLocalLogout();
+      this.showSuccess(`已切换到${this.environment === 'local' ? '本地环境' : '线上环境'}，请重新登录`);
+    } catch (err) {
+      this.showError(err?.message || '环境切换失败');
+      if (select) select.value = this.environment;
+    } finally {
+      if (select) select.disabled = false;
+    }
+  }
+
+  async handleLogout() {
+    if (!this.isLoggedIn) return;
+    if (!window.confirm('确定要退出登录吗？')) {
+      return;
+    }
+
+    const btn = document.getElementById('logoutBtn');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '退出中...';
+    }
+
+    try {
+      const res = await this.sendMessage({ type: 'LOGOUT' });
+      if (!res?.success) {
+        throw new Error(res?.error || '退出登录失败');
+      }
+      this.performLocalLogout();
+      this.showSuccess('已退出登录');
+    } catch (e) {
+      this.showError(e?.message || '退出登录失败');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '退出登录';
+      }
+    }
   }
 
   async handleRecordOpen() {
@@ -489,6 +683,30 @@ class PopupManager {
     document.getElementById('timeSaved').textContent = this.stats.timeSaved + '分钟';
   }
 
+  performLocalLogout() {
+    this.isLoggedIn = false;
+    this.resumeData = null;
+    this.recordData = null;
+    this.stats = { totalFills: 0, timeSaved: 0 };
+    this.hideElement('mainContent');
+    this.hideElement('recordForm');
+    this.showElement('loginPrompt');
+    this.hideLogoutButton();
+    this.updateConnectionStatus('未登录', false);
+    const fieldEl = document.getElementById('fieldCount');
+    if (fieldEl) fieldEl.textContent = '-';
+    const totalEl = document.getElementById('totalFills');
+    if (totalEl) totalEl.textContent = '0';
+    const timeEl = document.getElementById('timeSaved');
+    if (timeEl) timeEl.textContent = '0分钟';
+    const completeness = document.getElementById('resumeCompleteness');
+    if (completeness) completeness.textContent = '0%';
+    const progress = document.getElementById('resumeProgress');
+    if (progress) progress.style.width = '0%';
+    const lastSync = document.getElementById('lastSync');
+    if (lastSync) lastSync.textContent = '未同步';
+  }
+
   showElement(elementId) {
     const element = document.getElementById(elementId);
     if (element) {
@@ -501,6 +719,16 @@ class PopupManager {
     if (element) {
       element.style.display = 'none';
     }
+  }
+
+  showLogoutButton() {
+    const btn = document.getElementById('logoutBtn');
+    if (btn) btn.style.display = 'block';
+  }
+
+  hideLogoutButton() {
+    const btn = document.getElementById('logoutBtn');
+    if (btn) btn.style.display = 'none';
   }
 
   enableButton(buttonId) {
@@ -577,7 +805,7 @@ class PopupManager {
     `;
     btn.addEventListener('click', (e) => {
       e.preventDefault();
-      try { chrome.tabs.create({ url: CONFIG.FRONTEND_URL }); } catch {}
+      try { chrome.tabs.create({ url: this.envConfig.FRONTEND_URL }); } catch {}
     });
 
     toast.appendChild(text);
@@ -587,6 +815,11 @@ class PopupManager {
     // 5秒后自动移除
     setTimeout(() => { if (toast && toast.parentNode) toast.parentNode.removeChild(toast); }, 5000);
   }
+}
+
+function sanitizeHost(host) {
+  if (!host) return '';
+  return String(host).trim().toLowerCase().replace(/^https?:\/\//, '').split('/')[0];
 }
 
 // 页面加载完成后初始化

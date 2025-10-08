@@ -7,6 +7,7 @@ package utils
 import (
 	"fmt"
 	"html"
+	"net"
 	"net/mail"
 	"regexp"
 	"strings"
@@ -17,6 +18,7 @@ var (
 	// 常用正则表达式
 	usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{3,50}$`)
 	phoneRegex    = regexp.MustCompile(`^1[3-9]\d{9}$`)
+	hostRegex     = regexp.MustCompile(`^([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9-]{1,63}$`)
 	sqlKeywords   = []string{"SELECT", "INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER", "EXEC", "UNION", "SCRIPT"}
 )
 
@@ -44,48 +46,48 @@ func (e ValidationErrors) Error() string {
 // ValidateUsername 验证用户名
 func ValidateUsername(username string) error {
 	username = strings.TrimSpace(username)
-	
+
 	if username == "" {
 		return ValidationError{Field: "username", Message: "用户名不能为空"}
 	}
-	
+
 	if len(username) < 3 {
 		return ValidationError{Field: "username", Message: "用户名长度不能少于3位"}
 	}
-	
+
 	if len(username) > 50 {
 		return ValidationError{Field: "username", Message: "用户名长度不能超过50位"}
 	}
-	
+
 	if !usernameRegex.MatchString(username) {
 		return ValidationError{Field: "username", Message: "用户名只能包含字母、数字、下划线和短横线"}
 	}
-	
+
 	// 检查敏感词
 	if containsSQLKeywords(username) {
 		return ValidationError{Field: "username", Message: "用户名包含非法字符"}
 	}
-	
+
 	return nil
 }
 
 // ValidateEmail 验证邮箱格式
 func ValidateEmail(email string) error {
 	email = strings.TrimSpace(strings.ToLower(email))
-	
+
 	if email == "" {
 		return ValidationError{Field: "email", Message: "邮箱不能为空"}
 	}
-	
+
 	if len(email) > 254 {
 		return ValidationError{Field: "email", Message: "邮箱长度不能超过254位"}
 	}
-	
+
 	_, err := mail.ParseAddress(email)
 	if err != nil {
 		return ValidationError{Field: "email", Message: "邮箱格式不正确"}
 	}
-	
+
 	// 检查常见的临时邮箱域名
 	tempDomains := []string{"10minutemail.com", "guerrillamail.com", "mailinator.com"}
 	for _, domain := range tempDomains {
@@ -93,7 +95,7 @@ func ValidateEmail(email string) error {
 			return ValidationError{Field: "email", Message: "不支持临时邮箱"}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -102,16 +104,16 @@ func ValidatePassword(password string) error {
 	if len(password) < 8 {
 		return ValidationError{Field: "password", Message: "密码长度不能少于8位"}
 	}
-	
+
 	if len(password) > 128 {
 		return ValidationError{Field: "password", Message: "密码长度不能超过128位"}
 	}
-	
+
 	hasUpper := false
 	hasLower := false
 	hasDigit := false
 	hasSpecial := false
-	
+
 	for _, char := range password {
 		switch {
 		case char >= 'A' && char <= 'Z':
@@ -124,7 +126,7 @@ func ValidatePassword(password string) error {
 			hasSpecial = true
 		}
 	}
-	
+
 	var errors []string
 	if !hasUpper {
 		errors = append(errors, "至少包含一个大写字母")
@@ -138,14 +140,14 @@ func ValidatePassword(password string) error {
 	if !hasSpecial {
 		errors = append(errors, "至少包含一个特殊字符")
 	}
-	
+
 	if len(errors) > 0 {
 		return ValidationError{
 			Field:   "password",
 			Message: "密码必须" + strings.Join(errors, "、"),
 		}
 	}
-	
+
 	return nil
 }
 
@@ -154,52 +156,89 @@ func ValidatePhone(phone string) error {
 	if phone == "" {
 		return nil // 手机号可选
 	}
-	
+
 	phone = strings.ReplaceAll(phone, " ", "")
 	phone = strings.ReplaceAll(phone, "-", "")
-	
+
 	if !phoneRegex.MatchString(phone) {
 		return ValidationError{Field: "phone", Message: "手机号码格式不正确"}
 	}
-	
+
 	return nil
 }
 
 // ValidateCompanyName 验证公司名称
 func ValidateCompanyName(companyName string) error {
 	companyName = strings.TrimSpace(companyName)
-	
+
 	if companyName == "" {
 		return ValidationError{Field: "company_name", Message: "公司名称不能为空"}
 	}
-	
+
 	if len(companyName) > 255 {
 		return ValidationError{Field: "company_name", Message: "公司名称长度不能超过255位"}
 	}
-	
+
 	if containsSQLKeywords(companyName) {
 		return ValidationError{Field: "company_name", Message: "公司名称包含非法字符"}
 	}
-	
+
 	return nil
 }
 
 // ValidatePositionTitle 验证职位名称
 func ValidatePositionTitle(positionTitle string) error {
 	positionTitle = strings.TrimSpace(positionTitle)
-	
+
 	if positionTitle == "" {
 		return ValidationError{Field: "position_title", Message: "职位名称不能为空"}
 	}
-	
+
 	if len(positionTitle) > 255 {
 		return ValidationError{Field: "position_title", Message: "职位名称长度不能超过255位"}
 	}
-	
+
 	if containsSQLKeywords(positionTitle) {
 		return ValidationError{Field: "position_title", Message: "职位名称包含非法字符"}
 	}
-	
+
+	return nil
+}
+
+// ValidateMailboxProtocol 验证邮箱协议
+func ValidateMailboxProtocol(protocol string) error {
+	protocol = strings.ToLower(strings.TrimSpace(protocol))
+	if protocol != "imap" && protocol != "pop3" {
+		return ValidationError{Field: "protocol", Message: "协议仅支持IMAP或POP3"}
+	}
+	return nil
+}
+
+// ValidateHost 验证主机地址
+func ValidateHost(host string) error {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return ValidationError{Field: "host", Message: "服务器地址不能为空"}
+	}
+	if len(host) > 255 {
+		return ValidationError{Field: "host", Message: "服务器地址过长"}
+	}
+	if netIP := strings.Trim(host, "[]"); netIP != "" {
+		if ip := net.ParseIP(netIP); ip != nil {
+			return nil
+		}
+	}
+	if !hostRegex.MatchString(host) {
+		return ValidationError{Field: "host", Message: "服务器地址格式不正确"}
+	}
+	return nil
+}
+
+// ValidatePort 验证端口范围
+func ValidatePort(port int) error {
+	if port <= 0 || port > 65535 {
+		return ValidationError{Field: "port", Message: "端口范围应在1-65535"}
+	}
 	return nil
 }
 
@@ -208,12 +247,12 @@ func ValidateDate(dateStr string) error {
 	if dateStr == "" {
 		return nil // 日期可选
 	}
-	
+
 	_, err := time.Parse("2006-01-02", dateStr)
 	if err != nil {
 		return ValidationError{Field: "date", Message: "日期格式不正确，请使用YYYY-MM-DD格式"}
 	}
-	
+
 	return nil
 }
 
@@ -222,11 +261,11 @@ func ValidateSalaryRange(salaryRange string) error {
 	if salaryRange == "" {
 		return nil // 薪资范围可选
 	}
-	
+
 	if len(salaryRange) > 100 {
 		return ValidationError{Field: "salary_range", Message: "薪资范围长度不能超过100位"}
 	}
-	
+
 	return nil
 }
 
@@ -234,13 +273,13 @@ func ValidateSalaryRange(salaryRange string) error {
 func SanitizeInput(input string) string {
 	// HTML转义
 	input = html.EscapeString(input)
-	
+
 	// 移除多余的空白字符
 	input = strings.TrimSpace(input)
-	
+
 	// 移除NULL字符
 	input = strings.ReplaceAll(input, "\x00", "")
-	
+
 	return input
 }
 
@@ -258,33 +297,33 @@ func SanitizeHTML(input string) string {
 		"vbscript:",
 		"onload=", "onclick=", "onerror=",
 	}
-	
+
 	input = strings.ToLower(input)
 	for _, tag := range dangerousTags {
 		input = strings.ReplaceAll(input, tag, "")
 	}
-	
+
 	return input
 }
 
 // ValidateLength 验证字符串长度
 func ValidateLength(field, value string, min, max int) error {
 	length := len(strings.TrimSpace(value))
-	
+
 	if length < min {
 		return ValidationError{
 			Field:   field,
 			Message: fmt.Sprintf("长度不能少于%d位", min),
 		}
 	}
-	
+
 	if length > max {
 		return ValidationError{
 			Field:   field,
 			Message: fmt.Sprintf("长度不能超过%d位", max),
 		}
 	}
-	
+
 	return nil
 }
 
@@ -304,21 +343,21 @@ func ValidateOptionalText(field, value string, maxLength int) error {
 	if value == "" {
 		return nil
 	}
-	
+
 	if len(value) > maxLength {
 		return ValidationError{
 			Field:   field,
 			Message: fmt.Sprintf("长度不能超过%d位", maxLength),
 		}
 	}
-	
+
 	if containsSQLKeywords(value) {
 		return ValidationError{
 			Field:   field,
 			Message: "内容包含非法字符",
 		}
 	}
-	
+
 	return nil
 }
 
@@ -336,11 +375,11 @@ func containsSQLKeywords(input string) bool {
 // ValidateStruct 结构体验证（简化版）
 func ValidateStruct(v interface{}) ValidationErrors {
 	var errors ValidationErrors
-	
+
 	// 这里可以使用反射来验证结构体字段
 	// 为了简化，这里返回空的错误列表
 	// 实际项目中建议使用 go-playground/validator 库
-	
+
 	return errors
 }
 
@@ -349,7 +388,7 @@ func IsValidURL(urlStr string) bool {
 	if urlStr == "" {
 		return true // 空URL被认为是有效的（可选字段）
 	}
-	
+
 	// 简单的URL验证
 	return strings.HasPrefix(urlStr, "http://") || strings.HasPrefix(urlStr, "https://")
 }
@@ -366,28 +405,28 @@ func ValidateNotes(notes string) error {
 
 // ValidateContactInfo 验证联系信息
 func ValidateContactInfo(contactInfo string) error {
-    return ValidateOptionalText("contact_info", contactInfo, 500)
+	return ValidateOptionalText("contact_info", contactInfo, 500)
 }
 
 // NewValidationError 创建验证错误
 func NewValidationError(field, message string, args ...interface{}) error {
-    return ValidationError{
-        Field:   field,
-        Message: fmt.Sprintf(message, args...),
-    }
+	return ValidationError{
+		Field:   field,
+		Message: fmt.Sprintf(message, args...),
+	}
 }
 
 // ValidateCompanyAttribute 验证企业属性（央国企/私企），空字符串视为未填写（旧数据兼容）
 func ValidateCompanyAttribute(attr string, required bool) error {
-    trimmed := strings.TrimSpace(attr)
-    if trimmed == "" {
-        if required {
-            return ValidationError{Field: "company_attribute", Message: "企业属性为必填项"}
-        }
-        return nil
-    }
-    if trimmed != "央国企" && trimmed != "私企" {
-        return ValidationError{Field: "company_attribute", Message: "企业属性取值无效，应为‘央国企’或‘私企’"}
-    }
-    return nil
+	trimmed := strings.TrimSpace(attr)
+	if trimmed == "" {
+		if required {
+			return ValidationError{Field: "company_attribute", Message: "企业属性为必填项"}
+		}
+		return nil
+	}
+	if trimmed != "央国企" && trimmed != "私企" {
+		return ValidationError{Field: "company_attribute", Message: "企业属性取值无效，应为‘央国企’或‘私企’"}
+	}
+	return nil
 }

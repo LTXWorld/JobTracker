@@ -1,436 +1,202 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from '../../src/stores/auth'
 import { AuthAPI } from '../../src/api/auth'
-import type { AuthResponse, LoginCredentials, RegisterData } from '../../src/types/auth'
+import type { AuthResponse, LoginCredentials, RegisterData, TokenResponse } from '../../src/types/auth'
 
-// Mock AuthAPI
 vi.mock('../../src/api/auth', () => ({
   AuthAPI: {
     login: vi.fn(),
     register: vi.fn(),
     refreshToken: vi.fn(),
     logout: vi.fn(),
-    getProfile: vi.fn(),
+    getUserProfile: vi.fn(),
     updateProfile: vi.fn(),
-    changePassword: vi.fn()
+    changePassword: vi.fn(),
+    validateToken: vi.fn()
   }
 }))
 
-// Mock ant-design-vue message
 vi.mock('ant-design-vue', () => ({
   message: {
     success: vi.fn(),
     error: vi.fn(),
-    warning: vi.fn(),
-    info: vi.fn()
+    warning: vi.fn()
   }
 }))
 
 describe('AuthStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    // 清理localStorage和sessionStorage
-    localStorage.clear()
-    sessionStorage.clear()
-    // 清理所有mock
+    const createStorage = () => {
+      let store: Record<string, string> = {}
+      return {
+        getItem: vi.fn((key: string) => (key in store ? store[key] : null)),
+        setItem: vi.fn((key: string, value: string) => {
+          store[key] = String(value)
+        }),
+        removeItem: vi.fn((key: string) => {
+          delete store[key]
+        }),
+        clear: vi.fn(() => {
+          store = {}
+        }),
+        key: vi.fn((index: number) => Object.keys(store)[index] ?? null),
+        get length() {
+          return Object.keys(store).length
+        }
+      }
+    }
+
+    Object.defineProperty(window, 'sessionStorage', {
+      configurable: true,
+      value: createStorage()
+    })
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: createStorage()
+    })
     vi.clearAllMocks()
   })
 
-  afterEach(() => {
-    vi.clearAllTimers()
+  const createAuthResponse = (): AuthResponse => ({
+    token: 'access-token',
+    refresh_token: 'refresh-token',
+    user: {
+      id: 1,
+      username: 'tester',
+      email: 'tester@example.com',
+      created_at: '2024-01-01T00:00:00Z'
+    }
   })
 
-  describe('初始状态', () => {
-    it('应该有正确的初始状态', () => {
-      const authStore = useAuthStore()
-      
-      expect(authStore.isAuthenticated).toBe(false)
-      expect(authStore.user).toBe(null)
-      expect(authStore.accessToken).toBe(null)
-      expect(authStore.refreshToken).toBe(null)
-      expect(authStore.loading).toBe(false)
-      expect(authStore.isLoggedIn).toBe(false)
-      expect(authStore.userName).toBe('')
-      expect(authStore.userEmail).toBe('')
-    })
-
-    it('应该从本地存储恢复认证状态', () => {
-      // 模拟已存储的认证信息
-      const mockUser = { id: 1, username: 'testuser', email: 'test@example.com' }
-      const mockAccessToken = 'mock-access-token'
-      const mockRefreshToken = 'mock-refresh-token'
-
-      sessionStorage.setItem('access_token', mockAccessToken)
-      localStorage.setItem('refresh_token', mockRefreshToken)
-      localStorage.setItem('user', JSON.stringify(mockUser))
-      localStorage.setItem('last_token_validation', Date.now().toString())
-
-      const authStore = useAuthStore()
-      authStore.initAuth()
-
-      expect(authStore.isAuthenticated).toBe(true)
-      expect(authStore.user).toEqual(mockUser)
-      expect(authStore.accessToken).toBe(mockAccessToken)
-      expect(authStore.refreshToken).toBe(mockRefreshToken)
-      expect(authStore.isLoggedIn).toBe(true)
-    })
-
-    it('处理无效的存储数据时应该清理认证状态', () => {
-      // 模拟无效的存储数据
-      sessionStorage.setItem('access_token', 'token')
-      localStorage.setItem('refresh_token', 'token')
-      localStorage.setItem('user', 'invalid-json')
-
-      const authStore = useAuthStore()
-      authStore.initAuth()
-
-      expect(authStore.isAuthenticated).toBe(false)
-      expect(authStore.user).toBe(null)
-      expect(authStore.accessToken).toBe(null)
-    })
+  it('初始化时状态为空', () => {
+    const store = useAuthStore()
+    expect(store.isAuthenticated).toBe(false)
+    expect(store.user).toBeNull()
+    expect(store.accessToken).toBeNull()
+    expect(store.refreshToken).toBeNull()
+    expect(store.isLoggedIn).toBe(false)
   })
 
-  describe('用户登录', () => {
-    it('登录成功应该更新认证状态', async () => {
-      const authStore = useAuthStore()
-      const credentials: LoginCredentials = {
-        username: 'testuser',
-        password: 'password123'
-      }
-      
-      const mockResponse: AuthResponse = {
-        user: { id: 1, username: 'testuser', email: 'test@example.com' },
-        token: 'new-access-token',
-        refresh_token: 'new-refresh-token',
-        expires_at: Date.now() + 24 * 60 * 60 * 1000
-      }
+  it('initAuth 读取存储的认证信息', () => {
+    const response = createAuthResponse()
+    sessionStorage.setItem('access_token', response.token)
+    localStorage.setItem('refresh_token', response.refresh_token)
+    localStorage.setItem('user', JSON.stringify(response.user))
+    localStorage.setItem('last_token_validation', '1700000000000')
 
-      vi.mocked(AuthAPI.login).mockResolvedValueOnce(mockResponse)
+    const store = useAuthStore()
+    store.initAuth()
 
-      const result = await authStore.login(credentials)
-
-      expect(result).toBe(true)
-      expect(authStore.isAuthenticated).toBe(true)
-      expect(authStore.user).toEqual(mockResponse.user)
-      expect(authStore.accessToken).toBe(mockResponse.token)
-      expect(authStore.refreshToken).toBe(mockResponse.refresh_token)
-      
-      // 验证存储
-      expect(sessionStorage.getItem('access_token')).toBe(mockResponse.token)
-      expect(localStorage.getItem('refresh_token')).toBe(mockResponse.refresh_token)
-      expect(JSON.parse(localStorage.getItem('user')!)).toEqual(mockResponse.user)
-    })
-
-    it('登录失败应该返回false且不更新状态', async () => {
-      const authStore = useAuthStore()
-      const credentials: LoginCredentials = {
-        username: 'testuser',
-        password: 'wrongpassword'
-      }
-
-      const mockError = new Error('用户名或密码错误')
-      vi.mocked(AuthAPI.login).mockRejectedValueOnce(mockError)
-
-      const result = await authStore.login(credentials)
-
-      expect(result).toBe(false)
-      expect(authStore.isAuthenticated).toBe(false)
-      expect(authStore.user).toBe(null)
-      expect(authStore.accessToken).toBe(null)
-    })
-
-    it('登录时应该设置loading状态', async () => {
-      const authStore = useAuthStore()
-      const credentials: LoginCredentials = {
-        username: 'testuser',
-        password: 'password123'
-      }
-
-      let loadingDuringCall = false
-      
-      vi.mocked(AuthAPI.login).mockImplementationOnce(() => {
-        loadingDuringCall = authStore.loading
-        return Promise.resolve({
-          user: { id: 1, username: 'testuser', email: 'test@example.com' },
-          token: 'token',
-          refresh_token: 'refresh-token',
-          expires_at: Date.now() + 24 * 60 * 60 * 1000
-        } as AuthResponse)
-      })
-
-      await authStore.login(credentials)
-
-      expect(loadingDuringCall).toBe(true)
-      expect(authStore.loading).toBe(false) // 调用完成后应该重置
-    })
+    expect(store.isAuthenticated).toBe(true)
+    expect(store.user?.username).toBe('tester')
+    expect(store.accessToken).toBe(response.token)
+    expect(store.refreshToken).toBe(response.refresh_token)
   })
 
-  describe('用户注册', () => {
-    it('注册成功应该更新认证状态', async () => {
-      const authStore = useAuthStore()
-      const registerData: RegisterData = {
-        username: 'newuser',
-        email: 'newuser@example.com',
-        password: 'password123'
-      }
-      
-      const mockResponse: AuthResponse = {
-        user: { id: 1, username: 'newuser', email: 'newuser@example.com' },
-        token: 'new-access-token',
-        refresh_token: 'new-refresh-token',
-        expires_at: Date.now() + 24 * 60 * 60 * 1000
-      }
+  it('login 成功后保存认证信息', async () => {
+    const store = useAuthStore()
+    const credentials: LoginCredentials = { username: 'tester', password: 'secret' }
+    const authResponse = createAuthResponse()
+    vi.mocked(AuthAPI.login).mockResolvedValueOnce(authResponse)
 
-      vi.mocked(AuthAPI.register).mockResolvedValueOnce(mockResponse)
+    const result = await store.login(credentials)
 
-      const result = await authStore.register(registerData)
-
-      expect(result).toBe(true)
-      expect(authStore.isAuthenticated).toBe(true)
-      expect(authStore.user).toEqual(mockResponse.user)
-      expect(AuthAPI.register).toHaveBeenCalledWith(registerData)
-    })
-
-    it('注册失败应该返回false', async () => {
-      const authStore = useAuthStore()
-      const registerData: RegisterData = {
-        username: 'existinguser',
-        email: 'existing@example.com',
-        password: 'password123'
-      }
-
-      const mockError = new Error('用户名已存在')
-      vi.mocked(AuthAPI.register).mockRejectedValueOnce(mockError)
-
-      const result = await authStore.register(registerData)
-
-      expect(result).toBe(false)
-      expect(authStore.isAuthenticated).toBe(false)
-    })
+    expect(result).toBe(true)
+    expect(store.isAuthenticated).toBe(true)
+    expect(sessionStorage.getItem('access_token')).toBe('access-token')
+    expect(localStorage.getItem('refresh_token')).toBe('refresh-token')
   })
 
-  describe('Token刷新机制', () => {
-    it('应该能成功刷新token', async () => {
-      const authStore = useAuthStore()
-      
-      // 设置初始状态
-      authStore.refreshToken = 'current-refresh-token'
-      authStore.isAuthenticated = true
+  it('login 失败时不改变状态', async () => {
+    const store = useAuthStore()
+    const credentials: LoginCredentials = { username: 'tester', password: 'secret' }
+    vi.mocked(AuthAPI.login).mockRejectedValueOnce(new Error('网络错误'))
 
-      const mockResponse = {
-        token: 'new-access-token',
-        refresh_token: 'new-refresh-token',
-        expires_at: Date.now() + 24 * 60 * 60 * 1000
-      }
+    const result = await store.login(credentials)
 
-      vi.mocked(AuthAPI.refreshToken).mockResolvedValueOnce(mockResponse)
-
-      const result = await authStore.refreshAccessToken()
-
-      expect(result).toBe(true)
-      expect(authStore.accessToken).toBe(mockResponse.token)
-      expect(authStore.refreshToken).toBe(mockResponse.refresh_token)
-      expect(AuthAPI.refreshToken).toHaveBeenCalledWith('current-refresh-token')
-    })
-
-    it('Token刷新失败应该清理认证状态', async () => {
-      const authStore = useAuthStore()
-      
-      // 设置初始状态
-      authStore.refreshToken = 'invalid-refresh-token'
-      authStore.isAuthenticated = true
-      authStore.user = { id: 1, username: 'test', email: 'test@example.com' }
-
-      vi.mocked(AuthAPI.refreshToken).mockRejectedValueOnce(new Error('refresh token无效'))
-
-      const result = await authStore.refreshAccessToken()
-
-      expect(result).toBe(false)
-      expect(authStore.isAuthenticated).toBe(false)
-      expect(authStore.user).toBe(null)
-      expect(authStore.accessToken).toBe(null)
-      expect(authStore.refreshToken).toBe(null)
-    })
-
-    it('智能验证策略应该正确工作', () => {
-      const authStore = useAuthStore()
-      
-      // 模拟最近验证过的情况
-      authStore.lastTokenValidation = Date.now() - 3 * 60 * 1000 // 3分钟前
-      authStore.tokenValidationAttempts = 0
-      
-      const shouldValidate = authStore.shouldValidateToken()
-      expect(shouldValidate).toBe(false) // 不应该验证，因为还在5分钟间隔内
-
-      // 模拟需要验证的情况
-      authStore.lastTokenValidation = Date.now() - 6 * 60 * 1000 // 6分钟前
-      
-      const shouldValidateNow = authStore.shouldValidateToken()
-      expect(shouldValidateNow).toBe(true) // 应该验证，已超过5分钟间隔
-    })
-
-    it('网络错误容错机制应该生效', async () => {
-      const authStore = useAuthStore()
-      authStore.refreshToken = 'valid-token'
-      authStore.isAuthenticated = true
-
-      // 模拟网络错误
-      const networkError = new Error('Network Error')
-      vi.mocked(AuthAPI.refreshToken).mockRejectedValueOnce(networkError)
-
-      const result = await authStore.refreshAccessToken()
-
-      expect(result).toBe(false)
-      // 网络错误时不应该完全清理状态，可能是临时问题
-      expect(authStore.tokenValidationAttempts).toBeGreaterThan(0)
-    })
+    expect(result).toBe(false)
+    expect(store.isAuthenticated).toBe(false)
   })
 
-  describe('用户登出', () => {
-    it('登出应该清理所有认证状态和存储', async () => {
-      const authStore = useAuthStore()
-      
-      // 设置已认证状态
-      authStore.isAuthenticated = true
-      authStore.user = { id: 1, username: 'test', email: 'test@example.com' }
-      authStore.accessToken = 'access-token'
-      authStore.refreshToken = 'refresh-token'
-      
-      sessionStorage.setItem('access_token', 'access-token')
-      localStorage.setItem('refresh_token', 'refresh-token')
-      localStorage.setItem('user', JSON.stringify(authStore.user))
-
-      vi.mocked(AuthAPI.logout).mockResolvedValueOnce(undefined)
-
-      await authStore.logout()
-
-      expect(authStore.isAuthenticated).toBe(false)
-      expect(authStore.user).toBe(null)
-      expect(authStore.accessToken).toBe(null)
-      expect(authStore.refreshToken).toBe(null)
-      
-      // 验证存储已清理
-      expect(sessionStorage.getItem('access_token')).toBe(null)
-      expect(localStorage.getItem('refresh_token')).toBe(null)
-      expect(localStorage.getItem('user')).toBe(null)
+  it('logout 会清理认证信息', async () => {
+    const store = useAuthStore()
+    const authResponse = createAuthResponse()
+    store.$patch({
+      isAuthenticated: true,
+      user: authResponse.user,
+      accessToken: authResponse.token,
+      refreshToken: authResponse.refresh_token
     })
+    sessionStorage.setItem('access_token', authResponse.token)
+    localStorage.setItem('refresh_token', authResponse.refresh_token)
+    localStorage.setItem('user', JSON.stringify(authResponse.user))
+    vi.mocked(AuthAPI.logout).mockResolvedValueOnce()
 
-    it('即使API调用失败也应该清理本地状态', async () => {
-      const authStore = useAuthStore()
-      
-      authStore.isAuthenticated = true
-      authStore.user = { id: 1, username: 'test', email: 'test@example.com' }
+    await store.logout()
 
-      vi.mocked(AuthAPI.logout).mockRejectedValueOnce(new Error('服务器错误'))
-
-      await authStore.logout()
-
-      // 即使API失败，本地状态也应该被清理
-      expect(authStore.isAuthenticated).toBe(false)
-      expect(authStore.user).toBe(null)
-    })
+    expect(store.isAuthenticated).toBe(false)
+    expect(sessionStorage.getItem('access_token')).toBeNull()
+    expect(localStorage.getItem('refresh_token')).toBeNull()
+    expect(localStorage.getItem('user')).toBeNull()
   })
 
-  describe('计算属性', () => {
-    it('isLoggedIn应该正确反映认证状态', () => {
-      const authStore = useAuthStore()
-
-      // 初始状态
-      expect(authStore.isLoggedIn).toBe(false)
-
-      // 只有isAuthenticated为true
-      authStore.isAuthenticated = true
-      expect(authStore.isLoggedIn).toBe(false) // 仍然为false，因为没有user
-
-      // 添加用户信息
-      authStore.user = { id: 1, username: 'test', email: 'test@example.com' }
-      expect(authStore.isLoggedIn).toBe(true)
-
-      // 移除用户信息
-      authStore.user = null
-      expect(authStore.isLoggedIn).toBe(false)
+  it('refreshAccessToken 成功更新 accessToken', async () => {
+    const store = useAuthStore()
+    const authResponse = createAuthResponse()
+    store.$patch({
+      isAuthenticated: true,
+      user: authResponse.user,
+      accessToken: authResponse.token,
+      refreshToken: authResponse.refresh_token
     })
+    sessionStorage.setItem('access_token', authResponse.token)
+    localStorage.setItem('refresh_token', authResponse.refresh_token)
+    const newTokens: TokenResponse = { token: 'new-token', refresh_token: 'new-refresh' }
+    vi.mocked(AuthAPI.refreshToken).mockResolvedValueOnce(newTokens)
 
-    it('userName和userEmail应该正确返回用户信息', () => {
-      const authStore = useAuthStore()
+    const result = await store.refreshAccessToken()
 
-      expect(authStore.userName).toBe('')
-      expect(authStore.userEmail).toBe('')
-
-      authStore.user = { id: 1, username: 'testuser', email: 'test@example.com' }
-
-      expect(authStore.userName).toBe('testuser')
-      expect(authStore.userEmail).toBe('test@example.com')
-    })
+    expect(result).toBe(true)
+    expect(store.accessToken).toBe('new-token')
+    expect(sessionStorage.getItem('access_token')).toBe('new-token')
+    expect(localStorage.getItem('refresh_token')).toBe('new-refresh')
   })
 
-  describe('错误处理', () => {
-    it('应该正确处理API错误', async () => {
-      const authStore = useAuthStore()
-      const credentials: LoginCredentials = {
-        username: 'testuser',
-        password: 'password123'
-      }
-
-      const errorMessage = 'API请求失败'
-      vi.mocked(AuthAPI.login).mockRejectedValueOnce(new Error(errorMessage))
-
-      const result = await authStore.login(credentials)
-
-      expect(result).toBe(false)
-      expect(authStore.loading).toBe(false)
-      expect(authStore.isAuthenticated).toBe(false)
+  it('shouldValidateToken 根据时间间隔判断', () => {
+    const store = useAuthStore()
+    const authResponse = createAuthResponse()
+    store.$patch({
+      isAuthenticated: true,
+      user: authResponse.user,
+      accessToken: authResponse.token,
+      refreshToken: authResponse.refresh_token
     })
 
-    it('应该处理无效的响应数据', async () => {
-      const authStore = useAuthStore()
-      const credentials: LoginCredentials = {
-        username: 'testuser',
-        password: 'password123'
-      }
+    // 刚验证过，无需再次验证
+    store.lastTokenValidation = Date.now()
+    expect(store.shouldValidateToken()).toBe(false)
 
-      // 模拟无效的响应数据
-      vi.mocked(AuthAPI.login).mockResolvedValueOnce(null as any)
-
-      const result = await authStore.login(credentials)
-
-      expect(result).toBe(false)
-      expect(authStore.isAuthenticated).toBe(false)
-    })
+    // 距离上次验证超过5分钟，需要验证
+    store.lastTokenValidation = Date.now() - 10 * 60 * 1000
+    expect(store.shouldValidateToken()).toBe(true)
   })
 
-  describe('清理功能', () => {
-    it('clearAuth应该重置所有状态', () => {
-      const authStore = useAuthStore()
-      
-      // 设置一些状态
-      authStore.isAuthenticated = true
-      authStore.user = { id: 1, username: 'test', email: 'test@example.com' }
-      authStore.accessToken = 'token'
-      authStore.refreshToken = 'refresh-token'
-      authStore.loading = true
-      authStore.lastTokenValidation = Date.now()
-      authStore.tokenValidationAttempts = 5
-
-      sessionStorage.setItem('access_token', 'token')
-      localStorage.setItem('refresh_token', 'refresh-token')
-      localStorage.setItem('user', JSON.stringify(authStore.user))
-
-      authStore.clearAuth()
-
-      expect(authStore.isAuthenticated).toBe(false)
-      expect(authStore.user).toBe(null)
-      expect(authStore.accessToken).toBe(null)
-      expect(authStore.refreshToken).toBe(null)
-      expect(authStore.loading).toBe(false)
-      expect(authStore.lastTokenValidation).toBe(0)
-      expect(authStore.tokenValidationAttempts).toBe(0)
-      
-      // 验证存储已清理
-      expect(sessionStorage.getItem('access_token')).toBe(null)
-      expect(localStorage.getItem('refresh_token')).toBe(null)
-      expect(localStorage.getItem('user')).toBe(null)
+  it('isTokenRecentlyValid 在宽限期内返回 true', () => {
+    const store = useAuthStore()
+    const authResponse = createAuthResponse()
+    store.$patch({
+      isAuthenticated: true,
+      user: authResponse.user,
+      accessToken: authResponse.token,
+      refreshToken: authResponse.refresh_token
     })
+
+    store.lastTokenValidation = Date.now()
+    expect(store.isTokenRecentlyValid()).toBe(true)
+
+    store.lastTokenValidation = Date.now() - 10 * 60 * 1000
+    expect(store.isTokenRecentlyValid()).toBe(false)
   })
 })

@@ -115,6 +115,102 @@ BEGIN
     END IF;
 END $$;`)
 
+	// 创建用户邮箱配置表
+	createUserMailboxTable := `
+		CREATE TABLE IF NOT EXISTS user_mailboxes (
+			id SERIAL PRIMARY KEY,
+			user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			email_address VARCHAR(255) NOT NULL,
+			provider VARCHAR(64),
+			protocol VARCHAR(16) NOT NULL,
+			host VARCHAR(255) NOT NULL,
+			port INTEGER NOT NULL,
+			use_ssl BOOLEAN DEFAULT TRUE,
+			encrypted_password TEXT NOT NULL,
+			last_message_uid VARCHAR(255),
+			last_synced_at TIMESTAMP WITH TIME ZONE,
+			status VARCHAR(32) NOT NULL DEFAULT 'inactive',
+			error_message TEXT,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+		);
+	`
+
+	if _, err := db.Exec(createUserMailboxTable); err != nil {
+		return fmt.Errorf("failed to create user_mailboxes table: %w", err)
+	}
+
+	mailboxAlter := []string{
+		"ALTER TABLE user_mailboxes ADD COLUMN IF NOT EXISTS provider VARCHAR(64);",
+		"ALTER TABLE user_mailboxes ADD COLUMN IF NOT EXISTS protocol VARCHAR(16) NOT NULL DEFAULT 'imap';",
+		"ALTER TABLE user_mailboxes ADD COLUMN IF NOT EXISTS host VARCHAR(255) NOT NULL DEFAULT 'imap.qq.com';",
+		"ALTER TABLE user_mailboxes ADD COLUMN IF NOT EXISTS port INTEGER NOT NULL DEFAULT 993;",
+		"ALTER TABLE user_mailboxes ADD COLUMN IF NOT EXISTS use_ssl BOOLEAN DEFAULT TRUE;",
+		"ALTER TABLE user_mailboxes ADD COLUMN IF NOT EXISTS encrypted_password TEXT NOT NULL DEFAULT '';",
+		"ALTER TABLE user_mailboxes ADD COLUMN IF NOT EXISTS last_message_uid VARCHAR(255);",
+		"ALTER TABLE user_mailboxes ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMP WITH TIME ZONE;",
+		"ALTER TABLE user_mailboxes ADD COLUMN IF NOT EXISTS status VARCHAR(32) NOT NULL DEFAULT 'inactive';",
+		"ALTER TABLE user_mailboxes ADD COLUMN IF NOT EXISTS error_message TEXT;",
+		"ALTER TABLE user_mailboxes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();",
+		"ALTER TABLE user_mailboxes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();",
+	}
+
+	for _, stmt := range mailboxAlter {
+		if _, err := db.Exec(stmt); err != nil {
+			log.Printf("Warning: Failed to alter user_mailboxes table: %v", err)
+		}
+	}
+
+	// 创建邮件事件表（存储解析结果）
+	createMailEventsTable := `
+		CREATE TABLE IF NOT EXISTS mail_events (
+			id SERIAL PRIMARY KEY,
+			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			mailbox_id INTEGER NOT NULL REFERENCES user_mailboxes(id) ON DELETE CASCADE,
+			application_id INTEGER REFERENCES job_applications(id) ON DELETE SET NULL,
+			message_id VARCHAR(255),
+			message_uid VARCHAR(255),
+			subject TEXT NOT NULL,
+			sender TEXT NOT NULL,
+			received_at TIMESTAMP WITH TIME ZONE NOT NULL,
+			snippet TEXT,
+			classification VARCHAR(32) NOT NULL DEFAULT 'unknown',
+			confidence NUMERIC(5,2) NOT NULL DEFAULT 0,
+			payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+			status VARCHAR(32) NOT NULL DEFAULT 'pending',
+			error_message TEXT,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+		);
+	`
+
+	if _, err := db.Exec(createMailEventsTable); err != nil {
+		return fmt.Errorf("failed to create mail_events table: %w", err)
+	}
+
+	mailEventsAlter := []string{
+		"ALTER TABLE mail_events ADD COLUMN IF NOT EXISTS application_id INTEGER REFERENCES job_applications(id) ON DELETE SET NULL;",
+		"ALTER TABLE mail_events ADD COLUMN IF NOT EXISTS message_id VARCHAR(255);",
+		"ALTER TABLE mail_events ADD COLUMN IF NOT EXISTS message_uid VARCHAR(255);",
+		"ALTER TABLE mail_events ADD COLUMN IF NOT EXISTS subject TEXT NOT NULL DEFAULT '';",
+		"ALTER TABLE mail_events ADD COLUMN IF NOT EXISTS sender TEXT NOT NULL DEFAULT '';",
+		"ALTER TABLE mail_events ADD COLUMN IF NOT EXISTS received_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW();",
+		"ALTER TABLE mail_events ADD COLUMN IF NOT EXISTS snippet TEXT;",
+		"ALTER TABLE mail_events ADD COLUMN IF NOT EXISTS classification VARCHAR(32) NOT NULL DEFAULT 'unknown';",
+		"ALTER TABLE mail_events ADD COLUMN IF NOT EXISTS confidence NUMERIC(5,2) NOT NULL DEFAULT 0;",
+		"ALTER TABLE mail_events ADD COLUMN IF NOT EXISTS payload JSONB NOT NULL DEFAULT '{}'::jsonb;",
+		"ALTER TABLE mail_events ADD COLUMN IF NOT EXISTS status VARCHAR(32) NOT NULL DEFAULT 'pending';",
+		"ALTER TABLE mail_events ADD COLUMN IF NOT EXISTS error_message TEXT;",
+		"ALTER TABLE mail_events ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();",
+		"ALTER TABLE mail_events ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();",
+	}
+
+	for _, stmt := range mailEventsAlter {
+		if _, err := db.Exec(stmt); err != nil {
+			log.Printf("Warning: Failed to alter mail_events table: %v", err)
+		}
+	}
+
 	// 创建索引
 	indexes := []string{
 		"CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);",
@@ -125,6 +221,11 @@ END $$;`)
 		"CREATE INDEX IF NOT EXISTS idx_job_applications_company_name ON job_applications(company_name);",
 		"CREATE INDEX IF NOT EXISTS idx_job_applications_user_status ON job_applications(user_id, status);",
 		"CREATE INDEX IF NOT EXISTS idx_job_applications_reminder_time ON job_applications(reminder_time) WHERE reminder_enabled = TRUE;",
+		"CREATE INDEX IF NOT EXISTS idx_user_mailboxes_user_id ON user_mailboxes(user_id);",
+		"CREATE INDEX IF NOT EXISTS idx_user_mailboxes_status ON user_mailboxes(status);",
+		"CREATE INDEX IF NOT EXISTS idx_mail_events_user_status ON mail_events(user_id, status);",
+		"CREATE INDEX IF NOT EXISTS idx_mail_events_application_id ON mail_events(application_id);",
+		"CREATE INDEX IF NOT EXISTS idx_mail_events_received_at ON mail_events(received_at);",
 	}
 
 	for _, indexSQL := range indexes {

@@ -133,6 +133,28 @@
       cursor: not-allowed;
     }
 
+    .env-section {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12px;
+      color: #8c8c8c;
+    }
+
+    .env-section select {
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid #d9d9d9;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .env-section select:focus {
+      border-color: #1890ff;
+      box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.12);
+    }
+
     .login-prompt {
       text-align: center;
       padding: 32px 16px;
@@ -287,6 +309,18 @@
         <div class="spinner"></div>
       </div>
 
+      <!-- 环境选择卡片（登录前后都可见） -->
+      <div class="status-card" id="environmentCard">
+        <h3 style="font-size:16px; color:#262626; margin-bottom:12px;">环境选择</h3>
+        <div class="env-section">
+          <label for="envSelect">当前环境</label>
+          <select id="envSelect">
+            <option value="production">线上环境</option>
+            <option value="local">本地环境</option>
+          </select>
+        </div>
+      </div>
+
       <!-- 未登录状态 -->
       <div class="login-prompt" id="loginPrompt" style="display: none;">
         <div class="icon">
@@ -318,6 +352,23 @@
             <div class="status-label">可填充字段</div>
             <div class="status-value" id="fieldCount">-</div>
           </div>
+          <button class="btn btn-secondary" id="logoutBtn" style="margin-top:12px; display:none;">退出登录</button>
+        </div>
+
+        <div class="status-card" id="siteControlCard">
+          <h3 style="margin-bottom:12px; font-size:16px; color:#262626;">站点启用控制</h3>
+          <div class="status-item">
+            <div class="status-label">域名</div>
+            <div class="status-value" id="siteHost">-</div>
+          </div>
+          <div class="status-item">
+            <div class="status-label">状态</div>
+            <div class="status-value" id="siteStatus">未启用</div>
+          </div>
+          <button class="btn btn-secondary" id="toggleSiteBtn">启用此站点监听</button>
+          <p style="margin-top:12px; font-size:12px; color:#8c8c8c; line-height:1.5;" id="siteHint">
+            启用后，当您点击该网站的“投递/申请”按钮时，插件会提示保存岗位信息。
+          </p>
         </div>
 
         <!-- 简历信息卡片 -->

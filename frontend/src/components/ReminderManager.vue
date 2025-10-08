@@ -1,110 +1,211 @@
 <template>
   <div class="reminder-container">
-    <!-- 提醒列表卡片 -->
-    <a-card title="待办提醒" :loading="loading">
+    <a-card :loading="cardLoading" title="提醒中心">
       <template #extra>
-        <a-badge :count="activeReminders.length" :showZero="true">
+        <a-badge :count="activeBadgeCount" :showZero="true">
           <BellOutlined style="font-size: 20px" />
         </a-badge>
       </template>
 
-      <!-- 快速筛选 -->
-      <div class="filter-bar">
-        <a-radio-group v-model:value="filterType" button-style="solid">
-          <a-radio-button value="all">全部</a-radio-button>
-          <a-radio-button value="interview">面试提醒</a-radio-button>
-          <a-radio-button value="written">笔试提醒</a-radio-button>
-          <a-radio-button value="follow_up">跟进提醒</a-radio-button>
-          <a-radio-button value="today">今日待办</a-radio-button>
-          <a-radio-button value="upcoming">即将到来</a-radio-button>
-        </a-radio-group>
-      </div>
+      <a-tabs v-model:activeKey="activeTab">
+        <a-tab-pane key="reminders" tab="待办提醒">
+          <div class="filter-bar">
+            <a-radio-group v-model:value="filterType" button-style="solid">
+              <a-radio-button value="all">全部</a-radio-button>
+              <a-radio-button value="interview">面试提醒</a-radio-button>
+              <a-radio-button value="written">笔试提醒</a-radio-button>
+              <a-radio-button value="follow_up">跟进提醒</a-radio-button>
+              <a-radio-button value="today">今日待办</a-radio-button>
+              <a-radio-button value="upcoming">即将到来</a-radio-button>
+            </a-radio-group>
+          </div>
 
-      <a-divider />
+          <a-divider />
 
-      <!-- 提醒列表 -->
-      <a-list 
-        v-if="filteredReminders.length > 0"
-        :data-source="filteredReminders"
-        item-layout="horizontal"
-      >
-        <template #renderItem="{ item }">
-          <a-list-item>
-            <template #actions>
-              <a-button 
-                size="small" 
-                type="primary"
-                @click="viewApplication(item.application_id)"
-              >
-                查看详情
-              </a-button>
-              <a-button 
-                size="small"
-                danger
-                @click="dismissReminder(item)"
-              >
-                忽略
-              </a-button>
+          <a-list
+            v-if="filteredReminders.length > 0"
+            :data-source="filteredReminders"
+            item-layout="horizontal"
+          >
+            <template #renderItem="{ item }">
+              <a-list-item>
+                <template #actions>
+                  <a-button
+                    size="small"
+                    type="primary"
+                    @click="viewApplication(item.application_id)"
+                  >
+                    查看详情
+                  </a-button>
+                  <a-button
+                    size="small"
+                    danger
+                    @click="dismissReminder(item)"
+                  >
+                    忽略
+                  </a-button>
+                </template>
+
+                <a-list-item-meta>
+                  <template #avatar>
+                    <a-avatar
+                      :style="{
+                        backgroundColor: item.type === 'interview' ? '#1890ff' : '#52c41a'
+                      }"
+                    >
+                      <template v-if="item.type === 'interview'">
+                        <CalendarOutlined />
+                      </template>
+                      <template v-else>
+                        <ClockCircleOutlined />
+                      </template>
+                    </a-avatar>
+                  </template>
+
+                  <template #title>
+                    <div class="reminder-title">
+                      <span>{{ item.company_name }} - {{ item.position_title }}</span>
+                      <a-tag :color="getReminderColor(item)">
+                        {{ getReminderTypeText(item.type) }}
+                      </a-tag>
+                    </div>
+                  </template>
+
+                  <template #description>
+                    <div class="reminder-info">
+                      <p>
+                        <ClockCircleOutlined />
+                        提醒时间：{{ formatDateTime(item.reminder_time) }}
+                      </p>
+                      <p v-if="item.interview_time">
+                        <CalendarOutlined />
+                        面试时间：{{ formatDateTime(item.interview_time) }}
+                      </p>
+                      <p v-if="item.message">
+                        <MessageOutlined />
+                        备注：{{ item.message }}
+                      </p>
+                      <a-tag :color="getUrgencyColor(item.reminder_time)">
+                        {{ getTimeRemaining(item.reminder_time) }}
+                      </a-tag>
+                    </div>
+                  </template>
+                </a-list-item-meta>
+              </a-list-item>
             </template>
-            
-            <a-list-item-meta>
-              <template #avatar>
-                <a-avatar 
-                  :style="{ 
-                    backgroundColor: item.type === 'interview' ? '#1890ff' : '#52c41a' 
-                  }"
-                >
-                  <template v-if="item.type === 'interview'">
-                    <CalendarOutlined />
-                  </template>
-                  <template v-else>
-                    <ClockCircleOutlined />
-                  </template>
-                </a-avatar>
-              </template>
-              
-              <template #title>
-                <div class="reminder-title">
-                  <span>{{ item.company_name }} - {{ item.position_title }}</span>
-                  <a-tag :color="getReminderColor(item)">
-                    {{ getReminderTypeText(item.type) }}
-                  </a-tag>
-                </div>
-              </template>
-              
-              <template #description>
-                <div class="reminder-info">
-                  <p>
-                    <ClockCircleOutlined /> 
-                    提醒时间：{{ formatDateTime(item.reminder_time) }}
-                  </p>
-                  <p v-if="item.interview_time">
-                    <CalendarOutlined /> 
-                    面试时间：{{ formatDateTime(item.interview_time) }}
-                  </p>
-                  <p v-if="item.message">
-                    <MessageOutlined /> 
-                    备注：{{ item.message }}
-                  </p>
-                  <a-tag :color="getUrgencyColor(item.reminder_time)">
-                    {{ getTimeRemaining(item.reminder_time) }}
-                  </a-tag>
-                </div>
-              </template>
-            </a-list-item-meta>
-          </a-list-item>
-        </template>
-      </a-list>
+          </a-list>
 
-      <!-- 空状态 -->
-      <a-empty 
-        v-else
-        description="暂无待办提醒"
-        :image="Empty.PRESENTED_IMAGE_SIMPLE"
-      />
+          <a-empty
+            v-else
+            description="暂无待办提醒"
+            :image="Empty.PRESENTED_IMAGE_SIMPLE"
+          />
+        </a-tab-pane>
+
+        <a-tab-pane key="mailEvents" tab="待确认邮件">
+          <div class="mail-events-header">
+            <a-space>
+              <a-button type="link" @click="refreshMailEvents" :loading="mailEventsLoading">
+                刷新
+              </a-button>
+            </a-space>
+          </div>
+          <a-spin :spinning="mailEventsLoading">
+            <template v-if="mailEvents.length > 0">
+              <a-list :data-source="mailEvents" item-layout="vertical">
+                <template #renderItem="{ item }">
+                  <a-list-item>
+                    <template #actions>
+                      <a-button
+                        size="small"
+                        type="primary"
+                        :disabled="!item.application_id"
+                        @click="openReminderFromEvent(item)"
+                      >
+                        设置提醒
+                      </a-button>
+                      <a-button size="small" @click="markEventProcessed(item)">
+                        标记完成
+                      </a-button>
+                      <a-button size="small" danger @click="dismissEvent(item)">
+                        忽略
+                      </a-button>
+                    </template>
+                    <a-list-item-meta>
+                      <template #avatar>
+                        <a-avatar style="background-color: #faad14">
+                          <MailOutlined />
+                        </a-avatar>
+                      </template>
+                      <template #title>
+                        <div class="mail-event-title">
+                          <span>{{ item.subject }}</span>
+                          <a-tag :color="getClassificationColor(item.classification)">
+                            {{ getClassificationText(item.classification) }}
+                          </a-tag>
+                          <a-tag v-if="item.application" color="blue">
+                            已匹配：{{ item.application.company_name }}
+                          </a-tag>
+                        </div>
+                      </template>
+                      <template #description>
+                        <div class="mail-event-info">
+                          <p>
+                            <FieldTimeOutlined />
+                            接收时间：{{ formatDateTime(item.received_at) }}
+                          </p>
+                          <p>
+                            <MessageOutlined />
+                            发件人：{{ item.sender }}
+                          </p>
+                          <p v-if="item.snippet" class="mail-event-snippet">
+                            {{ item.snippet }}
+                          </p>
+                          <div class="mail-event-confidence">
+                            <span>识别置信度</span>
+                            <a-progress :percent="getConfidencePercent(item.confidence)" :show-info="true" />
+                          </div>
+                          <p v-if="item.payload.exam_link">
+                            <LinkOutlined />
+                            笔试链接：
+                            <a :href="item.payload.exam_link" target="_blank" rel="noopener">
+                              前往笔试
+                            </a>
+                          </p>
+                          <p v-if="item.payload.meeting_link">
+                            <LinkOutlined />
+                            会议链接：
+                            <a :href="item.payload.meeting_link" target="_blank" rel="noopener">
+                              立即加入
+                            </a>
+                          </p>
+                          <p v-if="item.payload.meeting_id">
+                            <CalendarOutlined />
+                            会议号：{{ item.payload.meeting_id }}
+                          </p>
+                          <div v-if="item.payload.raw_links && item.payload.raw_links.length" class="mail-event-links">
+                            <span>相关链接：</span>
+                            <a-tag v-for="link in item.payload.raw_links" :key="link" color="purple">
+                              <a :href="link" target="_blank" rel="noopener">链接</a>
+                            </a-tag>
+                          </div>
+                        </div>
+                      </template>
+                    </a-list-item-meta>
+                  </a-list-item>
+                </template>
+              </a-list>
+            </template>
+            <a-empty
+              v-else
+              description="暂无待确认事件"
+              :image="Empty.PRESENTED_IMAGE_SIMPLE"
+            />
+          </a-spin>
+        </a-tab-pane>
+      </a-tabs>
     </a-card>
 
-    <!-- 设置提醒弹窗 -->
     <a-modal
       v-model:visible="showReminderModal"
       title="设置提醒"
@@ -125,9 +226,9 @@
           </a-radio-group>
         </a-form-item>
 
-        <a-form-item 
+        <a-form-item
           v-if="reminderForm.type === 'interview'"
-          label="面试时间" 
+          label="面试时间"
           required
         >
           <a-date-picker
@@ -139,9 +240,9 @@
           />
         </a-form-item>
 
-        <a-form-item 
+        <a-form-item
           v-if="reminderForm.type === 'written'"
-          label="笔试时间" 
+          label="笔试时间"
           required
         >
           <a-date-picker
@@ -190,37 +291,57 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { 
-  BellOutlined, CalendarOutlined, ClockCircleOutlined,
-  MessageOutlined
+import {
+  BellOutlined,
+  CalendarOutlined,
+  ClockCircleOutlined,
+  MessageOutlined,
+  MailOutlined,
+  LinkOutlined,
+  FieldTimeOutlined
 } from '@ant-design/icons-vue'
 import { message, Empty } from 'ant-design-vue'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
 import { useJobApplicationStore } from '../stores/jobApplication'
-import type { JobApplication, Reminder } from '../types'
+import { useMailEventStore } from '../stores/mailEvent'
+import { storeToRefs } from 'pinia'
+import type { JobApplication, Reminder, MailEventPendingItem } from '../types'
 import { useRouter } from 'vue-router'
 
 dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
 
-const props = defineProps<{
-  application?: JobApplication
-}>()
-
-const emit = defineEmits<{
-  'update': (data: any) => void
-}>()
+const props = defineProps<{ application?: JobApplication }>()
+const emit = defineEmits<{ update: (data: any) => void }>()
 
 const router = useRouter()
 const jobStore = useJobApplicationStore()
+const mailEventStore = useMailEventStore()
 
-// 响应式数据
+const { applications } = storeToRefs(jobStore)
+const { pendingEvents, loading: mailEventsLoadingRef } = storeToRefs(mailEventStore)
+
 const loading = ref(false)
+const activeTab = ref<'reminders' | 'mailEvents'>('reminders')
 const filterType = ref('all')
 const showReminderModal = ref(false)
 const reminders = ref<any[]>([])
+const reminderManagerLoadedMailEvents = ref(false)
+const selectedApplication = ref<JobApplication | null>(props.application || null)
+
+const mailEvents = computed(() => pendingEvents.value)
+const mailEventsLoading = computed(() => mailEventsLoadingRef.value)
+
+const cardLoading = computed(() =>
+  activeTab.value === 'reminders' ? loading.value : mailEventsLoading.value
+)
+
+const activeBadgeCount = computed(() =>
+  activeTab.value === 'reminders' ? activeReminders.value.length : mailEvents.value.length
+)
+
 const reminderForm = ref({
   type: 'interview' as 'interview' | 'written' | 'follow_up',
   interview_time: null as any,
@@ -240,18 +361,25 @@ watch(() => reminderForm.value.type, (type) => {
   }
 })
 
-// 定时器
+watch(activeTab, async (tab) => {
+  if (tab === 'mailEvents' && !reminderManagerLoadedMailEvents.value) {
+    await mailEventStore.fetchPending()
+    reminderManagerLoadedMailEvents.value = true
+  }
+})
+
+watch(() => props.application, (app) => {
+  selectedApplication.value = app || null
+})
+
 let checkInterval: NodeJS.Timeout | null = null
 
-// 活动提醒（未发送的）
-const activeReminders = computed(() => 
+const activeReminders = computed(() =>
   reminders.value.filter(r => !r.is_sent)
 )
 
-// 筛选后的提醒
 const filteredReminders = computed(() => {
   let result = activeReminders.value
-
   switch (filterType.value) {
     case 'interview':
       result = result.filter(r => r.type === 'interview')
@@ -263,7 +391,7 @@ const filteredReminders = computed(() => {
       result = result.filter(r => r.type === 'written')
       break
     case 'today':
-      result = result.filter(r => 
+      result = result.filter(r =>
         dayjs(r.reminder_time).isSame(dayjs(), 'day')
       )
       break
@@ -274,43 +402,32 @@ const filteredReminders = computed(() => {
       })
       break
   }
-
-  return result.sort((a, b) => 
+  return result.sort((a, b) =>
     dayjs(a.reminder_time).valueOf() - dayjs(b.reminder_time).valueOf()
   )
 })
 
-// 格式化日期时间
-const formatDateTime = (datetime: string) => {
-  return dayjs(datetime).format('YYYY-MM-DD HH:mm')
-}
+const formatDateTime = (datetime: string) => dayjs(datetime).format('YYYY-MM-DD HH:mm')
 
-// 获取剩余时间
 const getTimeRemaining = (reminderTime: string) => {
   const now = dayjs()
   const target = dayjs(reminderTime)
-  
   if (target.isBefore(now)) {
     return '已过期'
   }
-  
   const diffMinutes = target.diff(now, 'minute')
   const diffHours = target.diff(now, 'hour')
   const diffDays = target.diff(now, 'day')
-  
   if (diffMinutes < 60) {
     return `${diffMinutes} 分钟后`
   } else if (diffHours < 24) {
     return `${diffHours} 小时后`
-  } else {
-    return `${diffDays} 天后`
   }
+  return `${diffDays} 天后`
 }
 
-// 获取紧急程度颜色
 const getUrgencyColor = (reminderTime: string) => {
   const diffHours = dayjs(reminderTime).diff(dayjs(), 'hour')
-  
   if (diffHours < 0) return 'default'
   if (diffHours <= 1) return 'error'
   if (diffHours <= 6) return 'warning'
@@ -318,46 +435,110 @@ const getUrgencyColor = (reminderTime: string) => {
   return 'success'
 }
 
-// 获取提醒类型文本
 const getReminderTypeText = (type: string) => {
   if (type === 'interview') return '面试提醒'
   if (type === 'written') return '笔试提醒'
   return '跟进提醒'
 }
 
-// 获取提醒颜色
 const getReminderColor = (reminder: any) => {
   if (reminder.type === 'interview') return 'blue'
   if (reminder.type === 'written') return 'purple'
   return 'green'
 }
 
-// 查看申请详情
+const getClassificationText = (classification: string) => {
+  switch (classification) {
+    case 'exam':
+      return '笔试'
+    case 'interview':
+      return '面试'
+    case 'information':
+      return '信息通知'
+    default:
+      return '待分类'
+  }
+}
+
+const getClassificationColor = (classification: string) => {
+  switch (classification) {
+    case 'exam':
+      return 'purple'
+    case 'interview':
+      return 'blue'
+    case 'information':
+      return 'green'
+    default:
+      return 'default'
+  }
+}
+
+const getConfidencePercent = (value: number) => {
+  if (value <= 1) {
+    return Math.round(value * 100)
+  }
+  return Math.min(100, Math.round(value))
+}
+
 const viewApplication = (applicationId: number) => {
   router.push(`/application/${applicationId}`)
 }
 
-// 忽略提醒
 const dismissReminder = async (reminder: any) => {
   try {
-    // 标记为已发送
     reminder.is_sent = true
     message.success('已忽略该提醒')
-    
-    // 从列表中移除
     reminders.value = reminders.value.filter(r => r.id !== reminder.id)
   } catch (error) {
     message.error('操作失败')
   }
 }
 
-// 保存提醒
+const openReminderFromEvent = async (event: MailEventPendingItem) => {
+  if (!event.application_id) {
+    message.warning('事件尚未关联投递记录')
+    return
+  }
+  let target = applications.value.find(app => app.id === event.application_id)
+  if (!target) {
+    try {
+      target = await jobStore.fetchApplicationById(event.application_id)
+    } catch (error) {
+      message.error('加载关联投递失败')
+      return
+    }
+  }
+  if (target) {
+    selectedApplication.value = target
+    openReminderModal(target)
+  }
+}
+
+const markEventProcessed = async (event: MailEventPendingItem) => {
+  try {
+    await mailEventStore.updateEventStatus(event.id, { status: 'processed' })
+  } catch (error) {
+    // store 内已提示
+  }
+}
+
+const dismissEvent = async (event: MailEventPendingItem) => {
+  try {
+    await mailEventStore.updateEventStatus(event.id, { status: 'dismissed' })
+  } catch (error) {
+    // store 内已提示
+  }
+}
+
+const refreshMailEvents = async () => {
+  await mailEventStore.fetchPending()
+}
+
 const saveReminder = async () => {
   if (!reminderForm.value.reminder_time) {
     message.error('请选择提醒时间')
     return
   }
-
   if (reminderForm.value.type === 'interview' && !reminderForm.value.interview_time) {
     message.error('请选择面试时间')
     return
@@ -366,19 +547,17 @@ const saveReminder = async () => {
     message.error('请选择笔试时间')
     return
   }
-
   try {
-    // 更新应用数据
-    if (props.application) {
+    if (selectedApplication.value) {
       const baseTime = reminderForm.value.type === 'written'
         ? reminderForm.value.written_time
         : reminderForm.value.interview_time
       const interviewTypePayload = reminderForm.value.type === 'written'
         ? '笔试'
         : reminderForm.value.type === 'interview'
-          ? props.application?.interview_type || undefined
+          ? selectedApplication.value.interview_type || undefined
           : undefined
-      await jobStore.updateApplication(props.application.id, {
+      const updated = await jobStore.updateApplication(selectedApplication.value.id, {
         interview_time: baseTime ? baseTime.toDate().toISOString() : undefined,
         reminder_time: reminderForm.value.reminder_time
           ? reminderForm.value.reminder_time.toDate().toISOString()
@@ -386,30 +565,23 @@ const saveReminder = async () => {
         reminder_enabled: true,
         interview_type: interviewTypePayload
       })
+      emit('update', updated)
     }
-
-    message.success('提醒设置成功')
-    showReminderModal.value = false
-    
-    // 请求浏览器通知权限
-    if (reminderForm.value.notification_methods.includes('browser')) {
-      requestNotificationPermission()
-    }
-    
-    // 刷新提醒列表
+    reminderForm.value.notification_methods.includes('browser') && requestNotificationPermission()
     loadReminders()
+    message.success('提醒已设置')
+    showReminderModal.value = false
+    resetReminderForm()
   } catch (error) {
     message.error('设置失败')
   }
 }
 
-// 取消设置提醒
 const cancelReminder = () => {
   showReminderModal.value = false
   resetReminderForm()
 }
 
-// 重置表单
 const resetReminderForm = () => {
   reminderForm.value = {
     type: 'interview',
@@ -422,14 +594,12 @@ const resetReminderForm = () => {
   }
 }
 
-// 请求通知权限
 const requestNotificationPermission = async () => {
   if ('Notification' in window && Notification.permission !== 'granted') {
     await Notification.requestPermission()
   }
 }
 
-// 发送浏览器通知
 const sendBrowserNotification = (reminder: Reminder) => {
   if ('Notification' in window && Notification.permission === 'granted') {
     const notification = new Notification('求职提醒', {
@@ -437,7 +607,6 @@ const sendBrowserNotification = (reminder: Reminder) => {
       icon: '/favicon.ico',
       requireInteraction: true
     })
-    
     notification.onclick = () => {
       viewApplication(reminder.application_id)
       notification.close()
@@ -445,49 +614,34 @@ const sendBrowserNotification = (reminder: Reminder) => {
   }
 }
 
-// 检查并触发提醒
 const checkReminders = () => {
   const now = dayjs()
-  
   activeReminders.value.forEach(reminder => {
     const reminderTime = dayjs(reminder.reminder_time)
-    
-    // 如果提醒时间已到
     if (reminderTime.isBefore(now) || reminderTime.isSame(now, 'minute')) {
-      // 发送通知
       sendBrowserNotification(reminder)
-      
-      // 标记为已发送
       reminder.is_sent = true
-      
-      // 播放声音
       playReminderSound()
     }
   })
 }
 
-// 播放提醒声音
 const playReminderSound = () => {
   const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGBzvLZiTYIG2m98OScTgwOUant7blmFgU7k9n1unEiBC13yO/eizEIHWq+8+OWT')
   audio.play().catch(() => {})
 }
 
-// 加载提醒列表
 const loadReminders = async () => {
   loading.value = true
-  
   try {
-    // 先获取应用列表
     await jobStore.fetchApplications()
-    const generatedReminders: any[] = []
-    
-    // 使用 store 中的 applications
-    jobStore.applications.forEach((app: JobApplication) => {
+    const generated: any[] = []
+    applications.value.forEach((app: JobApplication) => {
       if (app.reminder_enabled && app.reminder_time) {
         const reminderType = app.interview_type === '笔试'
           ? 'written'
           : (app.interview_time ? 'interview' : 'follow_up')
-        generatedReminders.push({
+        generated.push({
           id: app.id,
           application_id: app.id,
           type: reminderType,
@@ -500,8 +654,7 @@ const loadReminders = async () => {
         })
       }
     })
-    
-    reminders.value = generatedReminders
+    reminders.value = generated
   } catch (error) {
     message.error('加载提醒失败')
   } finally {
@@ -509,10 +662,9 @@ const loadReminders = async () => {
   }
 }
 
-// 打开设置提醒弹窗
 const openReminderModal = (application?: JobApplication) => {
   if (application) {
-    // 预填充数据
+    selectedApplication.value = application
     if (application.interview_time && application.interview_type !== '笔试') {
       reminderForm.value.interview_time = dayjs(application.interview_time)
       reminderForm.value.written_time = null
@@ -532,24 +684,20 @@ const openReminderModal = (application?: JobApplication) => {
   showReminderModal.value = true
 }
 
-// 暴露方法给父组件
 defineExpose({
   openReminderModal
 })
 
 onMounted(() => {
-  // 请求通知权限
   requestNotificationPermission()
-  
-  // 加载提醒
   loadReminders()
-  
-  // 启动定时检查
-  checkInterval = setInterval(checkReminders, 60000) // 每分钟检查一次
+  mailEventStore.fetchPending().finally(() => {
+    reminderManagerLoadedMailEvents.value = true
+  })
+  checkInterval = setInterval(checkReminders, 60000)
 })
 
 onUnmounted(() => {
-  // 清理定时器
   if (checkInterval) {
     clearInterval(checkInterval)
   }
@@ -581,5 +729,49 @@ onUnmounted(() => {
 
 .reminder-info p:last-child {
   margin-top: 8px;
+}
+
+.mail-events-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.mail-event-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mail-event-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #666;
+}
+
+.mail-event-info p {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mail-event-snippet {
+  background: var(--bg-card, #fafafa);
+  padding: 8px;
+  border-radius: 6px;
+  line-height: 1.5;
+}
+
+.mail-event-confidence {
+  margin-top: 8px;
+}
+
+.mail-event-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 </style>

@@ -15,21 +15,18 @@ const STORAGE_KEYS = {
   LAST_SYNC: 'jobview_last_sync',
   PENDING_APPLICATIONS: 'jobview_pending_applications',
   RECENT_KEYS: 'jobview_recent_app_keys',
-  SETTINGS: 'jobview_settings'
+  SETTINGS: 'jobview_settings',
+  ENABLED_SITES: 'jobview_enabled_sites',
+  ENVIRONMENT: 'jobview_environment'
 };
 
 // JobView API 基础配置
-const API_CONFIG = {
-  AUTH_BASE_URL: CONFIG.AUTH_BASE_URL,       // 认证基址 /api/auth
-  API_V1_BASE_URL: CONFIG.API_V1_BASE_URL,   // 业务基址 /api/v1
-  TIMEOUT: 10000
-};
+const API_TIMEOUT = 10000;
 
 class JobViewAPI {
-  constructor() {
-    this.authBase = API_CONFIG.AUTH_BASE_URL;
-    this.v1Base = API_CONFIG.API_V1_BASE_URL;
-    this.timeout = API_CONFIG.TIMEOUT;
+  constructor(envName) {
+    this.timeout = API_TIMEOUT;
+    this.setEnvironment(envName || detectEnvironment());
   }
 
   // 获取存储的令牌
@@ -195,6 +192,45 @@ class JobViewAPI {
       return { isLoggedIn: false, user: null };
     }
   }
+
+  async logout() {
+    try {
+      const { refreshToken, accessToken } = await this.getTokens();
+      if (!accessToken && !refreshToken) {
+        return true;
+      }
+      const headers = { 'Content-Type': 'application/json' };
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      } else if (refreshToken) {
+        headers['Authorization'] = `Bearer ${refreshToken}`;
+      }
+      await fetch(`${this.authBase}/logout`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({}),
+        signal: AbortSignal.timeout(this.timeout)
+      });
+    } catch (error) {
+      console.warn('Logout request failed:', error?.message || error);
+    }
+    return true;
+  }
+
+  setEnvironment(envName) {
+    const config = getConfig(envName);
+    this.envName = envName;
+    this.authBase = config.AUTH_BASE_URL;
+    this.v1Base = config.API_V1_BASE_URL;
+    this.frontendBase = config.FRONTEND_URL;
+  }
+
+  getEnvironment() {
+    return {
+      name: this.envName,
+      config: getConfig(this.envName)
+    };
+  }
 }
 
 class DataManager {
@@ -293,16 +329,67 @@ class DataManager {
 
 class BackgroundService {
   constructor() {
-    this.api = new JobViewAPI();
+    this.envName = detectEnvironment();
+    this.api = new JobViewAPI(this.envName);
     this.dataManager = new DataManager(this.api);
     this.init();
   }
 
+  async getEnabledSites() {
+    const result = await chrome.storage.local.get([STORAGE_KEYS.ENABLED_SITES]);
+    return result[STORAGE_KEYS.ENABLED_SITES] || {};
+  }
+
+  async setEnabledSites(sites) {
+    await chrome.storage.local.set({ [STORAGE_KEYS.ENABLED_SITES]: sites });
+    return sites;
+  }
+
+  async toggleSite(host, enabled) {
+    if (!host) return await this.getEnabledSites();
+    const cleanHost = sanitizeHost(host);
+    const sites = await this.getEnabledSites();
+    if (enabled) {
+      sites[cleanHost] = { enabled: true, updatedAt: Date.now() };
+    } else {
+      delete sites[cleanHost];
+    }
+    await this.setEnabledSites(sites);
+    return sites;
+  }
+
+  async isSiteEnabled(host) {
+    if (!host) return false;
+    const sites = await this.getEnabledSites();
+    const cleanHost = sanitizeHost(host);
+    if (sites[cleanHost]?.enabled) {
+      return true;
+    }
+    // 支持通配符 *.domain.com
+    const parts = cleanHost.split('.');
+    for (let i = 0; i < parts.length - 1; i++) {
+      const suffix = parts.slice(i).join('.');
+      const wildcardKey = `*.${suffix}`;
+      if (sites[wildcardKey]?.enabled) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   init() {
-    // 监听来自content script和popup的消息
+    chrome.storage.local.get([STORAGE_KEYS.ENVIRONMENT], (res) => {
+      if (res && res[STORAGE_KEYS.ENVIRONMENT]) {
+        this.envName = res[STORAGE_KEYS.ENVIRONMENT];
+        this.api.setEnvironment(this.envName);
+      } else {
+        chrome.storage.local.set({ [STORAGE_KEYS.ENVIRONMENT]: this.envName });
+      }
+    });
+
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       this.handleMessage(request, sender, sendResponse);
-      return true; // 保持消息通道开放
+      return true;
     });
 
     // 插件安装/更新时的初始化
@@ -403,6 +490,115 @@ class BackgroundService {
             const next = { ...current, ...(request.data || {}) };
             await chrome.storage.local.set({ [STORAGE_KEYS.SETTINGS]: next });
             sendResponse({ success: true, data: next });
+          } catch (e) {
+            sendResponse({ success: false, error: e?.message || String(e) });
+          }
+          break;
+
+        case 'GET_ENABLED_SITES':
+          try {
+            const data = await this.getEnabledSites();
+            sendResponse({ success: true, data });
+          } catch (e) {
+            sendResponse({ success: false, error: e?.message || String(e) });
+          }
+          break;
+
+        case 'SET_SITE_ENABLED':
+          try {
+            const host = request.host || request.domain;
+            const enabled = Boolean(request.enabled);
+            const sites = await this.toggleSite(host, enabled);
+            // 通知当前 tab 更新监听状态
+            if (sender?.tab?.id != null) {
+              try {
+                chrome.tabs.sendMessage(sender.tab.id, {
+                  type: 'SITE_STATUS_CHANGED',
+                  host: sanitizeHost(host),
+                  enabled
+                });
+              } catch (err) {
+                console.warn('Notify content script failed:', err?.message || err);
+              }
+            } else if (request.tabId != null) {
+              try {
+                chrome.tabs.sendMessage(request.tabId, {
+                  type: 'SITE_STATUS_CHANGED',
+                  host: sanitizeHost(host),
+                  enabled
+                });
+              } catch (err) {
+                console.warn('Notify content script failed:', err?.message || err);
+              }
+            }
+            sendResponse({ success: true, data: sites });
+          } catch (e) {
+            sendResponse({ success: false, error: e?.message || String(e) });
+          }
+          break;
+
+        case 'IS_SITE_ENABLED':
+          try {
+            const enabled = await this.isSiteEnabled(request.host || request.domain);
+            sendResponse({ success: true, enabled });
+          } catch (e) {
+            sendResponse({ success: false, error: e?.message || String(e) });
+          }
+          break;
+
+        case 'GET_ENVIRONMENT':
+          try {
+            const env = this.api.getEnvironment();
+            sendResponse({ success: true, environment: env.name, config: env.config });
+          } catch (e) {
+            sendResponse({ success: false, error: e?.message || String(e) });
+          }
+          break;
+
+        case 'SET_ENVIRONMENT':
+          try {
+            const target = request?.environment;
+            if (!target || !ENV_CONFIG[target]) {
+              throw new Error('无效的环境名称');
+            }
+            await chrome.storage.local.set({ [STORAGE_KEYS.ENVIRONMENT]: target });
+            this.envName = target;
+            this.api.setEnvironment(target);
+            await this.handleLogout();
+            sendResponse({ success: true, environment: target, config: getConfig(target) });
+            try { chrome.runtime.sendMessage({ type: 'UPDATE_UI' }); } catch {}
+            chrome.tabs.query({}, (tabs) => {
+              tabs?.forEach(tab => {
+                if (tab?.id != null) {
+                  try {
+                    chrome.tabs.sendMessage(tab.id, { type: 'AUTH_STATE_CHANGED', isLoggedIn: false });
+                  } catch (err) {
+                    /* ignore */
+                  }
+                }
+              });
+            });
+          } catch (e) {
+            sendResponse({ success: false, error: e?.message || String(e) });
+          }
+          break;
+
+        case 'LOGOUT':
+          try {
+            await this.handleLogout();
+            sendResponse({ success: true });
+            try { chrome.runtime.sendMessage({ type: 'UPDATE_UI' }); } catch {}
+            chrome.tabs.query({}, (tabs) => {
+              tabs?.forEach(tab => {
+                if (tab?.id != null) {
+                  try {
+                    chrome.tabs.sendMessage(tab.id, { type: 'AUTH_STATE_CHANGED', isLoggedIn: false });
+                  } catch (err) {
+                    /* ignore */
+                  }
+                }
+              });
+            });
           } catch (e) {
             sendResponse({ success: false, error: e?.message || String(e) });
           }
@@ -605,6 +801,19 @@ class BackgroundService {
       }
     });
   }
+
+  async handleLogout() {
+    await this.api.logout().catch(() => {});
+    await chrome.storage.local.remove([
+      STORAGE_KEYS.ACCESS_TOKEN,
+      STORAGE_KEYS.REFRESH_TOKEN,
+      STORAGE_KEYS.USER_DATA,
+      STORAGE_KEYS.RESUME_DATA,
+      STORAGE_KEYS.LAST_SYNC,
+      STORAGE_KEYS.PENDING_APPLICATIONS,
+      STORAGE_KEYS.RECENT_KEYS
+    ]);
+  }
 }
 
 // 初始化后台服务
@@ -613,4 +822,9 @@ const backgroundService = new BackgroundService();
 // 导出给测试使用
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { BackgroundService, JobViewAPI, DataManager };
+}
+
+function sanitizeHost(host) {
+  if (!host) return '';
+  return String(host).trim().toLowerCase().replace(/^https?:\/\//, '').split('/')[0];
 }
