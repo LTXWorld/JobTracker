@@ -5,9 +5,70 @@
       <a-col :xs="24" :lg="16">
         <ReminderManager ref="reminderManager" />
       </a-col>
-      
-      <!-- 右侧：快速操作和统计 -->
+
+      <!-- 右侧：邮箱授权 + 快捷操作 -->
       <a-col :xs="24" :lg="8">
+        <!-- 邮箱授权 -->
+        <a-card title="邮箱授权" style="margin-bottom: 24px" :loading="mailboxLoading">
+          <a-alert
+            v-if="mailboxInfo"
+            :message="mailboxStatusText"
+            :description="mailboxStatusDescription"
+            :type="mailboxAlertType"
+            show-icon
+            style="margin-bottom: 16px"
+          />
+
+          <a-form layout="vertical">
+            <a-form-item label="邮箱地址" required>
+              <a-input
+                v-model:value="mailboxForm.email_address"
+                placeholder="例如 123456@qq.com"
+              />
+            </a-form-item>
+
+            <a-form-item label="协议">
+              <a-select v-model:value="mailboxForm.protocol" disabled>
+                <a-select-option value="imap">IMAP</a-select-option>
+              </a-select>
+            </a-form-item>
+
+            <a-form-item label="收件服务器" required>
+              <a-input v-model:value="mailboxForm.host" />
+            </a-form-item>
+
+            <a-form-item label="端口" required>
+              <a-input-number v-model:value="mailboxForm.port" :min="1" :max="65535" style="width: 100%" />
+            </a-form-item>
+
+            <a-form-item label="SSL 加密">
+              <a-switch v-model:checked="mailboxForm.use_ssl" />
+            </a-form-item>
+
+            <a-form-item label="授权码" required>
+              <a-input-password
+                v-model:value="mailboxForm.authorization_code"
+                placeholder="请输入邮箱授权码"
+              />
+            </a-form-item>
+
+            <div class="mailbox-actions">
+              <a-space>
+                <a-button size="small" @click="useQQPreset">填入 QQ 邮箱预设</a-button>
+                <a-button type="primary" :loading="mailboxSaving" @click="submitMailbox">保存绑定</a-button>
+                <a-button
+                  v-if="mailboxInfo"
+                  danger
+                  :loading="mailboxSaving"
+                  @click="removeMailbox"
+                >
+                  解除绑定
+                </a-button>
+              </a-space>
+            </div>
+          </a-form>
+        </a-card>
+
         <!-- 快速添加提醒 -->
         <a-card title="快速添加提醒" style="margin-bottom: 24px">
           <a-form layout="vertical">
@@ -131,7 +192,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { 
   PlusOutlined, CalendarOutlined, ClockCircleOutlined,
   TeamOutlined, PhoneOutlined
@@ -139,6 +200,7 @@ import {
 import { message } from 'ant-design-vue'
 import ReminderManager from '../components/ReminderManager.vue'
 import { useJobApplicationStore } from '../stores/jobApplication'
+import { useMailboxStore } from '../stores/mailbox'
 import { storeToRefs } from 'pinia'
 import dayjs from 'dayjs'
 
@@ -147,6 +209,51 @@ const { applications } = storeToRefs(jobStore)
 
 const reminderManager = ref()
 const selectedApplicationId = ref<number | null>(null)
+
+const mailboxStore = useMailboxStore()
+const { mailbox: mailboxInfo, loading: mailboxLoading, saving: mailboxSaving } = storeToRefs(mailboxStore)
+
+const mailboxForm = reactive({
+  email_address: '',
+  provider: 'qq',
+  protocol: 'imap',
+  host: 'imap.qq.com',
+  port: 993,
+  use_ssl: true,
+  authorization_code: ''
+})
+
+const mailboxStatusText = computed(() => {
+  if (!mailboxInfo.value) {
+    return '尚未绑定邮箱，填写 QQ 邮箱授权后可自动同步邀请邮件'
+  }
+  switch (mailboxInfo.value.status) {
+    case 'active':
+      return `邮箱 ${mailboxInfo.value.email_address} 同步正常`
+    case 'error':
+      return `邮箱 ${mailboxInfo.value.email_address} 同步异常`
+    case 'pending_review':
+      return `邮箱 ${mailboxInfo.value.email_address} 待人工检查`
+    default:
+      return `邮箱 ${mailboxInfo.value.email_address} 当前状态：${mailboxInfo.value.status}`
+  }
+})
+
+const mailboxStatusDescription = computed(() => {
+  if (!mailboxInfo.value) return ''
+  const last = mailboxInfo.value.last_synced_at
+  const timeText = last ? `最近同步：${dayjs(last).format('YYYY-MM-DD HH:mm')}` : '尚未同步'
+  if (mailboxInfo.value.error_message) {
+    return `${mailboxInfo.value.error_message}，${timeText}`
+  }
+  return timeText
+})
+
+const mailboxAlertType = computed(() => {
+  if (!mailboxInfo.value) return 'info'
+  if (mailboxInfo.value.requires_attention) return 'warning'
+  return 'success'
+})
 
 // 设置
 const settings = ref({
@@ -221,6 +328,71 @@ const setReminder = () => {
   }
 }
 
+const fillFormFromMailbox = () => {
+  if (!mailboxInfo.value) {
+    useQQPreset()
+    return
+  }
+  mailboxForm.email_address = mailboxInfo.value.email_address
+  mailboxForm.host = mailboxInfo.value.host
+  mailboxForm.port = mailboxInfo.value.port
+  mailboxForm.protocol = mailboxInfo.value.protocol
+  mailboxForm.use_ssl = mailboxInfo.value.use_ssl
+  mailboxForm.authorization_code = ''
+}
+
+const useQQPreset = () => {
+  mailboxForm.provider = 'qq'
+  mailboxForm.protocol = 'imap'
+  mailboxForm.host = 'imap.qq.com'
+  mailboxForm.port = 993
+  mailboxForm.use_ssl = true
+}
+
+const submitMailbox = async () => {
+  if (!mailboxForm.email_address) {
+    message.warning('请输入邮箱地址')
+    return
+  }
+  if (!mailboxForm.host || !mailboxForm.port) {
+    message.warning('请完整填写服务器信息')
+    return
+  }
+  if (!mailboxForm.authorization_code) {
+    message.warning('请输入授权码')
+    return
+  }
+
+  try {
+    await mailboxStore.bindMailbox({
+      email_address: mailboxForm.email_address,
+      provider: mailboxForm.provider,
+      protocol: mailboxForm.protocol,
+      host: mailboxForm.host,
+      port: mailboxForm.port,
+      use_ssl: mailboxForm.use_ssl,
+      authorization_code: mailboxForm.authorization_code
+    })
+    mailboxForm.authorization_code = ''
+  } catch (error) {
+    /* message 已提示 */
+  }
+}
+
+const removeMailbox = async () => {
+  try {
+    await mailboxStore.removeMailbox()
+    mailboxForm.authorization_code = ''
+    useQQPreset()
+  } catch (error) {
+    /* message 已提示 */
+  }
+}
+
+watch(mailboxInfo, () => {
+  fillFormFromMailbox()
+}, { immediate: true })
+
 // 保存设置
 const saveSettings = () => {
   // 保存到本地存储
@@ -242,6 +414,7 @@ const loadSettings = () => {
 
 onMounted(() => {
   jobStore.fetchApplications()
+  mailboxStore.fetchMailbox()
   loadSettings()
 })
 </script>
@@ -263,5 +436,10 @@ onMounted(() => {
   background: var(--bg-card);
   padding: 24px;
   border-radius: 8px;
+}
+
+.mailbox-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

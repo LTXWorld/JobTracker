@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	
+
 	"github.com/joho/godotenv"
 )
 
@@ -13,29 +13,37 @@ type Config struct {
 	Database DatabaseConfig
 	Server   ServerConfig
 	JWT      JWTConfig
+	Mail     MailConfig
 }
 
 type DatabaseConfig struct {
-    Host            string
-    Port            string
-    User            string
-    Password        string
-    DBName          string
-    SSLMode         string
-    MaxOpenConns    int
-    MaxIdleConns    int
-    UseGorm         bool
+	Host         string
+	Port         string
+	User         string
+	Password     string
+	DBName       string
+	SSLMode      string
+	MaxOpenConns int
+	MaxIdleConns int
+	UseGorm      bool
 }
 
 type ServerConfig struct {
-	Port string
+	Port        string
 	Environment string
 }
 
 type JWTConfig struct {
-	Secret string
-	AccessTokenDuration string
+	Secret               string
+	AccessTokenDuration  string
 	RefreshTokenDuration string
+}
+
+type MailConfig struct {
+	EncryptionKey  string
+	PollingEnabled bool
+	WorkHoursCron  string
+	OffHoursCron   string
 }
 
 func Load() *Config {
@@ -49,17 +57,17 @@ func Load() *Config {
 	}
 
 	return &Config{
-        Database: DatabaseConfig{
-            Host:         getEnv("DB_HOST", "127.0.0.1"),
-            Port:         getEnv("DB_PORT", "5433"),
-            User:         getEnv("DB_USER", "ltx"),
-            Password:     getEnv("DB_PASSWORD", ""),  // 不提供默认值，强制使用环境变量
-            DBName:       getEnv("DB_NAME", "jobView_db"),
-            SSLMode:      getEnv("DB_SSLMODE", "disable"),
-            MaxOpenConns: getEnvAsInt("DB_MAX_OPEN_CONNS", 0), // 0 表示使用自动计算
-            MaxIdleConns: getEnvAsInt("DB_MAX_IDLE_CONNS", 0), // 0 表示使用自动计算
-            UseGorm:      getEnvAsBool("DB_USE_GORM", true),
-        },
+		Database: DatabaseConfig{
+			Host:         getEnv("DB_HOST", "127.0.0.1"),
+			Port:         getEnv("DB_PORT", "5433"),
+			User:         getEnv("DB_USER", "ltx"),
+			Password:     getEnv("DB_PASSWORD", ""), // 不提供默认值，强制使用环境变量
+			DBName:       getEnv("DB_NAME", "jobView_db"),
+			SSLMode:      getEnv("DB_SSLMODE", "disable"),
+			MaxOpenConns: getEnvAsInt("DB_MAX_OPEN_CONNS", 0), // 0 表示使用自动计算
+			MaxIdleConns: getEnvAsInt("DB_MAX_IDLE_CONNS", 0), // 0 表示使用自动计算
+			UseGorm:      getEnvAsBool("DB_USE_GORM", true),
+		},
 		Server: ServerConfig{
 			Port:        getEnv("SERVER_PORT", "8010"),
 			Environment: getEnv("ENVIRONMENT", "development"),
@@ -68,6 +76,12 @@ func Load() *Config {
 			Secret:               getEnv("JWT_SECRET", ""), // 不提供默认值，强制使用环境变量
 			AccessTokenDuration:  getEnv("JWT_ACCESS_DURATION", "24h"),
 			RefreshTokenDuration: getEnv("JWT_REFRESH_DURATION", "720h"), // 30天
+		},
+		Mail: MailConfig{
+			EncryptionKey:  getEnv("MAIL_ENCRYPTION_KEY", "jobview-mail-secret-dev"),
+			PollingEnabled: getEnvAsBool("MAIL_POLLING_ENABLED", true),
+			WorkHoursCron:  getEnv("MAIL_POLLING_WORK_HOURS", "0 12-19 * * *"),
+			OffHoursCron:   getEnv("MAIL_POLLING_OFF_HOURS", "0 7,22 * * *"),
 		},
 	}
 }
@@ -91,15 +105,15 @@ func getEnvAsInt(key string, defaultValue int) int {
 
 // getEnvAsBool 获取环境变量作为布尔值
 func getEnvAsBool(key string, defaultValue bool) bool {
-    if value := os.Getenv(key); value != "" {
-        switch value {
-        case "1", "true", "TRUE", "on", "ON", "yes", "YES":
-            return true
-        case "0", "false", "FALSE", "off", "OFF", "no", "NO":
-            return false
-        }
-    }
-    return defaultValue
+	if value := os.Getenv(key); value != "" {
+		switch value {
+		case "1", "true", "TRUE", "on", "ON", "yes", "YES":
+			return true
+		case "0", "false", "FALSE", "off", "OFF", "no", "NO":
+			return false
+		}
+	}
+	return defaultValue
 }
 
 // IsDevelopment 检查是否为开发环境
@@ -118,16 +132,20 @@ func (c *Config) ValidateConfig() error {
 	if c.IsProduction() && c.Database.Password == "" {
 		return fmt.Errorf("production environment requires DB_PASSWORD to be set")
 	}
-	
+
 	// 生产环境必须设置JWT密钥
 	if c.IsProduction() && c.JWT.Secret == "" {
 		return fmt.Errorf("production environment requires JWT_SECRET to be set")
 	}
-	
+
+	if c.Mail.EncryptionKey == "" {
+		return fmt.Errorf("MAIL_ENCRYPTION_KEY must be provided")
+	}
+
 	// JWT密钥长度检查
 	if len(c.JWT.Secret) > 0 && len(c.JWT.Secret) < 32 {
 		return fmt.Errorf("JWT_SECRET must be at least 32 characters long")
 	}
-	
+
 	return nil
 }

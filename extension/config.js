@@ -16,27 +16,19 @@ const ENV_CONFIG = {
   }
 };
 
-// 自动检测环境
+// 自动检测环境（用于初始默认值）
 function detectEnvironment() {
-  // 如果是本地开发环境
   if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
     return 'local';
   }
-  // 生产环境
   return 'production';
 }
 
-// 获取当前环境配置
-function getConfig() {
-  const env = detectEnvironment();
-  return ENV_CONFIG[env];
+// 根据环境名获取配置
+function getConfig(env) {
+  return ENV_CONFIG[env] || ENV_CONFIG.production;
 }
 
-// 导出配置
-const CONFIG = getConfig();
-
-// 为了方便调试，在控制台输出当前配置
-console.log('[JobView Extension] Current environment:', detectEnvironment());
-console.log('[JobView Extension] AUTH URL:', CONFIG.AUTH_BASE_URL);
-console.log('[JobView Extension] API v1 URL:', CONFIG.API_V1_BASE_URL);
-console.log('[JobView Extension] Frontend URL:', CONFIG.FRONTEND_URL);
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { ENV_CONFIG, detectEnvironment, getConfig };
+}

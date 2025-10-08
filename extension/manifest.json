@@ -12,23 +12,8 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://*.zhaopin.com/*",
-    "https://*.51job.com/*",
-    "https://*.zhipin.com/*",
-    "https://*.mokahr.com/*",
-    "https://*.didiglobal.com/*",
-    "https://*.lagou.com/*",
-    "https://*.liepin.com/*",
-    "https://*.tencent.com/*",
-    "https://*.bytedance.com/*",
-    "https://*.alibaba.com/*",
-    "https://*.alibaba-inc.com/*",
-    "https://*.baidu.com/*",
-    "https://*.meituan.com/*",
-    "http://localhost:*/*",
-    "http://127.0.0.1:3001/*",
-    "http://localhost:3001/*",
-    "https://jobview.bfsmlt.top/*"
+    "http://*/*",
+    "https://*/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -36,24 +21,8 @@
   "content_scripts": [
     {
       "matches": [
-        "https://*.zhaopin.com/*",
-        "https://*.51job.com/*",
-        "https://*.zhipin.com/*",
-        "https://*.mokahr.com/*",
-        "https://*.didiglobal.com/*",
-        "https://*.lagou.com/*",
-        "https://*.liepin.com/*",
-        "https://*.tencent.com/*",
-        "https://*.bytedance.com/*",
-        "https://*.alibaba.com/*",
-        "https://*.alibaba-inc.com/*",
-        "https://*.baidu.com/*",
-        "https://*.meituan.com/*",
-        "https://jobview.bfsmlt.top/*",
-        "http://localhost:3000/*",
-        "http://127.0.0.1:3000/*",
-        "http://localhost:3001/*",
-        "http://127.0.0.1:3001/*"
+        "http://*/*",
+        "https://*/*"
       ],
       "js": ["content.js"],
       "css": ["content.css"],

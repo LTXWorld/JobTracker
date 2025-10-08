@@ -245,6 +245,78 @@ export interface Reminder {
   message?: string;
 }
 
+// 邮件事件状态枚举
+export type MailEventStatus = 'pending' | 'processed' | 'needs_review' | 'error' | 'dismissed';
+
+export interface MailEventPayload {
+  company_candidates?: string[];
+  position_candidates?: string[];
+  detected_time?: string | null;
+  exam_link?: string | null;
+  meeting_link?: string | null;
+  meeting_id?: string | null;
+  raw_links?: string[];
+  notes?: string[];
+  matched_application?: number | null;
+}
+
+export interface MailEventApplicationSummary {
+  id: number;
+  company_name: string;
+  position_title: string;
+  status: ApplicationStatus;
+  interview_time?: string | null;
+  reminder_time?: string | null;
+  reminder_enabled: boolean;
+}
+
+export interface MailEventPendingItem {
+  id: number;
+  user_id: number;
+  mailbox_id: number;
+  application_id?: number | null;
+  subject: string;
+  sender: string;
+  received_at: string;
+  snippet?: string | null;
+  classification: string;
+  confidence: number;
+  payload: MailEventPayload;
+  status: MailEventStatus;
+  error_message?: string | null;
+  application?: MailEventApplicationSummary | null;
+}
+
+export interface MailEventStatusUpdateRequest {
+  status: MailEventStatus;
+  error_message?: string | null;
+  application_id?: number | null;
+}
+
+// 邮箱授权相关类型
+export interface MailboxResponse {
+  email_address: string;
+  provider?: string | null;
+  protocol: string;
+  host: string;
+  port: number;
+  use_ssl: boolean;
+  status: string;
+  last_synced_at?: string | null;
+  requires_attention: boolean;
+  error_message?: string | null;
+}
+
+export interface MailboxBindRequest {
+  email_address: string;
+  provider?: string | null;
+  protocol: string;
+  host: string;
+  port: number;
+  use_ssl: boolean;
+  authorization_code: string;
+}
+
 // ======== 状态跟踪功能类型定义 ========
 
 // 状态历史记录条目

@@ -1,17 +1,20 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"time"
+
 	"jobView-backend/internal/auth"
 	"jobView-backend/internal/config"
 	"jobView-backend/internal/database"
 	"jobView-backend/internal/handler"
 	"jobView-backend/internal/repository"
 	"jobView-backend/internal/service"
-	"log"
-	"net/http"
-	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -53,6 +56,13 @@ func main() {
 	resumeRepo := repository.NewResumeRepository(db)
 	resumeService := service.NewResumeService(resumeRepo)
 	monitoringService := service.NewMonitoringService(db)
+	emailRepo := repository.NewEmailIntegrationRepository(db)
+	mailEventRepo := repository.NewMailEventRepository(db)
+	emailService := service.NewEmailIntegrationService(emailRepo, cfg.Mail.EncryptionKey)
+	emailProcessor := service.NewEmailEventProcessor(jobRepo, mailEventRepo)
+	emailSyncLogger := log.New(os.Stdout, "[EmailSync] ", log.LstdFlags)
+	emailSyncManager := service.NewEmailSyncManager(cfg.Mail, emailRepo, mailEventRepo, emailProcessor, cfg.Mail.EncryptionKey, emailSyncLogger)
+	mailEventService := service.NewMailEventService(mailEventRepo, jobRepo)
 
 	// 在创建处理器之前，确保默认模板包含直通规则（幂等补齐）
 	if err := statusConfigService.EnsureDirectTransitionsInDefaultTemplate(); err != nil {
@@ -67,6 +77,8 @@ func main() {
 	exportHandler := handler.NewExportHandler(exportService)
 	resumeHandler := handler.NewResumeHandler(resumeService)
 	databaseStatsHandler := handler.NewDatabaseStatsHandler(monitoringService)
+	emailHandler := handler.NewEmailIntegrationHandler(emailService)
+	mailEventHandler := handler.NewMailEventHandler(mailEventService)
 
 	// 设置路由
 	router := mux.NewRouter()
@@ -124,6 +136,15 @@ func main() {
 
 	api.Use(auth.AuthMiddleware)                       // 所有v1 API都需要认证
 	api.Use(auth.RateLimitMiddleware(60, time.Minute)) // API限流
+
+	// 邮箱授权管理
+	api.HandleFunc("/mailbox", emailHandler.GetMailbox).Methods("GET")
+	api.HandleFunc("/mailbox", emailHandler.BindMailbox).Methods("POST")
+	api.HandleFunc("/mailbox", emailHandler.RemoveMailbox).Methods("DELETE")
+
+	// 邮件事件管理
+	api.HandleFunc("/mail-events/pending", mailEventHandler.ListPending).Methods("GET")
+	api.HandleFunc("/mail-events/{id:[0-9]+}/status", mailEventHandler.UpdateStatus).Methods("PATCH")
 
 	// 投递记录相关路由
 	api.HandleFunc("/applications", jobHandler.Create).Methods("POST")
@@ -201,6 +222,14 @@ func main() {
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/health", http.StatusSeeOther)
 	}).Methods("GET")
+
+	// 启动邮箱同步调度
+	ctx := context.Background()
+	if err := emailSyncManager.Start(ctx); err != nil {
+		log.Printf("[WARN] failed to start email sync manager: %v", err)
+	} else {
+		defer emailSyncManager.Stop()
+	}
 
 	// 启动服务器
 	serverAddr := fmt.Sprintf(":%s", cfg.Server.Port)

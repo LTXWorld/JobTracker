@@ -896,6 +896,382 @@ class ContentScriptManager {
   }
 }
 
+class JobCaptureManager {
+  constructor() {
+    this.host = location.hostname || '';
+    this.enabled = false;
+    this.settings = {};
+    this.observer = null;
+    this.lastPromptAt = 0;
+    this.modal = null;
+    this.form = null;
+    this.alert = null;
+    this.rememberCheckbox = null;
+    this.companyInput = null;
+    this.positionInput = null;
+    this.dateInput = null;
+    this.attrSelect = null;
+    this.locationInput = null;
+    this.salaryInput = null;
+    this.notesInput = null;
+    this.boundButtons = new WeakSet();
+    this.triggerKeywords = [
+      '投递', '申请', '提交', '报名', '发送',
+      'apply', 'submit', 'send', 'postuler', 'bewerben'
+    ];
+    this.init();
+  }
+
+  async init() {
+    if (!this.host || isJobViewHost(this.host)) {
+      return;
+    }
+    await this.loadSettings();
+    await this.refreshSiteStatus();
+    chrome.runtime.onMessage.addListener((request) => {
+      if (request?.type === 'SITE_STATUS_CHANGED') {
+        const changedHost = sanitizeHost(request.host || '');
+        const currentHost = sanitizeHost(this.host);
+        if (changedHost === currentHost) {
+          this.setEnabled(Boolean(request.enabled));
+        }
+      }
+      if (request?.type === 'AUTH_STATE_CHANGED' && request.isLoggedIn === false) {
+        this.closeModal();
+        showToast('您已退出登录，请先登录 JobView');
+      }
+    });
+  }
+
+  async loadSettings() {
+    try {
+      const res = await sendMessageSafe({ type: 'GET_SETTINGS' });
+      if (res?.success) {
+        this.settings = res.data || {};
+      }
+    } catch (e) {
+      console.warn('Load settings failed:', e);
+    }
+  }
+
+  async refreshSiteStatus() {
+    try {
+      const res = await sendMessageSafe({ type: 'IS_SITE_ENABLED', host: this.host });
+      const enabled = Boolean(res?.enabled);
+      this.setEnabled(enabled);
+    } catch (e) {
+      console.warn('Check site status failed:', e);
+    }
+  }
+
+  setEnabled(enabled) {
+    if (this.enabled === enabled) return;
+    this.enabled = enabled;
+    if (enabled) {
+      this.start();
+    } else {
+      this.stop();
+    }
+  }
+
+  start() {
+    this.scanAndBind();
+    if (!this.observer) {
+      this.observer = new MutationObserver(() => {
+        this.scanAndBind();
+      });
+      try {
+        this.observer.observe(document.body, { childList: true, subtree: true });
+      } catch (e) {
+        console.warn('Observer start failed:', e);
+      }
+    }
+  }
+
+  stop() {
+    if (this.observer) {
+      this.observer.disconnect();
+      this.observer = null;
+    }
+    this.boundButtons = new WeakSet();
+    this.closeModal();
+  }
+
+  scanAndBind() {
+    if (!this.enabled) return;
+    const candidates = document.querySelectorAll('button, a, input[type="button"], input[type="submit"], div[role="button"], span[role="button"]');
+    candidates.forEach((el) => {
+      if (this.boundButtons.has(el)) return;
+      if (!this.isVisible(el)) return;
+      if (!this.isApplyButton(el)) return;
+      this.bindButton(el);
+    });
+  }
+
+  isVisible(el) {
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  }
+
+  isApplyButton(el) {
+    const text = (el.innerText || el.value || '').trim().toLowerCase();
+    if (!text) return false;
+    return this.triggerKeywords.some(keyword => text.includes(keyword.toLowerCase()));
+  }
+
+  bindButton(el) {
+    const handler = (event) => {
+      if (!this.enabled) return;
+      const now = Date.now();
+      if (now - this.lastPromptAt < 1000) return;
+      this.lastPromptAt = now;
+      setTimeout(() => {
+        this.openModal();
+      }, 180);
+    };
+    el.addEventListener('click', handler, { capture: false, passive: true });
+    this.boundButtons.add(el);
+  }
+
+  openModal() {
+    if (this.modal) {
+      this.modal.style.display = 'flex';
+      this.resetForm();
+      return;
+    }
+    this.modal = document.createElement('div');
+    this.modal.className = 'jobview-capture-mask';
+    this.modal.innerHTML = `
+      <div class="jobview-capture-modal">
+        <div class="jobview-capture-header">
+          <div>
+            <h3>保存投递信息到 JobView</h3>
+            <p>填写岗位信息，便于后续追踪</p>
+          </div>
+          <button type="button" class="jobview-capture-close" aria-label="close">×</button>
+        </div>
+        <form class="jobview-capture-form">
+          <div class="jobview-capture-alert" style="display:none;"></div>
+          <label class="jobview-capture-field">
+            <span>公司名称 <span class="required">*</span></span>
+            <input id="jobview-company" type="text" placeholder="请输入公司名称" required />
+          </label>
+          <label class="jobview-capture-field">
+            <span>职位名称 <span class="required">*</span></span>
+            <input id="jobview-position" type="text" placeholder="请输入职位名称" required />
+          </label>
+          <div class="jobview-capture-row">
+            <label class="jobview-capture-field">
+              <span>投递日期</span>
+              <input id="jobview-date" type="date" />
+            </label>
+            <label class="jobview-capture-field">
+              <span>企业属性 <span class="required">*</span></span>
+              <select id="jobview-attr" required>
+                <option value="">请选择</option>
+                <option value="私企">私企</option>
+                <option value="央国企">央国企</option>
+              </select>
+            </label>
+          </div>
+          <div class="jobview-capture-row">
+            <label class="jobview-capture-field">
+              <span>地区（可选）</span>
+              <input id="jobview-location" type="text" placeholder="工作地点" />
+            </label>
+            <label class="jobview-capture-field">
+              <span>薪资（可选）</span>
+              <input id="jobview-salary" type="text" placeholder="如：20-30K/月" />
+            </label>
+          </div>
+          <label class="jobview-capture-field">
+            <span>备注</span>
+            <textarea id="jobview-notes" rows="3" placeholder="可选，记录面试官、渠道等信息"></textarea>
+          </label>
+          <label class="jobview-capture-remember">
+            <input id="jobview-remember-attr" type="checkbox" />
+            下次默认使用当前企业属性
+          </label>
+          <div class="jobview-capture-actions">
+            <button type="button" class="jobview-btn jobview-btn-secondary" data-action="cancel">暂不保存</button>
+            <button type="submit" class="jobview-btn jobview-btn-primary" data-action="submit">保存到 JobView</button>
+          </div>
+        </form>
+      </div>
+    `;
+    document.body.appendChild(this.modal);
+
+    this.form = this.modal.querySelector('form');
+    this.alert = this.modal.querySelector('.jobview-capture-alert');
+    this.companyInput = this.modal.querySelector('#jobview-company');
+    this.positionInput = this.modal.querySelector('#jobview-position');
+    this.dateInput = this.modal.querySelector('#jobview-date');
+    this.attrSelect = this.modal.querySelector('#jobview-attr');
+    this.locationInput = this.modal.querySelector('#jobview-location');
+    this.salaryInput = this.modal.querySelector('#jobview-salary');
+    this.notesInput = this.modal.querySelector('#jobview-notes');
+    this.rememberCheckbox = this.modal.querySelector('#jobview-remember-attr');
+
+    this.modal.querySelector('.jobview-capture-close').addEventListener('click', () => this.closeModal());
+    this.form.querySelector('[data-action="cancel"]').addEventListener('click', () => this.closeModal());
+    this.form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      this.submit();
+    });
+
+    this.modal.addEventListener('click', (e) => {
+      if (e.target === this.modal) {
+        this.closeModal();
+      }
+    });
+
+    this.resetForm();
+  }
+
+  resetForm() {
+    if (!this.form) return;
+    this.alert.style.display = 'none';
+    this.alert.textContent = '';
+    this.companyInput.value = '';
+    this.positionInput.value = '';
+    this.locationInput.value = '';
+    this.salaryInput.value = '';
+    this.notesInput.value = '';
+    this.rememberCheckbox.checked = false;
+    const defaultAttr = this.settings?.default_company_attribute || '';
+    if (defaultAttr && this.attrSelect) {
+      this.attrSelect.value = defaultAttr;
+    } else if (this.attrSelect) {
+      this.attrSelect.value = '';
+    }
+    if (this.dateInput) {
+      this.dateInput.value = getTodayDateString();
+    }
+    if (this.companyInput) {
+      this.companyInput.focus();
+    }
+  }
+
+  closeModal() {
+    if (!this.modal) return;
+    this.modal.style.display = 'none';
+  }
+
+  async submit() {
+    const loginStatus = await sendMessageSafe({ type: 'CHECK_LOGIN' });
+    if (!loginStatus?.isLoggedIn) {
+      this.closeModal();
+      showToast('请先登录 JobView 后再保存');
+      return;
+    }
+
+    const companyName = this.companyInput.value.trim();
+    const positionTitle = this.positionInput.value.trim();
+    const companyAttr = this.attrSelect.value.trim();
+    if (!companyName || !positionTitle || !companyAttr) {
+      this.showAlert('请完整填写带 * 的必填信息');
+      return;
+    }
+
+    const payload = {
+      company_name: companyName,
+      position_title: positionTitle,
+      application_date: this.dateInput.value,
+      company_attribute: companyAttr,
+      work_location: this.locationInput.value.trim() || undefined,
+      salary_range: this.salaryInput.value.trim() || undefined,
+      notes: this.notesInput.value.trim() || undefined
+    };
+
+    const remember = this.rememberCheckbox.checked;
+
+    try {
+      const res = await sendMessageSafe({ type: 'CREATE_APPLICATION', payload });
+      if (res?.duplicate) {
+        const force = window.confirm('检测到疑似重复投递，仍然保存吗？');
+        if (force) {
+          const retry = await sendMessageSafe({ type: 'CREATE_APPLICATION', payload, force: true });
+          if (!retry?.success) throw new Error(retry?.message || retry?.error || '提交失败');
+          this.handleSuccess();
+        }
+        return;
+      }
+      if (res?.queued) {
+        this.handleSuccess('网络不可用，已加入稍后提交队列');
+      } else if (res?.success) {
+        this.handleSuccess();
+      } else {
+        throw new Error(res?.message || res?.error || '提交失败');
+      }
+
+      if (remember) {
+        await sendMessageSafe({ type: 'SAVE_SETTINGS', data: { default_company_attribute: companyAttr } });
+        this.settings.default_company_attribute = companyAttr;
+      }
+    } catch (e) {
+      this.showAlert(e?.message || '保存失败，请稍后重试');
+    }
+  }
+
+  handleSuccess(customMessage) {
+    this.closeModal();
+    showToast(customMessage || '已保存到 JobView！');
+  }
+
+  showAlert(message) {
+    if (!this.alert) return;
+    this.alert.textContent = message;
+    this.alert.style.display = 'block';
+  }
+}
+
+function sendMessageSafe(payload) {
+  return new Promise((resolve) => {
+    try {
+      chrome.runtime.sendMessage(payload, (response) => {
+        resolve(response);
+      });
+    } catch (e) {
+      console.warn('sendMessageSafe error:', e);
+      resolve(null);
+    }
+  });
+}
+
+function getTodayDateString() {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function showToast(text) {
+  try {
+    const toast = document.createElement('div');
+    toast.className = 'jobview-success-toast';
+    toast.textContent = text;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => toast.remove(), 300);
+    }, 2000);
+  } catch (e) {
+    console.warn('showToast error:', e);
+  }
+}
+
+function sanitizeHost(host) {
+  if (!host) return '';
+  return String(host).trim().toLowerCase().replace(/^https?:\/\//, '').split('/')[0];
+}
+
+function isJobViewHost(host) {
+  const clean = sanitizeHost(host);
+  return clean.includes('jobview.bfsmlt.top') || clean === 'localhost' || clean.startsWith('127.0.0.1');
+}
+
 // 简单的站点映射存储管理器（MVP）
 class MappingManager {
   constructor() {
@@ -930,17 +1306,22 @@ class MappingManager {
 }
 
 // 页面加载完成后初始化
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    // 若在 JobView 站点上，则仅初始化认证桥接
-    if (!initAuthBridgeIfOnJobViewSite()) {
-      new ContentScriptManager();
-    }
-  });
-} else {
-  if (!initAuthBridgeIfOnJobViewSite()) {
-    new ContentScriptManager();
+function initJobViewFeatures() {
+  if (initAuthBridgeIfOnJobViewSite()) {
+    return;
   }
+  if (!window.__jobViewCSM) {
+    try { window.__jobViewCSM = new ContentScriptManager(); } catch (e) { console.warn('Init CSM failed:', e); }
+  }
+  if (!window.__jobViewJobCapture) {
+    try { window.__jobViewJobCapture = new JobCaptureManager(); } catch (e) { console.warn('Init JobCapture failed:', e); }
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initJobViewFeatures);
+} else {
+  initJobViewFeatures();
 }
 
 // 接收来自 popup 的消息（用于按需触发自动填充、连通性检测）
