@@ -62,10 +62,29 @@
         <a-col :xs="12" :sm="12" :md="8" :lg="8" :xl="8">
           <a-card :bordered="false" class="stat-card">
             <a-statistic
-              title="OC率"
-              :value="`${ocRate}%`"
+              :value="`${conversionRate}%`"
               :value-style="{ color: '#722ed1' }"
             >
+              <template #title>
+                <span>转化率</span>
+                <a-tooltip placement="top">
+                  <template #title>
+                    <div>
+                      <div><strong>转化率计算方法：</strong></div>
+                      <div>进入面试次数 ÷ 总投递数 × 100%</div>
+                      <div style="margin-top: 8px;">
+                        <span style="color: #52c41a;">{{ interviewCount }}</span> ÷
+                        <span style="color: #1890ff;">{{ totalApplications }}</span> × 100% =
+                        <span style="color: #722ed1;">{{ conversionRate }}%</span>
+                      </div>
+                      <div style="margin-top: 8px; font-size: 12px; opacity: 0.9;">
+                        进入面试包括：一面、二面、三面、HR面及其通过/挂的状态，还包括后续的offer相关状态
+                      </div>
+                    </div>
+                  </template>
+                  <InfoCircleOutlined style="margin-left: 4px; font-size: 14px; color: #999; cursor: help;" />
+                </a-tooltip>
+              </template>
               <template #prefix>
                 <RiseOutlined />
               </template>
@@ -220,7 +239,8 @@ import {
   CloseCircleOutlined,
   CalendarOutlined,
   HistoryOutlined,
-  DownloadOutlined
+  DownloadOutlined,
+  InfoCircleOutlined
 } from '@ant-design/icons-vue'
 import { useJobApplicationStore } from '../stores/jobApplication'
 import { useStatusTrackingStore } from '../stores/statusTracking'
@@ -268,11 +288,48 @@ const successRate = computed(() => {
   return (offerCount.value / total) * 100
 })
 
-// OC率：仅以“已收到offer”占比计算
+// OC率：仅以"已收到offer"占比计算
 const ocRate = computed(() => {
   const total = applications.value.length
   if (total === 0) return 0
   return Number(((ocCount.value / total) * 100).toFixed(1))
+})
+
+// 转化率：进入面试的次数 / 总投递数
+const conversionRate = computed(() => {
+  const total = applications.value.length
+  if (total === 0) return 0
+
+  // 统计真正进入面试的申请（一面、二面、三面、HR面及其通过/未通过状态）
+  const interviewStatuses = [
+    ApplicationStatus.FIRST_INTERVIEW, ApplicationStatus.FIRST_PASS, ApplicationStatus.FIRST_FAIL,
+    ApplicationStatus.SECOND_INTERVIEW, ApplicationStatus.SECOND_PASS, ApplicationStatus.SECOND_FAIL,
+    ApplicationStatus.THIRD_INTERVIEW, ApplicationStatus.THIRD_PASS, ApplicationStatus.THIRD_FAIL,
+    ApplicationStatus.HR_INTERVIEW, ApplicationStatus.HR_PASS, ApplicationStatus.HR_FAIL,
+    ApplicationStatus.OFFER_WAITING, ApplicationStatus.OFFER_RECEIVED, ApplicationStatus.OFFER_ACCEPTED
+  ]
+
+  const interviewCount = applications.value.filter(app =>
+    interviewStatuses.includes(app.status)
+  ).length
+
+  return Number(((interviewCount / total) * 100).toFixed(1))
+})
+
+// 进入面试次数（用于tooltip显示）
+const interviewCount = computed(() => {
+  // 统计真正进入面试的申请（一面、二面、三面、HR面及其通过/未通过状态）
+  const interviewStatuses = [
+    ApplicationStatus.FIRST_INTERVIEW, ApplicationStatus.FIRST_PASS, ApplicationStatus.FIRST_FAIL,
+    ApplicationStatus.SECOND_INTERVIEW, ApplicationStatus.SECOND_PASS, ApplicationStatus.SECOND_FAIL,
+    ApplicationStatus.THIRD_INTERVIEW, ApplicationStatus.THIRD_PASS, ApplicationStatus.THIRD_FAIL,
+    ApplicationStatus.HR_INTERVIEW, ApplicationStatus.HR_PASS, ApplicationStatus.HR_FAIL,
+    ApplicationStatus.OFFER_WAITING, ApplicationStatus.OFFER_RECEIVED, ApplicationStatus.OFFER_ACCEPTED
+  ]
+
+  return applications.value.filter(app =>
+    interviewStatuses.includes(app.status)
+  ).length
 })
 
 // 本月投递数
@@ -403,7 +460,7 @@ const trendLineOption = computed(() => {
   }
 })
 
-// 各阶段通过率柱状图配置（优先使用后端StageAnalysis；若无则用前端推断，考虑“直通”场景）
+// 各阶段通过率柱状图配置（优先使用后端StageAnalysis；若无则用前端推断，考虑"直通"场景）
 const stageBarOption = computed(() => {
   // 优先后端口径
   const sa: any = (analyticsData.value as any)?.stage_analysis
@@ -413,12 +470,42 @@ const stageBarOption = computed(() => {
       .filter(k => sa[k])
       .map(k => ({ key: k, name: k === 'written' ? '笔试' : k === 'first' ? '一面' : k === 'second' ? '二面' : k === 'third' ? '三面' : 'HR面' }))
     const rates = names.map(n => Number((sa[n.key].success_rate || sa[n.key].SuccessRate || 0).toFixed?.(1) ?? sa[n.key].success_rate ?? 0))
+
     return {
-      tooltip: { trigger: 'axis', formatter: '{b}: {c}%' },
+      tooltip: {
+        trigger: 'axis',
+        formatter: (params: any) => {
+          const idx = params[0].dataIndex
+          const stageKey = order.filter(k => sa[k])[idx]
+          const stageData = sa[stageKey]
+          const pass = stageData.success_count || stageData.SuccessCount || 0
+          const total = stageData.total_count || stageData.TotalCount || 0
+          const rate = params[0].value
+          return `${params[0].axisValue}<br/>通过: ${pass}/${total}<br/>通过率: ${rate}%`
+        }
+      },
       grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
       xAxis: { type: 'category', data: names.map(n => n.name) },
       yAxis: { type: 'value', max: 100, axisLabel: { formatter: '{value}%' } },
-      series: [{ type: 'bar', data: rates, itemStyle: { color: '#52c41a' } }]
+      series: [{
+        type: 'bar',
+        data: rates,
+        itemStyle: { color: '#52c41a' },
+        label: {
+          show: true,
+          position: 'top',
+          formatter: (params: any) => {
+            const idx = params.dataIndex
+            const stageKey = order.filter(k => sa[k])[idx]
+            const stageData = sa[stageKey]
+            const pass = stageData.success_count || stageData.SuccessCount || 0
+            const total = stageData.total_count || stageData.TotalCount || 0
+            return `${pass}/${total}`
+          },
+          color: '#666',
+          fontSize: 12
+        }
+      }]
     }
   }
   const S = ApplicationStatus
@@ -457,14 +544,26 @@ const stageBarOption = computed(() => {
 
   const inSet = (st: ApplicationStatus, list: ApplicationStatus[]) => list.includes(st)
   const names = stages.map(s => s.name)
-  const rates = stages.map(stage => {
+
+  // 计算每个阶段的详细数据
+  const stageData = stages.map(stage => {
     const totalCount = applications.value.filter(app => inSet(app.status as ApplicationStatus, [stage.entry, ...stage.pass, ...stage.next])).length
     const passCount = applications.value.filter(app => inSet(app.status as ApplicationStatus, [...stage.pass, ...stage.next])).length
-    return totalCount > 0 ? Number(((passCount / totalCount) * 100).toFixed(1)) : 0
+    const rate = totalCount > 0 ? Number(((passCount / totalCount) * 100).toFixed(1)) : 0
+    return { totalCount, passCount, rate }
   })
 
+  const rates = stageData.map(d => d.rate)
+
   return {
-    tooltip: { trigger: 'axis', formatter: '{b}: {c}%' },
+    tooltip: {
+      trigger: 'axis',
+      formatter: (params: any) => {
+        const idx = params[0].dataIndex
+        const data = stageData[idx]
+        return `${params[0].axisValue}<br/>通过: ${data.passCount}/${data.totalCount}<br/>通过率: ${data.rate}%`
+      }
+    },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
     xAxis: { type: 'category', data: names },
     yAxis: { type: 'value', max: 100, axisLabel: { formatter: '{value}%' } },
@@ -478,6 +577,17 @@ const stageBarOption = computed(() => {
             colorStops: [{ offset: 0, color: '#52c41a' }, { offset: 1, color: '#a0d911' }]
           },
           borderRadius: [5, 5, 0, 0]
+        },
+        label: {
+          show: true,
+          position: 'top',
+          formatter: (params: any) => {
+            const idx = params.dataIndex
+            const data = stageData[idx]
+            return `${data.passCount}/${data.totalCount}`
+          },
+          color: '#666',
+          fontSize: 12
         }
       }
     ]
