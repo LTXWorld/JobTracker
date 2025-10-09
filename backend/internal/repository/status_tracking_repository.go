@@ -10,6 +10,7 @@ import (
 	"jobView-backend/internal/database"
 	"jobView-backend/internal/model"
 
+	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
@@ -265,22 +266,112 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 		analytics.AverageDurations[status] = avg
 	}
 
-	type stageDef struct{ Name, Entry, Next string }
+	type stageDef struct {
+		Name         string
+		Entry        []string // 该阶段及之后的所有状态（用于统计总数）
+		PassStatuses []string // 通过该阶段后的所有状态（用于统计通过数）
+	}
 	stages := []stageDef{
-		{"written", string(model.StatusWrittenTest), string(model.StatusFirstInterview)},
-		{"first", string(model.StatusFirstInterview), string(model.StatusSecondInterview)},
-		{"second", string(model.StatusSecondInterview), string(model.StatusThirdInterview)},
-		{"third", string(model.StatusThirdInterview), string(model.StatusHRInterview)},
+		{
+			Name: "written",
+			Entry: []string{
+				string(model.StatusWrittenTest),
+				string(model.StatusWrittenTestPass), string(model.StatusWrittenTestFail),
+				string(model.StatusFirstInterview), string(model.StatusFirstPass), string(model.StatusFirstFail),
+				string(model.StatusSecondInterview), string(model.StatusSecondPass), string(model.StatusSecondFail),
+				string(model.StatusThirdInterview), string(model.StatusThirdPass), string(model.StatusThirdFail),
+				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
+				string(model.StatusOfferWaiting), string(model.StatusOfferReceived), string(model.StatusOfferAccepted),
+			},
+			PassStatuses: []string{
+				string(model.StatusWrittenTestPass),
+				string(model.StatusFirstInterview), string(model.StatusFirstPass), string(model.StatusFirstFail),
+				string(model.StatusSecondInterview), string(model.StatusSecondPass), string(model.StatusSecondFail),
+				string(model.StatusThirdInterview), string(model.StatusThirdPass), string(model.StatusThirdFail),
+				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
+				string(model.StatusOfferWaiting), string(model.StatusOfferReceived), string(model.StatusOfferAccepted),
+			},
+		},
+		{
+			Name: "first",
+			Entry: []string{
+				string(model.StatusFirstInterview), string(model.StatusFirstPass), string(model.StatusFirstFail),
+				string(model.StatusSecondInterview), string(model.StatusSecondPass), string(model.StatusSecondFail),
+				string(model.StatusThirdInterview), string(model.StatusThirdPass), string(model.StatusThirdFail),
+				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
+				string(model.StatusOfferWaiting), string(model.StatusOfferReceived), string(model.StatusOfferAccepted),
+			},
+			PassStatuses: []string{
+				string(model.StatusFirstPass),
+				string(model.StatusSecondInterview), string(model.StatusSecondPass), string(model.StatusSecondFail),
+				string(model.StatusThirdInterview), string(model.StatusThirdPass), string(model.StatusThirdFail),
+				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
+				string(model.StatusOfferWaiting), string(model.StatusOfferReceived), string(model.StatusOfferAccepted),
+			},
+		},
+		{
+			Name: "second",
+			Entry: []string{
+				string(model.StatusSecondInterview), string(model.StatusSecondPass), string(model.StatusSecondFail),
+				string(model.StatusThirdInterview), string(model.StatusThirdPass), string(model.StatusThirdFail),
+				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
+				string(model.StatusOfferWaiting), string(model.StatusOfferReceived), string(model.StatusOfferAccepted),
+			},
+			PassStatuses: []string{
+				string(model.StatusSecondPass),
+				string(model.StatusThirdInterview), string(model.StatusThirdPass), string(model.StatusThirdFail),
+				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
+				string(model.StatusOfferWaiting), string(model.StatusOfferReceived), string(model.StatusOfferAccepted),
+			},
+		},
+		{
+			Name: "third",
+			Entry: []string{
+				string(model.StatusThirdInterview), string(model.StatusThirdPass), string(model.StatusThirdFail),
+				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
+				string(model.StatusOfferWaiting), string(model.StatusOfferReceived), string(model.StatusOfferAccepted),
+			},
+			PassStatuses: []string{
+				string(model.StatusThirdPass),
+				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
+				string(model.StatusOfferWaiting), string(model.StatusOfferReceived), string(model.StatusOfferAccepted),
+			},
+		},
+		{
+			Name: "hr",
+			Entry: []string{
+				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
+				string(model.StatusOfferWaiting), string(model.StatusOfferReceived), string(model.StatusOfferAccepted),
+			},
+			PassStatuses: []string{
+				string(model.StatusHRPass),
+				string(model.StatusOfferWaiting), string(model.StatusOfferReceived), string(model.StatusOfferAccepted),
+			},
+		},
 	}
 	for _, st := range stages {
+		// 简化方案：只基于当前状态统计，不依赖历史记录
+		// 统计进入该阶段的总人数（当前状态在Entry列表中）
 		var totalStage int
-		if err := orm.Raw(`SELECT COUNT(*) FROM (SELECT DISTINCT job_application_id FROM job_status_history WHERE user_id = $1 AND new_status = $2 UNION SELECT id FROM job_applications WHERE user_id = $1 AND status = $2) t`, userID, st.Entry).Row().Scan(&totalStage); err != nil {
+		if err := orm.Raw(`
+			SELECT COUNT(*) FROM job_applications
+			WHERE user_id = $1 AND status = ANY($2)
+		`, userID, pq.Array(st.Entry)).Row().Scan(&totalStage); err != nil {
 			return nil, fmt.Errorf("failed to compute stage total for %s: %w", st.Name, err)
 		}
+
+		// 统计通过该阶段的人数（当前状态在PassStatuses列表中）
 		var passed int
-		if err := orm.Raw(`SELECT COUNT(DISTINCT job_application_id) FROM job_status_history WHERE user_id = $1 AND old_status = $2 AND new_status = $3`, userID, st.Entry, st.Next).Row().Scan(&passed); err != nil {
+		if err := orm.Raw(`
+			SELECT COUNT(*) FROM job_applications
+			WHERE user_id = $1 AND status = ANY($2)
+		`, userID, pq.Array(st.PassStatuses)).Row().Scan(&passed); err != nil {
 			return nil, fmt.Errorf("failed to compute stage pass for %s: %w", st.Name, err)
 		}
+
+		// 调试日志
+		fmt.Printf("[DEBUG] Stage: %s, Total: %d, Passed: %d\n", st.Name, totalStage, passed)
+
 		var rate float64
 		if totalStage > 0 {
 			rate = float64(passed) / float64(totalStage) * 100

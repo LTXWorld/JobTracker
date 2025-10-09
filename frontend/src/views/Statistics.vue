@@ -403,7 +403,7 @@ const trendLineOption = computed(() => {
   }
 })
 
-// 各阶段通过率柱状图配置（优先使用后端StageAnalysis；若无则用前端推断，考虑“直通”场景）
+// 各阶段通过率柱状图配置（优先使用后端StageAnalysis；若无则用前端推断，考虑"直通"场景）
 const stageBarOption = computed(() => {
   // 优先后端口径
   const sa: any = (analyticsData.value as any)?.stage_analysis
@@ -413,12 +413,42 @@ const stageBarOption = computed(() => {
       .filter(k => sa[k])
       .map(k => ({ key: k, name: k === 'written' ? '笔试' : k === 'first' ? '一面' : k === 'second' ? '二面' : k === 'third' ? '三面' : 'HR面' }))
     const rates = names.map(n => Number((sa[n.key].success_rate || sa[n.key].SuccessRate || 0).toFixed?.(1) ?? sa[n.key].success_rate ?? 0))
+
     return {
-      tooltip: { trigger: 'axis', formatter: '{b}: {c}%' },
+      tooltip: {
+        trigger: 'axis',
+        formatter: (params: any) => {
+          const idx = params[0].dataIndex
+          const stageKey = order.filter(k => sa[k])[idx]
+          const stageData = sa[stageKey]
+          const pass = stageData.success_count || stageData.SuccessCount || 0
+          const total = stageData.total_count || stageData.TotalCount || 0
+          const rate = params[0].value
+          return `${params[0].axisValue}<br/>通过: ${pass}/${total}<br/>通过率: ${rate}%`
+        }
+      },
       grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
       xAxis: { type: 'category', data: names.map(n => n.name) },
       yAxis: { type: 'value', max: 100, axisLabel: { formatter: '{value}%' } },
-      series: [{ type: 'bar', data: rates, itemStyle: { color: '#52c41a' } }]
+      series: [{
+        type: 'bar',
+        data: rates,
+        itemStyle: { color: '#52c41a' },
+        label: {
+          show: true,
+          position: 'top',
+          formatter: (params: any) => {
+            const idx = params.dataIndex
+            const stageKey = order.filter(k => sa[k])[idx]
+            const stageData = sa[stageKey]
+            const pass = stageData.success_count || stageData.SuccessCount || 0
+            const total = stageData.total_count || stageData.TotalCount || 0
+            return `${pass}/${total}`
+          },
+          color: '#666',
+          fontSize: 12
+        }
+      }]
     }
   }
   const S = ApplicationStatus
@@ -457,14 +487,26 @@ const stageBarOption = computed(() => {
 
   const inSet = (st: ApplicationStatus, list: ApplicationStatus[]) => list.includes(st)
   const names = stages.map(s => s.name)
-  const rates = stages.map(stage => {
+
+  // 计算每个阶段的详细数据
+  const stageData = stages.map(stage => {
     const totalCount = applications.value.filter(app => inSet(app.status as ApplicationStatus, [stage.entry, ...stage.pass, ...stage.next])).length
     const passCount = applications.value.filter(app => inSet(app.status as ApplicationStatus, [...stage.pass, ...stage.next])).length
-    return totalCount > 0 ? Number(((passCount / totalCount) * 100).toFixed(1)) : 0
+    const rate = totalCount > 0 ? Number(((passCount / totalCount) * 100).toFixed(1)) : 0
+    return { totalCount, passCount, rate }
   })
 
+  const rates = stageData.map(d => d.rate)
+
   return {
-    tooltip: { trigger: 'axis', formatter: '{b}: {c}%' },
+    tooltip: {
+      trigger: 'axis',
+      formatter: (params: any) => {
+        const idx = params[0].dataIndex
+        const data = stageData[idx]
+        return `${params[0].axisValue}<br/>通过: ${data.passCount}/${data.totalCount}<br/>通过率: ${data.rate}%`
+      }
+    },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
     xAxis: { type: 'category', data: names },
     yAxis: { type: 'value', max: 100, axisLabel: { formatter: '{value}%' } },
@@ -478,6 +520,17 @@ const stageBarOption = computed(() => {
             colorStops: [{ offset: 0, color: '#52c41a' }, { offset: 1, color: '#a0d911' }]
           },
           borderRadius: [5, 5, 0, 0]
+        },
+        label: {
+          show: true,
+          position: 'top',
+          formatter: (params: any) => {
+            const idx = params.dataIndex
+            const data = stageData[idx]
+            return `${data.passCount}/${data.totalCount}`
+          },
+          color: '#666',
+          fontSize: 12
         }
       }
     ]

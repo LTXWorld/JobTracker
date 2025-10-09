@@ -201,8 +201,8 @@ class PopupManager {
       document.getElementById('currentSite').textContent = this.siteInfo.site.name;
       this.enableButton('fillBtn');
     } else {
-      // 未在白名单中：开启“实验性填充”（按需注入）
-      document.getElementById('currentSite').textContent = '实验性填充';
+      const displayHost = this.currentHost ? sanitizeHost(this.currentHost) : '未知站点';
+      document.getElementById('currentSite').textContent = displayHost;
       this.enableButton('fillBtn');
     }
 

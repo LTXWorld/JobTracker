@@ -104,6 +104,84 @@ class FormFieldDetector {
       salary: [
         'salary', 'wage', 'pay', '薪资', '工资', '薪水',
         '期望薪资', '薪酬', 'expected_salary'
+      ],
+      intent_city: [
+        '期望城市', '意向城市', 'preferred city', 'preferred location', '希望城市', '希望工作地'
+      ],
+
+      gender: [
+        'gender', 'sex', '性别'
+      ],
+      birthdate: [
+        'birth', 'birthday', 'birthdate', '出生', '出生日期', '出生年月', '生日', 'birth_day'
+      ],
+      address: [
+        'address', '住址', '通讯地址', '联系地址', '家庭住址', '现居地址'
+      ],
+
+      // 教育补充字段
+      education_start: [
+        '入学', '入学时间', '开始时间', '起始时间', '开始日期', 'enrollment', 'school_start'
+      ],
+      education_end: [
+        '毕业', '毕业时间', '结束时间', '完成时间', '毕业日期', 'school_end'
+      ],
+      education_period: [
+        '在校时间', '就读时间', '学习时间', 'school_period', 'study_period'
+      ],
+      education_gpa: [
+        'gpa', '绩点', '平均分', '成绩', 'gpa_score'
+      ],
+
+      // 工作补充字段
+      experience_department: [
+        'department', '部门', 'division', 'team'
+      ],
+      experience_start: [
+        '入职', '入职时间', '开始时间', '开始日期', 'onboard', 'job_start', 'employment_start'
+      ],
+      experience_end: [
+        '离职', '离职时间', '结束时间', '结束日期', 'job_end', 'employment_end'
+      ],
+      experience_period: [
+        '在职时间', '任职时间', '工作时长', 'employment_period', '工作年限'
+      ],
+      experience_highlights: [
+        '职责', '工作内容', '岗位职责', 'responsibility', 'achievements', '工作描述', 'job_description'
+      ],
+
+      // 项目相关
+      project_name: [
+        'project', '项目名称', 'project_name'
+      ],
+      project_role: [
+        '角色', '职责', 'project_role', 'project_duty'
+      ],
+      project_period: [
+        '项目时间', 'project_period', '项目周期'
+      ],
+      project_description: [
+        '项目描述', '项目简介', 'project_description', 'project_summary'
+      ],
+      project_highlights: [
+        '项目成果', '项目亮点', '贡献', 'highlights', 'project_highlight'
+      ],
+      project_tech: [
+        '技术栈', '使用技术', 'tech_stack', 'project_tech'
+      ],
+
+      // 其他
+      skills: [
+        '技能', 'skill', 'skills', '能力', '专长'
+      ],
+      certificates: [
+        '证书', 'certificate', 'certificates', '资格', '认证'
+      ],
+      summary: [
+        'summary', '自我评价', '个人简介', '自我介绍', '自我描述', '自我总结'
+      ],
+      links: [
+        '链接', 'link', 'website', 'portfolio', '个人网站', 'github', 'blog'
       ]
     };
   }
@@ -290,6 +368,272 @@ class FormFieldDetector {
   }
 }
 
+class ResumeFieldResolver {
+  constructor(resumeData) {
+    this.data = resumeData || {};
+    this.cache = new Map();
+    this.aliases = this.buildAliasMap();
+  }
+
+  buildAliasMap() {
+    const map = new Map();
+    const assign = (keys, target) => {
+      keys.forEach(key => map.set(key, target));
+    };
+
+    assign(['name', 'fullname', 'realname', 'contact_name'], 'basic_name');
+    assign(['email', 'mail', 'email_address'], 'basic_email');
+    assign(['phone', 'mobile', 'telephone', 'tel', 'phone_number', 'mobile_number'], 'basic_phone');
+    assign(['city', 'location', 'work_city', 'live_city'], 'basic_city');
+    assign(['gender', 'sex'], 'basic_gender');
+    assign(['birth', 'birthdate', 'birth_date', 'birthday', '出生日期', '出生年月'], 'basic_birthdate');
+    assign(['address', '住址', '联系地址', '通讯地址'], 'basic_address');
+
+    assign(['position', 'job', 'desired_position', 'target_job', 'intent_position'], 'intent_position');
+    assign(['intent_city', 'preferred_location', 'preferred_city', 'expected_city'], 'intent_city');
+    assign(['salary', 'expected_salary', 'desired_salary', 'intent_salary', 'salary_text'], 'intent_salary');
+    assign(['job_type'], 'intent_job_type');
+
+    assign(['school', 'university', 'education_school'], 'education_school');
+    assign(['major', 'subject', 'study_major'], 'education_major');
+    assign(['degree', 'education_degree', 'highest_degree'], 'education_degree');
+    assign(['education_start', 'school_start', 'enrollment'], 'education_start');
+    assign(['education_end', 'school_end', 'graduation'], 'education_end');
+    assign(['education_period', 'study_period', '在校时间'], 'education_period');
+    assign(['gpa', 'education_gpa', '绩点'], 'education_gpa');
+
+    assign(['company', 'company_name', 'companyname', 'employer'], 'experience_company');
+    assign(['department', 'team', 'division'], 'experience_department');
+    assign(['position_title', 'experience_position', 'job_title', 'jobtitle'], 'experience_position');
+    assign(['experience_start', 'job_start', 'employment_start'], 'experience_start');
+    assign(['experience_end', 'job_end', 'employment_end'], 'experience_end');
+    assign(['experience_period', 'employment_period', '在职时间'], 'experience_period');
+    assign(['experience_highlights', 'responsibility', 'job_description', 'jobdescription', '工作内容'], 'experience_highlights');
+    assign(['experience_description'], 'experience_summary');
+
+    assign(['project_name'], 'project_name');
+    assign(['project_role'], 'project_role');
+    assign(['project_period'], 'project_period');
+    assign(['project_description', 'project_summary'], 'project_description');
+    assign(['project_highlights', 'project_contribution'], 'project_highlights');
+    assign(['project_tech', 'tech', 'tech_stack'], 'project_tech');
+
+    assign(['skills', 'skill_list', 'skill_tags'], 'skills_text');
+    assign(['certificates', 'certificate', 'cert_list'], 'certificates_text');
+    assign(['summary', 'self_intro', 'self_introduction'], 'summary');
+    assign(['links', 'portfolio', 'website', 'blog', 'github'], 'links_text');
+
+    assign(['location_text'], 'basic_city');
+
+    return map;
+  }
+
+  get(fieldType) {
+    if (!fieldType) return '';
+    const key = String(fieldType).trim().toLowerCase();
+    const canonical = this.aliases.get(key) || key;
+    if (!this.cache.has(canonical)) {
+      const value = this.computeValue(canonical);
+      this.cache.set(canonical, this.formatValue(value));
+    }
+    return this.cache.get(canonical);
+  }
+
+  computeValue(key) {
+    const data = this.data || {};
+    const basic = data.basic || {};
+    const intent = data.intent || {};
+    const primaryEducation = this.getPrimary(data.education);
+    const primaryExperience = this.getPrimary(data.experience);
+    const primaryProject = this.getPrimary(data.projects);
+
+    switch (key) {
+      case 'basic_name':
+        return basic.name;
+      case 'basic_email':
+        return basic.email;
+      case 'basic_phone':
+        return basic.phone;
+      case 'basic_city':
+        return basic.city || intent.city;
+      case 'basic_gender':
+        return basic.gender;
+      case 'basic_birthdate':
+        return basic.birthDate;
+      case 'basic_address':
+        return basic.address;
+
+      case 'intent_position':
+        return intent.position || (primaryExperience && primaryExperience.position);
+      case 'intent_city':
+        return intent.city || basic.city;
+      case 'intent_salary':
+        return intent.salary;
+      case 'intent_job_type':
+        return intent.jobType;
+
+      case 'education_school':
+        return primaryEducation && primaryEducation.school;
+      case 'education_major':
+        return primaryEducation && primaryEducation.major;
+      case 'education_degree':
+        return primaryEducation && primaryEducation.degree;
+      case 'education_start':
+        return primaryEducation && primaryEducation.from;
+      case 'education_end':
+        return primaryEducation && primaryEducation.to;
+      case 'education_period':
+        return primaryEducation ? this.formatPeriod(primaryEducation.from, primaryEducation.to) : '';
+      case 'education_gpa':
+        return primaryEducation && primaryEducation.gpa;
+
+      case 'experience_company':
+        return primaryExperience && primaryExperience.company;
+      case 'experience_department':
+        return primaryExperience && primaryExperience.department;
+      case 'experience_position':
+        return primaryExperience && primaryExperience.position;
+      case 'experience_start':
+        return primaryExperience && primaryExperience.from;
+      case 'experience_end':
+        return primaryExperience && primaryExperience.to;
+      case 'experience_period':
+        return primaryExperience ? this.formatPeriod(primaryExperience.from, primaryExperience.to) : '';
+      case 'experience_summary':
+        if (!primaryExperience) return '';
+        return [primaryExperience.company, primaryExperience.position, this.formatPeriod(primaryExperience.from, primaryExperience.to)]
+          .filter(Boolean)
+          .join(' · ');
+      case 'experience_highlights':
+        return this.joinList(primaryExperience && primaryExperience.highlights);
+
+      case 'project_name':
+        return primaryProject && primaryProject.name;
+      case 'project_role':
+        return primaryProject && primaryProject.role;
+      case 'project_period':
+        return primaryProject ? this.formatPeriod(primaryProject.from, primaryProject.to) : '';
+      case 'project_description':
+        if (!primaryProject) return '';
+        return [primaryProject.role, primaryProject.tech].filter(Boolean).join(' · ');
+      case 'project_highlights':
+        return this.joinList(primaryProject && primaryProject.highlights);
+      case 'project_tech':
+        return primaryProject && primaryProject.tech;
+
+      case 'skills_text':
+        return this.formatSkills(data.skills);
+      case 'certificates_text':
+        return this.formatCertificates(data.certificates);
+      case 'links_text':
+        return this.formatLinks(data.links);
+      case 'summary':
+        return data.summary || '';
+
+      default:
+        return '';
+    }
+  }
+
+  formatValue(value) {
+    if (value == null) return '';
+    if (Array.isArray(value)) {
+      return value.filter(Boolean).join('\n');
+    }
+    if (typeof value === 'number') {
+      return String(value);
+    }
+    if (typeof value === 'string') {
+      return value.trim();
+    }
+    return '';
+  }
+
+  getPrimary(list) {
+    if (Array.isArray(list) && list.length > 0) {
+      return list[0];
+    }
+    return null;
+  }
+
+  formatPeriod(from, to) {
+    const start = this.normalizeDate(from);
+    const end = this.normalizeDate(to);
+    if (!start && !end) return '';
+    if (start && end) return `${start} - ${end}`;
+    if (start) return `${start} - 至今`;
+    return end;
+  }
+
+  normalizeDate(value) {
+    if (!value || typeof value !== 'string') return '';
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(trimmed)) return trimmed;
+    if (/^\d{4}-\d{1,2}$/.test(trimmed)) {
+      const [year, month] = trimmed.split('-');
+      return `${year}-${month.padStart(2, '0')}`;
+    }
+    if (/^\d{4}$/.test(trimmed)) return trimmed;
+    return trimmed;
+  }
+
+  joinList(list) {
+    if (!Array.isArray(list) || list.length === 0) return '';
+    return list
+      .map(item => (typeof item === 'string' ? item.trim() : ''))
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  formatSkills(skills) {
+    if (!Array.isArray(skills) || skills.length === 0) return '';
+    return skills
+      .map(skill => {
+        if (!skill || typeof skill !== 'object') return '';
+        const parts = [];
+        if (skill.name) parts.push(skill.name);
+        if (skill.level) parts.push(skill.level);
+        if (skill.years) parts.push(skill.years);
+        if (Array.isArray(skill.tags) && skill.tags.length > 0) {
+          parts.push(skill.tags.filter(Boolean).join('/'));
+        }
+        return parts.filter(Boolean).join(' · ');
+      })
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  formatCertificates(certificates) {
+    if (!Array.isArray(certificates) || certificates.length === 0) return '';
+    return certificates
+      .map(cert => {
+        if (!cert || typeof cert !== 'object') return '';
+        const parts = [];
+        if (cert.name) parts.push(cert.name);
+        if (cert.issuer) parts.push(cert.issuer);
+        if (cert.date) parts.push(cert.date);
+        return parts.filter(Boolean).join(' · ');
+      })
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  formatLinks(links) {
+    if (!Array.isArray(links) || links.length === 0) return '';
+    return links
+      .map(link => {
+        if (!link || typeof link !== 'object') return '';
+        const label = link.label || link.name;
+        const url = link.url;
+        if (label && url) return `${label}: ${url}`;
+        return url || label || '';
+      })
+      .filter(Boolean)
+      .join('\n');
+  }
+}
+
 class AutoFiller {
   constructor() {
     this.fillStrategies = new Map([
@@ -338,10 +682,13 @@ class AutoFiller {
         return false;
       }
     };
+    this.fieldResolver = null;
+    this.fieldResolverSource = null;
   }
 
   // 执行自动填充
   async fill(fields, resumeData) {
+    this.ensureResolver(resumeData);
     const results = [];
 
     for (const field of fields) {
@@ -398,23 +745,17 @@ class AutoFiller {
     }
   }
 
+  ensureResolver(resumeData) {
+    if (this.fieldResolverSource !== resumeData) {
+      this.fieldResolver = new ResumeFieldResolver(resumeData);
+      this.fieldResolverSource = resumeData;
+    }
+  }
+
   // 根据字段类型获取对应的数据值
   getValueForField(fieldType, resumeData) {
-    const mapping = {
-      name: () => resumeData.basic?.name,
-      email: () => resumeData.basic?.email,
-      phone: () => resumeData.basic?.phone,
-      city: () => resumeData.basic?.city || resumeData.intent?.city,
-      school: () => resumeData.education?.[0]?.school,
-      major: () => resumeData.education?.[0]?.major,
-      degree: () => resumeData.education?.[0]?.degree,
-      company: () => resumeData.experience?.[0]?.company,
-      position: () => resumeData.intent?.position || resumeData.experience?.[0]?.position,
-      salary: () => resumeData.intent?.salary
-    };
-
-    const getter = mapping[fieldType];
-    return getter ? getter() : null;
+    this.ensureResolver(resumeData);
+    return this.fieldResolver ? this.fieldResolver.get(fieldType) : '';
   }
 
   // 填充输入框
@@ -843,7 +1184,7 @@ class ContentScriptManager {
       e.preventDefault();
       e.stopPropagation();
 
-      const field = prompt('映射到哪个字段? 可选示例: name,email,phone,city,school,major,degree,company,position,salary 或 company_name,position_title,salary_text,location_text,job_description', 'company_name');
+      const field = prompt('映射到哪个字段? 可选示例: name,email,phone,city,birthdate,gender,address,intent_position,intent_city,intent_salary,education_school,education_start,education_end,experience_company,experience_position,experience_start,experience_end,experience_highlights,project_name,project_role,skills,certificates,summary', 'company_name');
       if (!field) return;
       const strategy = this.guessStrategy(el);
       const xpath = this.detector.getXPath(el);

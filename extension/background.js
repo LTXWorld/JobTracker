@@ -29,6 +29,21 @@ class JobViewAPI {
     this.setEnvironment(envName || detectEnvironment());
   }
 
+  parseSection(section) {
+    if (!section) return {};
+    if (typeof section === 'string') {
+      try {
+        const parsed = JSON.parse(section);
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+      } catch {
+        return {};
+      }
+    }
+    if (typeof section === 'object' && !Array.isArray(section)) {
+      return section;
+    }
+    return {};
+  }
   // 获取存储的令牌
   async getTokens() {
     const result = await chrome.storage.local.get([
@@ -141,15 +156,15 @@ class JobViewAPI {
   // 获取简历数据
   async getResumeData() {
     try {
-      // 并行获取简历基本信息和各个部分
-      const [resumeInfo, sections] = await Promise.all([
-        this.request('/resumes/me', { base: 'v1' }),
-        this.getResumeSections()
-      ]);
+      const resumeResp = await this.request('/resumes/me', { base: 'v1' });
+      const summary = resumeResp.data || {};
+      const resume = summary.resume || {};
+
+      const sections = await this.getResumeSections(resume.id);
 
       return {
-        resume: resumeInfo.data,
-        sections: sections
+        resume: summary,
+        sections
       };
     } catch (error) {
       console.error('Failed to get resume data:', error);
@@ -158,11 +173,8 @@ class JobViewAPI {
   }
 
   // 获取简历各部分内容
-  async getResumeSections() {
+  async getResumeSections(resumeId) {
     try {
-      const resumeInfo = await this.request('/resumes/me', { base: 'v1' });
-      const resumeId = resumeInfo.data?.resume?.id;
-
       if (!resumeId) {
         return {};
       }
@@ -173,7 +185,9 @@ class JobViewAPI {
       // 转换为对象格式
       const sectionsMap = {};
       sections.forEach(section => {
-        sectionsMap[section.type] = section.content;
+        if (section && section.type) {
+          sectionsMap[section.type] = section.content;
+        }
       });
 
       return sectionsMap;
@@ -261,53 +275,240 @@ class DataManager {
 
   // 规范化简历数据格式
   normalizeResumeData(rawData) {
-    const { resume, sections } = rawData;
+    const summary = rawData?.resume || {};
+    const resume = summary.resume || {};
+    const sections = rawData?.sections || {};
+    const base = this.parseSection(sections.base);
+    const intent = this.parseSection(sections.intent);
+
+    const education = this.normalizeEducation(sections.edu);
+    const experience = this.normalizeExperience(sections.exp);
+    const projects = this.normalizeProjects(sections.project);
+    const skills = this.normalizeSkills(sections.skill);
+    const certificates = this.normalizeCertificates(sections.cert);
+    const honors = this.normalizeHonors(sections.honor);
+    const links = this.normalizeLinks(sections.links);
+    const summaryText = this.normalizeSummary(sections.summary);
 
     return {
-      // 基础信息
-      basic: {
-        name: sections.base?.name || '',
-        email: sections.base?.email || '',
-        phone: sections.base?.phone || '',
-        city: sections.base?.city || '',
-        gender: sections.base?.gender || '',
-        birthDate: sections.base?.birth_date || '',
-        address: sections.base?.address || ''
-      },
-
-      // 求职意向
-      intent: {
-        position: sections.intent?.position || '',
-        city: sections.intent?.city || '',
-        salary: sections.intent?.salary || '',
-        jobType: sections.intent?.job_type || ''
-      },
-
-      // 教育经历
-      education: sections.edu || [],
-
-      // 工作经历
-      experience: sections.exp || [],
-
-      // 项目经历
-      projects: sections.project || [],
-
-      // 技能
-      skills: sections.skill || [],
-
-      // 证书
-      certificates: sections.cert || [],
-
-      // 自我评价
-      summary: sections.summary?.content || '',
-
-      // 元数据
+      basic: this.normalizeBasic(base),
+      intent: this.normalizeIntent(intent),
+      education,
+      experience,
+      projects,
+      skills,
+      certificates,
+      honors,
+      links,
+      summary: summaryText,
       meta: {
         completeness: resume?.completeness || 0,
-        lastUpdated: resume?.updated_at || new Date().toISOString(),
+        lastUpdated: resume?.updated_at || resume?.updatedAt || '',
+        title: resume?.title || '',
         syncTime: Date.now()
       }
     };
+  }
+
+  parseSection(section) {
+    if (!section) return {};
+    if (typeof section === 'string') {
+      try {
+        const parsed = JSON.parse(section);
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+      } catch {
+        return {};
+      }
+    }
+    if (typeof section === 'object' && !Array.isArray(section)) {
+      return section;
+    }
+    return {};
+  }
+
+  normalizeBasic(base) {
+    return {
+      name: this.pickString(base.name),
+      email: this.pickString(base.email),
+      phone: this.pickString(base.phone),
+      city: this.pickString(base.city) || this.pickString(base.location),
+      gender: this.pickString(base.gender),
+      birthDate: this.pickString(base.birthDate || base.birth_date),
+      address: this.pickString(base.address)
+    };
+  }
+
+  normalizeIntent(intent) {
+    return {
+      position: this.pickString(intent.position),
+      city: this.pickString(intent.city),
+      salary: this.pickString(intent.salary),
+      jobType: this.pickString(intent.jobType || intent.job_type),
+      industry: this.pickString(intent.industry)
+    };
+  }
+
+  normalizeEducation(section) {
+    const items = this.extractItems(section).map((item) => ({
+      school: this.pickString(item.school),
+      major: this.pickString(item.major),
+      degree: this.pickString(item.degree),
+      from: this.pickString(item.from),
+      to: this.pickString(item.to),
+      gpa: this.pickString(item.gpa)
+    })).filter((entry) => this.hasContent(entry));
+    return this.sortByLatest(items);
+  }
+
+  normalizeExperience(section) {
+    const items = this.extractItems(section).map((item) => ({
+      company: this.pickString(item.company),
+      department: this.pickString(item.department),
+      position: this.pickString(item.position),
+      from: this.pickString(item.from),
+      to: this.pickString(item.to),
+      highlights: this.normalizeStringArray(item.highlights)
+    })).filter((entry) => this.hasContent(entry));
+    return this.sortByLatest(items);
+  }
+
+  normalizeProjects(section) {
+    const items = this.extractItems(section).map((item) => ({
+      name: this.pickString(item.name),
+      role: this.pickString(item.role),
+      tech: this.pickString(item.tech),
+      from: this.pickString(item.from),
+      to: this.pickString(item.to),
+      highlights: this.normalizeStringArray(item.highlights)
+    })).filter((entry) => this.hasContent(entry));
+    return this.sortByLatest(items);
+  }
+
+  normalizeSkills(section) {
+    return this.extractItems(section).map((item) => ({
+      name: this.pickString(item.name),
+      level: this.pickString(item.level),
+      years: this.pickString(item.years),
+      tags: this.normalizeStringArray(item.tags)
+    })).filter((entry) => this.hasContent(entry));
+  }
+
+  normalizeCertificates(section) {
+    return this.extractItems(section).map((item) => ({
+      name: this.pickString(item.name),
+      issuer: this.pickString(item.issuer),
+      date: this.pickString(item.date),
+      code: this.pickString(item.code),
+      link: this.pickString(item.link)
+    })).filter((entry) => this.hasContent(entry));
+  }
+
+  normalizeHonors(section) {
+    return this.extractItems(section).map((item) => ({
+      title: this.pickString(item.title || item.name),
+      description: this.pickString(item.description || item.detail),
+      date: this.pickString(item.date)
+    })).filter((entry) => this.hasContent(entry));
+  }
+
+  normalizeLinks(section) {
+    return this.extractItems(section).map((item) => ({
+      label: this.pickString(item.label || item.name),
+      url: this.pickString(item.url)
+    })).filter((entry) => this.hasContent(entry));
+  }
+
+  normalizeSummary(section) {
+    if (!section) return '';
+    if (typeof section === 'string') {
+      return section.trim();
+    }
+    const content = this.parseSection(section);
+    if (typeof content === 'string') {
+      return content.trim();
+    }
+    if (content && typeof content.text === 'string') {
+      return content.text.trim();
+    }
+    if (content && typeof content.content === 'string') {
+      return content.content.trim();
+    }
+    return '';
+  }
+
+  extractItems(section) {
+    const parsed = this.parseSection(section);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item) => item && typeof item === 'object' && !Array.isArray(item));
+    }
+    if (parsed && typeof parsed === 'object' && Array.isArray(parsed.items)) {
+      return parsed.items.filter((item) => item && typeof item === 'object' && !Array.isArray(item));
+    }
+    return [];
+  }
+
+  pickString(value) {
+    if (typeof value !== 'string') return '';
+    return value.trim();
+  }
+
+  normalizeStringArray(value) {
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => (typeof item === 'string' ? item.trim() : ''))
+        .filter(Boolean);
+    }
+    if (typeof value === 'string') {
+      return value
+        .split(/\n+|[,，]/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+    return [];
+  }
+
+  sortByLatest(items) {
+    if (!Array.isArray(items) || items.length === 0) return [];
+    return items
+      .map((item) => ({ ...item }))
+      .sort((a, b) => this.compareByDateDesc(a, b));
+  }
+
+  compareByDateDesc(a, b) {
+    const aTimestamp = this.getLatestTimestamp(a);
+    const bTimestamp = this.getLatestTimestamp(b);
+    return bTimestamp - aTimestamp;
+  }
+
+  getLatestTimestamp(item) {
+    const end = this.parseDateToTimestamp(item?.to);
+    const start = this.parseDateToTimestamp(item?.from);
+    return Math.max(end, start, 0);
+  }
+
+  parseDateToTimestamp(value) {
+    if (!value || typeof value !== 'string') return 0;
+    const cleaned = value.trim().replace(/[./]/g, '-');
+    let normalized = cleaned;
+    if (/^\d{4}$/.test(cleaned)) {
+      normalized = `${cleaned}-01-01`;
+    } else if (/^\d{4}-\d{1,2}$/.test(cleaned)) {
+      const [year, month] = cleaned.split('-');
+      normalized = `${year}-${month.padStart(2, '0')}-01`;
+    }
+    const date = new Date(normalized);
+    const time = date.getTime();
+    return Number.isNaN(time) ? 0 : time;
+  }
+
+  hasContent(entry) {
+    if (!entry || typeof entry !== 'object') return false;
+    return Object.values(entry).some((value) => {
+      if (Array.isArray(value)) {
+        return value.length > 0;
+      }
+      return Boolean(value);
+    });
   }
 
   // 获取本地简历数据
