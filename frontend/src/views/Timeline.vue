@@ -28,11 +28,19 @@
       <!-- 快速统计（基于筛选结果） -->
       <div class="stats-row" v-if="filteredApplications.length > 0">
         <div class="stats-grid">
-          <a-statistic title="总投递数" :value="totalApplicationsCount" />
-          <a-statistic title="笔试中" :value="writtenCount" />
-          <a-statistic title="面试中" :value="interviewingCount" />
-          <a-statistic title="已挂" :value="failedSumCount" />
-          <a-statistic title="已接offer" :value="acceptedOfferCount" />
+          <a-statistic title="总投递数" :value="displayTotalCount" />
+          <a-statistic title="笔试中" :value="displayWrittenCount === '-' ? 0 : displayWrittenCount">
+            <template v-if="displayWrittenCount === '-'" #formatter>-</template>
+          </a-statistic>
+          <a-statistic title="面试中" :value="displayInterviewingCount === '-' ? 0 : displayInterviewingCount">
+            <template v-if="displayInterviewingCount === '-'" #formatter>-</template>
+          </a-statistic>
+          <a-statistic title="已挂" :value="displayFailedCount === '-' ? 0 : displayFailedCount">
+            <template v-if="displayFailedCount === '-'" #formatter>-</template>
+          </a-statistic>
+          <a-statistic title="已接offer" :value="displayAcceptedOfferCount === '-' ? 0 : displayAcceptedOfferCount">
+            <template v-if="displayAcceptedOfferCount === '-'" #formatter>-</template>
+          </a-statistic>
         </div>
       </div>
 
@@ -277,7 +285,58 @@ const acceptedOfferCount = computed(() =>
   filteredApplications.value.filter(app => app.status === ApplicationStatus.OFFER_ACCEPTED).length
 )
 
-const totalApplicationsCount = computed(() => applications.value.length)
+const totalApplicationsCount = computed(() => filteredApplications.value.length)
+
+// 判断是否筛选了特定状态
+const hasStatusFilter = computed(() => !!currentFilters.value.status)
+
+// 显示用的统计数据（根据状态筛选显示"-"或数字）
+const displayTotalCount = computed(() => totalApplicationsCount.value)
+
+const displayWrittenCount = computed(() => {
+  if (hasStatusFilter.value && currentFilters.value.status !== ApplicationStatus.WRITTEN_TEST) {
+    return '-'
+  }
+  return writtenCount.value
+})
+
+const displayInterviewingCount = computed(() => {
+  if (hasStatusFilter.value) {
+    const interviewStatuses = [
+      ApplicationStatus.FIRST_INTERVIEW,
+      ApplicationStatus.SECOND_INTERVIEW,
+      ApplicationStatus.THIRD_INTERVIEW,
+      ApplicationStatus.HR_INTERVIEW
+    ]
+    if (!interviewStatuses.includes(currentFilters.value.status)) {
+      return '-'
+    }
+  }
+  return interviewingCount.value
+})
+
+const displayFailedCount = computed(() => {
+  if (hasStatusFilter.value) {
+    const failedStatuses = [
+      ApplicationStatus.RESUME_SCREENING_FAIL,
+      ApplicationStatus.WRITTEN_TEST_FAIL,
+      ApplicationStatus.FIRST_FAIL,
+      ApplicationStatus.SECOND_FAIL,
+      ApplicationStatus.THIRD_FAIL
+    ]
+    if (!failedStatuses.includes(currentFilters.value.status)) {
+      return '-'
+    }
+  }
+  return failedSumCount.value
+})
+
+const displayAcceptedOfferCount = computed(() => {
+  if (hasStatusFilter.value && currentFilters.value.status !== ApplicationStatus.OFFER_ACCEPTED) {
+    return '-'
+  }
+  return acceptedOfferCount.value
+})
 
 // 方法
 const fetchData = () => jobStore.fetchApplications()

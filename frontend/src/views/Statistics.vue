@@ -62,10 +62,29 @@
         <a-col :xs="12" :sm="12" :md="8" :lg="8" :xl="8">
           <a-card :bordered="false" class="stat-card">
             <a-statistic
-              title="OC率"
-              :value="`${ocRate}%`"
+              :value="`${conversionRate}%`"
               :value-style="{ color: '#722ed1' }"
             >
+              <template #title>
+                <span>转化率</span>
+                <a-tooltip placement="top">
+                  <template #title>
+                    <div>
+                      <div><strong>转化率计算方法：</strong></div>
+                      <div>进入面试次数 ÷ 总投递数 × 100%</div>
+                      <div style="margin-top: 8px;">
+                        <span style="color: #52c41a;">{{ interviewCount }}</span> ÷
+                        <span style="color: #1890ff;">{{ totalApplications }}</span> × 100% =
+                        <span style="color: #722ed1;">{{ conversionRate }}%</span>
+                      </div>
+                      <div style="margin-top: 8px; font-size: 12px; opacity: 0.9;">
+                        进入面试包括：一面、二面、三面、HR面及其通过/挂的状态，还包括后续的offer相关状态
+                      </div>
+                    </div>
+                  </template>
+                  <InfoCircleOutlined style="margin-left: 4px; font-size: 14px; color: #999; cursor: help;" />
+                </a-tooltip>
+              </template>
               <template #prefix>
                 <RiseOutlined />
               </template>
@@ -220,7 +239,8 @@ import {
   CloseCircleOutlined,
   CalendarOutlined,
   HistoryOutlined,
-  DownloadOutlined
+  DownloadOutlined,
+  InfoCircleOutlined
 } from '@ant-design/icons-vue'
 import { useJobApplicationStore } from '../stores/jobApplication'
 import { useStatusTrackingStore } from '../stores/statusTracking'
@@ -268,11 +288,48 @@ const successRate = computed(() => {
   return (offerCount.value / total) * 100
 })
 
-// OC率：仅以“已收到offer”占比计算
+// OC率：仅以"已收到offer"占比计算
 const ocRate = computed(() => {
   const total = applications.value.length
   if (total === 0) return 0
   return Number(((ocCount.value / total) * 100).toFixed(1))
+})
+
+// 转化率：进入面试的次数 / 总投递数
+const conversionRate = computed(() => {
+  const total = applications.value.length
+  if (total === 0) return 0
+
+  // 统计真正进入面试的申请（一面、二面、三面、HR面及其通过/未通过状态）
+  const interviewStatuses = [
+    ApplicationStatus.FIRST_INTERVIEW, ApplicationStatus.FIRST_PASS, ApplicationStatus.FIRST_FAIL,
+    ApplicationStatus.SECOND_INTERVIEW, ApplicationStatus.SECOND_PASS, ApplicationStatus.SECOND_FAIL,
+    ApplicationStatus.THIRD_INTERVIEW, ApplicationStatus.THIRD_PASS, ApplicationStatus.THIRD_FAIL,
+    ApplicationStatus.HR_INTERVIEW, ApplicationStatus.HR_PASS, ApplicationStatus.HR_FAIL,
+    ApplicationStatus.OFFER_WAITING, ApplicationStatus.OFFER_RECEIVED, ApplicationStatus.OFFER_ACCEPTED
+  ]
+
+  const interviewCount = applications.value.filter(app =>
+    interviewStatuses.includes(app.status)
+  ).length
+
+  return Number(((interviewCount / total) * 100).toFixed(1))
+})
+
+// 进入面试次数（用于tooltip显示）
+const interviewCount = computed(() => {
+  // 统计真正进入面试的申请（一面、二面、三面、HR面及其通过/未通过状态）
+  const interviewStatuses = [
+    ApplicationStatus.FIRST_INTERVIEW, ApplicationStatus.FIRST_PASS, ApplicationStatus.FIRST_FAIL,
+    ApplicationStatus.SECOND_INTERVIEW, ApplicationStatus.SECOND_PASS, ApplicationStatus.SECOND_FAIL,
+    ApplicationStatus.THIRD_INTERVIEW, ApplicationStatus.THIRD_PASS, ApplicationStatus.THIRD_FAIL,
+    ApplicationStatus.HR_INTERVIEW, ApplicationStatus.HR_PASS, ApplicationStatus.HR_FAIL,
+    ApplicationStatus.OFFER_WAITING, ApplicationStatus.OFFER_RECEIVED, ApplicationStatus.OFFER_ACCEPTED
+  ]
+
+  return applications.value.filter(app =>
+    interviewStatuses.includes(app.status)
+  ).length
 })
 
 // 本月投递数
