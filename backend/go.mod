@@ -3,6 +3,7 @@ module jobView-backend
 go 1.24.5
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/emersion/go-imap v1.2.0
 	github.com/emersion/go-message v0.17.0
 	github.com/gin-gonic/gin v1.10.1
@@ -19,7 +20,6 @@ require (
 )
 
 require (
-	github.com/DATA-DOG/go-sqlmock v1.5.0 // indirect
 	github.com/bytedance/sonic v1.11.6 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
 	github.com/cloudwego/base64x v0.1.4 // indirect
