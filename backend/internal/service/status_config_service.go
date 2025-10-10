@@ -32,9 +32,9 @@ func (s *StatusConfigService) ensureRepo() error {
 
 // EnsureDirectTransitionsInDefaultTemplate 确保默认模板包含面试阶段的直通转移规则
 // 若模板不存在则忽略（由外部迁移负责创建）；若存在则在不改变其他配置的前提下补充：
-// 一面中 -> 二面中，二面中 -> 三面中，三面中 -> HR面中
+// 一面中 -> 二面中，二面中 -> (三面中/HR面中)，三面中 -> HR面中
 // EnsureDirectTransitionsInDefaultTemplate
-// 1) 幂等补齐面试阶段直通规则：笔试中→一面中→二面中→三面中→HR面中
+// 1) 幂等补齐面试阶段直通规则：笔试中→一面中→二面中→(三面中/HR面中)→HR面中
 // 2) 幂等补齐基础默认规则：已投递→(简历筛选中/简历筛选未通过/已拒绝)，简历筛选中→(笔试中/简历筛选未通过)
 func (s *StatusConfigService) EnsureDirectTransitionsInDefaultTemplate() error {
 	if err := s.ensureRepo(); err != nil {
@@ -63,11 +63,20 @@ func (s *StatusConfigService) EnsureDirectTransitionsInDefaultTemplate() error {
 		cfg["transitions"] = transitionsMap
 	}
 
-	direct := map[string]string{
-		string(model.StatusWrittenTest):     string(model.StatusFirstInterview),
-		string(model.StatusFirstInterview):  string(model.StatusSecondInterview),
-		string(model.StatusSecondInterview): string(model.StatusThirdInterview),
-		string(model.StatusThirdInterview):  string(model.StatusHRInterview),
+	direct := map[string][]string{
+		string(model.StatusWrittenTest): {
+			string(model.StatusFirstInterview),
+		},
+		string(model.StatusFirstInterview): {
+			string(model.StatusSecondInterview),
+		},
+		string(model.StatusSecondInterview): {
+			string(model.StatusThirdInterview),
+			string(model.StatusHRInterview),
+		},
+		string(model.StatusThirdInterview): {
+			string(model.StatusHRInterview),
+		},
 	}
 	baseline := map[string][]string{
 		string(model.StatusApplied):         {string(model.StatusResumeScreening), "简历筛选未通过", string(model.StatusRejected)},
@@ -75,19 +84,27 @@ func (s *StatusConfigService) EnsureDirectTransitionsInDefaultTemplate() error {
 	}
 
 	changed := false
-	for from, to := range direct {
-		arr, _ := transitionsMap[from].([]interface{})
-		exists := false
-		for _, v := range arr {
-			if sv, ok := v.(string); ok && sv == to {
-				exists = true
-				break
+	for from, targets := range direct {
+		arrAny, _ := transitionsMap[from].([]interface{})
+		if arrAny == nil {
+			arrAny = []interface{}{}
+		}
+		arr := arrAny
+		for _, to := range targets {
+			exists := false
+			for _, v := range arr {
+				if sv, ok := v.(string); ok && sv == to {
+					exists = true
+					break
+				}
+			}
+			if !exists {
+				arr = append(arr, to)
+				changed = true
 			}
 		}
-		if !exists {
-			arr = append(arr, to)
+		if len(arr) > 0 {
 			transitionsMap[from] = arr
-			changed = true
 		}
 	}
 

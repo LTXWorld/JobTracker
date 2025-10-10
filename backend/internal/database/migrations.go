@@ -401,12 +401,14 @@ BEGIN
         RETURN TRUE;
     END IF;
 
-    -- 内置直通规则补充：笔试中->一面中->二面中->三面中->HR面中
+    -- 内置直通规则补充：笔试中->一面中->二面中->(三面中/HR面中)->HR面中
     IF p_old_status = '笔试中' AND p_new_status = '一面中' THEN
         RETURN TRUE;
     ELSIF p_old_status = '一面中' AND p_new_status = '二面中' THEN
         RETURN TRUE;
     ELSIF p_old_status = '二面中' AND p_new_status = '三面中' THEN
+        RETURN TRUE;
+    ELSIF p_old_status = '二面中' AND p_new_status = 'HR面中' THEN
         RETURN TRUE;
     ELSIF p_old_status = '三面中' AND p_new_status = 'HR面中' THEN
         RETURN TRUE;
@@ -482,6 +484,8 @@ BEGIN
     ELSIF p_old_status::text = '一面中' AND p_new_status::text = '二面中' THEN
         RETURN TRUE;
     ELSIF p_old_status::text = '二面中' AND p_new_status::text = '三面中' THEN
+        RETURN TRUE;
+    ELSIF p_old_status::text = '二面中' AND p_new_status::text = 'HR面中' THEN
         RETURN TRUE;
     ELSIF p_old_status::text = '三面中' AND p_new_status::text = 'HR面中' THEN
         RETURN TRUE;
