@@ -497,14 +497,14 @@ const isTerminal = (status: ApplicationStatus) => ['流程结束','已拒绝','�
 
 // 与后端一致的隐式直通规则：允许面试阶段的直接推进
 const isImplicitDirectTransitionAllowed = (from: ApplicationStatus, to: ApplicationStatus): boolean => {
-  const direct: Record<ApplicationStatus, ApplicationStatus> = {
-    '笔试中': '一面中',
-    '一面中': '二面中',
-    '二面中': '三面中',
-    '三面中': 'HR面中',
-    // 其他状态默认不直通
-  } as any
-  return direct[from] === to
+  const direct: Partial<Record<ApplicationStatus, ApplicationStatus[]>> = {
+    '笔试中': ['一面中'],
+    '一面中': ['二面中'],
+    '二面中': ['三面中', 'HR面中'],
+    '三面中': ['HR面中'],
+  }
+  const candidates = direct[from] || []
+  return candidates.includes(to)
 }
 
 // 与后端一致的隐式失败规则：进行中 → 同阶段未通过

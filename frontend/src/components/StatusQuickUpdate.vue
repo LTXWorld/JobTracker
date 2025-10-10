@@ -238,7 +238,7 @@ const getDefaultNextStatuses = (currentStatus: ApplicationStatus): ApplicationSt
     // 允许面试阶段直通推进
     '一面中': ['二面中', '一面通过', '一面未通过'],
     '一面通过': ['二面中', 'HR面中', '待发offer'],
-    '二面中': ['三面中', '二面通过', '二面未通过'],
+    '二面中': ['三面中', 'HR面中', '二面通过', '二面未通过'],
     '二面通过': ['三面中', 'HR面中', '待发offer'],
     '三面中': ['HR面中', '三面通过', '三面未通过'],
     '三面通过': ['HR面中', '待发offer'],
@@ -270,21 +270,27 @@ const getSmartPair = (currentStatus: ApplicationStatus): ApplicationStatus[] => 
     '三面中': '三面未通过',
     'HR面中': 'HR面未通过',
   }
-  const nextMap: Record<string, ApplicationStatus> = {
+  const nextMap: Record<string, ApplicationStatus | ApplicationStatus[]> = {
     '已投递': '简历筛选中',
     '简历筛选中': '笔试中',
     '笔试中': '一面中',
     '一面中': '二面中',
-    '二面中': '三面中',
+    '二面中': ['三面中', 'HR面中'],
     '三面中': 'HR面中',
     'HR面中': 'HR面通过', // 安全选择（模板通常允许），后续可由规则自动进入待发offer
   }
   const pair: ApplicationStatus[] = []
   const f = failMap[currentStatus]
-  const n = nextMap[currentStatus]
+  const nextEntry = nextMap[currentStatus]
   if (f) pair.push(f)
-  if (n) pair.push(n)
-  return pair
+  if (nextEntry) {
+    if (Array.isArray(nextEntry)) {
+      pair.push(...nextEntry)
+    } else {
+      pair.push(nextEntry)
+    }
+  }
+  return Array.from(new Set(pair))
 }
 
 // 计算主阶段等级（用于判断回退）

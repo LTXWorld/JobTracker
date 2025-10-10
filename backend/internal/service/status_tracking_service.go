@@ -409,14 +409,28 @@ func (s *StatusTrackingService) validateStatusTransition(userID uint, oldStatus,
 }
 
 func (s *StatusTrackingService) isImplicitDirectTransitionAllowed(oldStatus, newStatus model.ApplicationStatus) bool {
-	direct := map[model.ApplicationStatus]model.ApplicationStatus{
-		model.StatusWrittenTest:     model.StatusFirstInterview, // 笔试中 → 一面中（表示笔试通过）
-		model.StatusFirstInterview:  model.StatusSecondInterview,
-		model.StatusSecondInterview: model.StatusThirdInterview,
-		model.StatusThirdInterview:  model.StatusHRInterview,
+	direct := map[model.ApplicationStatus][]model.ApplicationStatus{
+		model.StatusWrittenTest: {
+			model.StatusFirstInterview, // 笔试中 → 一面中（表示笔试通过）
+		},
+		model.StatusFirstInterview: {
+			model.StatusSecondInterview,
+		},
+		model.StatusSecondInterview: {
+			model.StatusThirdInterview,
+			model.StatusHRInterview,
+		},
+		model.StatusThirdInterview: {
+			model.StatusHRInterview,
+		},
 	}
-	if next, ok := direct[oldStatus]; ok {
-		return next == newStatus
+
+	if nextStates, ok := direct[oldStatus]; ok {
+		for _, candidate := range nextStates {
+			if candidate == newStatus {
+				return true
+			}
+		}
 	}
 	return false
 }

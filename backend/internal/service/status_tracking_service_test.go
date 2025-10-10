@@ -267,6 +267,43 @@ func TestStatusTrackingService_BatchUpdateStatus(t *testing.T) {
 	require.NotNil(t, tx.updateCalls[0].LastStatusChange)
 }
 
+func TestStatusTrackingService_UpdateJobStatus_SecondInterviewDirectToHR(t *testing.T) {
+	tx := newFakeStatusTx()
+	now := time.Now().Add(-45 * time.Minute)
+	historyJSON := `{"entries":[]}`
+	durationJSON := `{"durations":{}}`
+	tx.snapshot = &repository.JobStatusSnapshot{
+		Job: model.JobApplication{
+			ID:     205,
+			UserID: 77,
+			Status: model.StatusSecondInterview,
+		},
+		StatusHistoryRaw: &historyJSON,
+		DurationStatsRaw: &durationJSON,
+		LastStatusChange: &now,
+	}
+
+	repo := &fakeTrackingRepo{tx: tx}
+	cfg := &fakeConfigRepo{
+		flowID: 1,
+		// 模拟用户模板只允许二面进入三面，校验应通过隐式规则允许直达HR面
+		flowCfg: `{"transitions": {"` + string(model.StatusSecondInterview) + `": ["` + string(model.StatusThirdInterview) + `"]}}`,
+	}
+
+	service := &StatusTrackingService{repo: repo, configRepo: cfg}
+
+	result, err := service.UpdateJobStatus(77, 205, &model.StatusUpdateRequest{
+		Status: model.StatusHRInterview,
+	})
+	require.NoError(t, err)
+	require.Equal(t, model.StatusHRInterview, result.Status)
+	require.True(t, tx.commitCalled)
+	require.True(t, tx.rollbackCalled)
+	require.Len(t, tx.historyInserts, 1)
+	require.Equal(t, model.StatusSecondInterview, tx.historyInserts[0].OldStatus)
+	require.Equal(t, model.StatusHRInterview, tx.historyInserts[0].NewStatus)
+}
+
 func intPtr(v int) *int {
 	return &v
 }
