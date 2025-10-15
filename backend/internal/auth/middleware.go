@@ -1,4 +1,4 @@
-// /Users/lutao/GolandProjects/jobView/backend/internal/auth/middleware.go  
+// /Users/lutao/GolandProjects/jobView/backend/internal/auth/middleware.go
 // 认证和授权中间件，负责保护API端点，确保只有认证用户可以访问
 // 提供JWT token验证、用户身份提取和权限控制功能
 
@@ -10,6 +10,7 @@ import (
 	"errors"
 	"jobView-backend/internal/model"
 	"log"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -21,32 +22,32 @@ import (
 type ContextKey string
 
 const (
-	UserContextKey ContextKey = "user"
+	UserContextKey   ContextKey = "user"
 	UserIDContextKey ContextKey = "user_id"
 )
 
 // AuthMiddleware 认证中间件
 func AuthMiddleware(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        // 放行预检请求，避免被认证拦截导致 CORS 失败
-        if r.Method == http.MethodOptions {
-            next.ServeHTTP(w, r)
-            return
-        }
-        // 从请求头获取Authorization
-        authHeader := r.Header.Get("Authorization")
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 放行预检请求，避免被认证拦截导致 CORS 失败
+		if r.Method == http.MethodOptions {
+			next.ServeHTTP(w, r)
+			return
+		}
+		// 从请求头获取Authorization
+		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			writeErrorResponse(w, http.StatusUnauthorized, "Authorization header is required", nil)
 			return
 		}
-		
+
 		// 提取token
 		token, err := ExtractTokenFromHeader(authHeader)
 		if err != nil {
 			writeErrorResponse(w, http.StatusUnauthorized, "Invalid authorization header format", err)
 			return
 		}
-		
+
 		// 验证token
 		claims, err := ValidateAccessToken(token)
 		if err != nil {
@@ -57,15 +58,15 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			}
 			return
 		}
-		
+
 		// 将用户信息添加到请求上下文
 		ctx := context.WithValue(r.Context(), UserContextKey, claims)
 		ctx = context.WithValue(ctx, UserIDContextKey, claims.UserID)
-		
+
 		// 记录认证日志
-		log.Printf("[AUTH] User %d (%s) accessing %s %s", 
+		log.Printf("[AUTH] User %d (%s) accessing %s %s",
 			claims.UserID, claims.Username, r.Method, r.URL.Path)
-		
+
 		// 继续处理请求
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -80,25 +81,25 @@ func OptionalAuthMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		
+
 		token, err := ExtractTokenFromHeader(authHeader)
 		if err != nil {
 			// token格式错误，继续处理请求但不设置用户信息
 			next.ServeHTTP(w, r)
 			return
 		}
-		
+
 		claims, err := ValidateAccessToken(token)
 		if err != nil {
 			// token验证失败，继续处理请求但不设置用户信息
 			next.ServeHTTP(w, r)
 			return
 		}
-		
+
 		// 将用户信息添加到请求上下文
 		ctx := context.WithValue(r.Context(), UserContextKey, claims)
 		ctx = context.WithValue(ctx, UserIDContextKey, claims.UserID)
-		
+
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -108,21 +109,21 @@ func RateLimitMiddleware(requests int, window time.Duration) func(http.Handler) 
 	// 简单的内存限流实现（生产环境建议使用Redis）
 	clients := make(map[string][]time.Time)
 	var mu sync.Mutex // 添加互斥锁保护map
-	
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// 使用IP作为限流键
 			ip := getClientIP(r)
 
-			// 针对内部调用与健康检查放宽限制
-			if ip == "127.0.0.1" || ip == "::1" {
+			// 针对本地回环地址放宽限制
+			if isLoopbackIP(ip) {
 				next.ServeHTTP(w, r)
 				return
 			}
 			now := time.Now()
-			
+
 			mu.Lock() // 加锁保护map操作
-			
+
 			// 清理过期记录
 			if records, exists := clients[ip]; exists {
 				validRecords := []time.Time{}
@@ -133,17 +134,17 @@ func RateLimitMiddleware(requests int, window time.Duration) func(http.Handler) 
 				}
 				clients[ip] = validRecords
 			}
-			
+
 			// 检查请求数量
 			if len(clients[ip]) >= requests {
 				mu.Unlock() // 在返回错误前释放锁
 				writeErrorResponse(w, http.StatusTooManyRequests, "Too many requests", nil)
 				return
 			}
-			
+
 			// 记录当前请求
 			clients[ip] = append(clients[ip], now)
-			
+
 			// 在调用下一个handler之前释放锁
 			mu.Unlock()
 			next.ServeHTTP(w, r)
@@ -167,7 +168,7 @@ func CORSMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 				}
 				// 支持Chrome扩展的通配符匹配
 				if strings.HasPrefix(allowedOrigin, "chrome-extension://") &&
-				   strings.HasPrefix(origin, "chrome-extension://") {
+					strings.HasPrefix(origin, "chrome-extension://") {
 					allowed = true
 					break
 				}
@@ -211,12 +212,12 @@ func SecurityHeadersMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		w.Header().Set("Content-Security-Policy", "default-src 'self'")
-		
+
 		// HSTS（HTTPS严格传输安全）
 		if r.TLS != nil {
 			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}
-		
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -225,14 +226,14 @@ func SecurityHeadersMiddleware(next http.Handler) http.Handler {
 func LoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		
+
 		// 包装ResponseWriter以捕获状态码
 		wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-		
+
 		next.ServeHTTP(wrapped, r)
-		
+
 		duration := time.Since(start)
-		log.Printf("[HTTP] %s %s - %d - %v - %s", 
+		log.Printf("[HTTP] %s %s - %d - %v - %s",
 			r.Method, r.URL.Path, wrapped.statusCode, duration, getClientIP(r))
 	})
 }
@@ -268,42 +269,62 @@ func RequireOwnership(userID uint, resourceUserID uint) bool {
 // getClientIP 获取客户端真实IP
 func getClientIP(r *http.Request) string {
 	// 优先从X-Forwarded-For获取
-	xff := r.Header.Get("X-Forwarded-For")
-	if xff != "" {
-		ips := strings.Split(xff, ",")
-		return strings.TrimSpace(ips[0])
+	xForwardedFor := strings.TrimSpace(r.Header.Get("X-Forwarded-For"))
+	if xForwardedFor != "" {
+		parts := strings.Split(xForwardedFor, ",")
+		if len(parts) > 0 {
+			return normalizeIP(parts[0])
+		}
 	}
-	
+
 	// 从X-Real-IP获取
-	xri := r.Header.Get("X-Real-IP")
-	if xri != "" {
-		return xri
+	xRealIP := strings.TrimSpace(r.Header.Get("X-Real-IP"))
+	if xRealIP != "" {
+		return normalizeIP(xRealIP)
 	}
-	
+
 	// 从RemoteAddr获取
-	ip := r.RemoteAddr
-	if colon := strings.LastIndex(ip, ":"); colon != -1 {
-		ip = ip[:colon]
+	remoteAddr := strings.TrimSpace(r.RemoteAddr)
+	if host, _, err := net.SplitHostPort(remoteAddr); err == nil {
+		return normalizeIP(host)
 	}
-	
-	return ip
+
+	return normalizeIP(remoteAddr)
+}
+
+// isLoopbackIP 判断是否为回环地址
+func isLoopbackIP(ip string) bool {
+	parsed := net.ParseIP(normalizeIP(ip))
+	if parsed == nil {
+		return false
+	}
+	return parsed.IsLoopback()
+}
+
+// normalizeIP 对IP字符串做规范化处理，去掉括号和IPv4映射前缀
+func normalizeIP(ip string) string {
+	normalized := strings.TrimSpace(ip)
+	normalized = strings.Trim(normalized, "[]")
+	// 处理 IPv4-mapped IPv6 (::ffff:127.0.0.1)
+	normalized = strings.TrimPrefix(normalized, "::ffff:")
+	return normalized
 }
 
 // writeErrorResponse 写入错误响应
 func writeErrorResponse(w http.ResponseWriter, statusCode int, message string, err error) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	
+
 	response := model.APIResponse{
 		Code:    statusCode,
 		Message: message,
 	}
-	
+
 	if err != nil && statusCode >= 500 {
 		// 只在服务器内部错误时显示详细错误信息
 		response.Data = map[string]string{"error": err.Error()}
 	}
-	
+
 	json.NewEncoder(w).Encode(response)
 }
 
@@ -316,11 +337,11 @@ func ParseIDFromURL(r *http.Request, param string) (int, error) {
 	if !exists {
 		return 0, errors.New("missing " + param + " parameter")
 	}
-	
+
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		return 0, errors.New("invalid " + param + " parameter")
 	}
-	
+
 	return id, nil
 }

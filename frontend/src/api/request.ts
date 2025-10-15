@@ -286,21 +286,32 @@ request.interceptors.response.use(
     }
 
     // 显示错误提示（除了401，因为会自动处理）
-    if (error.response?.status !== 401) {
-      message.error(errorMessage)
+    const statusCode = error.response?.status
+
+    if (statusCode !== 401) {
+      if (statusCode === 429) {
+        message.warning(errorMessage)
+      } else {
+        message.error(errorMessage)
+      }
     }
 
     // 记录错误日志用于调试
     console.error('API请求错误:', {
       url: originalRequest?.url,
       method: originalRequest?.method,
-      status: error.response?.status,
+      status: statusCode,
       duration: requestDuration,
       message: errorMessage,
       error: error.response?.data
     })
 
-    return Promise.reject(new Error(errorMessage))
+    const wrappedError = new Error(errorMessage) as Error & { status?: number }
+    if (typeof statusCode === 'number') {
+      wrappedError.status = statusCode
+    }
+
+    return Promise.reject(wrappedError)
   }
 )
 
