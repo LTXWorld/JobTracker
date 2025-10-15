@@ -18,6 +18,34 @@ export const useJobApplicationStore = defineStore('jobApplication', () => {
   const currentApplication = ref<JobApplication | null>(null)
   const statistics = ref<JobApplicationStatistics | null>(null)
   const statisticsLoading = ref(false)
+  const rateLimited = ref(false)
+  const rateLimitResetAt = ref<number | null>(null)
+
+  let rateLimitTimer: ReturnType<typeof setTimeout> | null = null
+
+  const clearRateLimitCooldown = () => {
+    if (rateLimitTimer) {
+      clearTimeout(rateLimitTimer)
+      rateLimitTimer = null
+    }
+    rateLimited.value = false
+    rateLimitResetAt.value = null
+  }
+
+  const startRateLimitCooldown = (duration = 30_000) => {
+    rateLimited.value = true
+    rateLimitResetAt.value = Date.now() + duration
+
+    if (rateLimitTimer) {
+      clearTimeout(rateLimitTimer)
+    }
+
+    rateLimitTimer = setTimeout(() => {
+      rateLimited.value = false
+      rateLimitResetAt.value = null
+      rateLimitTimer = null
+    }, duration)
+  }
 
   // 计算属性
   const totalCount = computed(() => applications.value.length)
@@ -35,6 +63,7 @@ export const useJobApplicationStore = defineStore('jobApplication', () => {
     loading.value = true
     try {
       const data = await JobApplicationAPI.getAll()
+      clearRateLimitCooldown()
       if (Array.isArray(data)) {
         applications.value = data.map(app => {
           if (app.reminder_enabled) {
@@ -53,9 +82,17 @@ export const useJobApplicationStore = defineStore('jobApplication', () => {
       }
     } catch (error) {
       console.error('获取应用数据失败:', error)
-      // 确保即使出错也有一个空数组
-      applications.value = []
-      message.error('获取数据失败: ' + (error as Error).message)
+      const status = (error as any)?.status
+      const messageText = (error as Error).message
+
+      if (status === 429) {
+        // 命中限流时保留已有数据，并开启冷却窗口
+        startRateLimitCooldown()
+        return applications.value
+      }
+
+      message.error('获取数据失败: ' + messageText)
+      throw error
     } finally {
       loading.value = false
     }
@@ -194,7 +231,9 @@ export const useJobApplicationStore = defineStore('jobApplication', () => {
     currentApplication,
     statistics,
     statisticsLoading,
-    
+    rateLimited,
+    rateLimitResetAt,
+
     // 计算属性
     totalCount,
     statusCounts,
