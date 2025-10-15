@@ -25,6 +25,7 @@ type mockJobApplicationRepository struct {
 	batchDeleteFunc                  func(uint, []int) error
 	batchCreateFunc                  func(uint, []model.CreateJobApplicationRequest) ([]model.JobApplication, error)
 	getStatusStatisticsFunc          func(uint) (map[string]int, error)
+	getHRPassCountFunc               func(uint) (int, error)
 	listByDateRangeFunc              func(uint, string, string, model.PaginationRequest) (*model.PaginationResponse, error)
 	listWithStatusFiltersFunc        func(uint, *model.ApplicationStatus, []string, model.PaginationRequest) (*model.PaginationResponse, error)
 	listRecentApplicationsFunc       func(uint, int) ([]map[string]interface{}, error)
@@ -109,6 +110,13 @@ func (m *mockJobApplicationRepository) GetStatusStatistics(userID uint) (map[str
 	}
 	m.getStatusStatisticsCalledWithUID = append(m.getStatusStatisticsCalledWithUID, userID)
 	return m.getStatusStatisticsFunc(userID)
+}
+
+func (m *mockJobApplicationRepository) GetHRPassCount(userID uint) (int, error) {
+	if m.getHRPassCountFunc == nil {
+		return 0, errors.New("getHRPassCountFunc not implemented")
+	}
+	return m.getHRPassCountFunc(userID)
 }
 
 func (m *mockJobApplicationRepository) ListByDateRange(userID uint, startDate, endDate string, req model.PaginationRequest) (*model.PaginationResponse, error) {
@@ -320,6 +328,10 @@ func TestJobApplicationService_GetStatusStatistics_AggregatesFromRepository(t *t
 			string(model.StatusRejected):       4,
 		}, nil
 	}
+	mockRepo.getHRPassCountFunc = func(userID uint) (int, error) {
+		assert.Equal(t, expectedUserID, userID)
+		return 6, nil
+	}
 
 	svc := NewJobApplicationService(mockRepo)
 
@@ -332,6 +344,7 @@ func TestJobApplicationService_GetStatusStatistics_AggregatesFromRepository(t *t
 	assert.Equal(t, 5, stats["in_progress"])
 	assert.Equal(t, 5, stats["passed"])
 	assert.Equal(t, 0, stats["failed"])
+	assert.Equal(t, 6, stats["hr_passed"])
 	breakdown, ok := stats["status_breakdown"].(map[string]int)
 	require.True(t, ok)
 	assert.Equal(t, 3, breakdown[string(model.StatusApplied)])
@@ -424,6 +437,10 @@ func TestJobApplicationService_GetDashboardData_DelegatesToRepository(t *testing
 	mockRepo.getStatusStatisticsFunc = func(userID uint) (map[string]int, error) {
 		assert.Equal(t, expectedUserID, userID)
 		return map[string]int{string(model.StatusApplied): 2}, nil
+	}
+	mockRepo.getHRPassCountFunc = func(userID uint) (int, error) {
+		assert.Equal(t, expectedUserID, userID)
+		return 1, nil
 	}
 	mockRepo.listRecentApplicationsFunc = func(userID uint, limit int) ([]map[string]interface{}, error) {
 		assert.Equal(t, expectedUserID, userID)

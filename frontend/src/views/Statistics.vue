@@ -273,9 +273,18 @@ const offerCount = computed(() => {
   return applications.value.filter(app => StatusHelper.isPassedStatus(app.status)).length
 })
 
-// 已OC：统计“已接受offer”
+// 已OC：统计进入过HR面通过阶段的岗位（含已接受/拒绝offer）
 const ocCount = computed(() => {
-  return applications.value.filter(app => app.status === ApplicationStatus.OFFER_ACCEPTED).length
+  const stats = statisticsData.value
+  if (stats && typeof stats.hr_passed === 'number') {
+    return stats.hr_passed
+  }
+  const hrPassedStatuses: ApplicationStatus[] = [
+    ApplicationStatus.HR_PASS,
+    ApplicationStatus.OFFER_ACCEPTED,
+    ApplicationStatus.REJECTED
+  ]
+  return applications.value.filter(app => hrPassedStatuses.includes(app.status)).length
 })
 
 const failedCount = computed(() => {

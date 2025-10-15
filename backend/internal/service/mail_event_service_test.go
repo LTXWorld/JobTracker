@@ -85,6 +85,7 @@ func (f *fakeJobRepo) Update(userID uint, id int, req *model.UpdateJobApplicatio
 
 func (f *fakeJobRepo) Delete(userID uint, id int) error                        { return nil }
 func (f *fakeJobRepo) GetStatusStatistics(userID uint) (map[string]int, error) { return nil, nil }
+func (f *fakeJobRepo) GetHRPassCount(userID uint) (int, error)                 { return 0, nil }
 func (f *fakeJobRepo) BatchCreate(userID uint, applications []model.CreateJobApplicationRequest) ([]model.JobApplication, error) {
 	return nil, nil
 }

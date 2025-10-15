@@ -159,6 +159,12 @@ func (s *JobApplicationService) GetStatusStatistics(userID uint) (map[string]int
 		}
 	}
 
+	hrPassCount, err := s.repo.GetHRPassCount(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute HR pass count: %w", err)
+	}
+	stats["hr_passed"] = hrPassCount
+
 	completed := stats["passed"].(int) + stats["failed"].(int)
 	if completed > 0 {
 		passRate := float64(stats["passed"].(int)) / float64(completed) * 100

@@ -19,6 +19,7 @@ type JobApplicationRepository interface {
 	Update(userID uint, id int, req *model.UpdateJobApplicationRequest) (*model.JobApplication, error)
 	Delete(userID uint, id int) error
 	GetStatusStatistics(userID uint) (map[string]int, error)
+	GetHRPassCount(userID uint) (int, error)
 	BatchCreate(userID uint, applications []model.CreateJobApplicationRequest) ([]model.JobApplication, error)
 	BatchUpdateStatus(userID uint, updates []model.BatchStatusUpdate) error
 	BatchDelete(userID uint, ids []int) error
@@ -473,6 +474,20 @@ func (r *jobAppRepo) GetStatusStatistics(userID uint) (map[string]int, error) {
 		return nil, fmt.Errorf("failed to iterate status statistics: %w", err)
 	}
 	return result, nil
+}
+
+func (r *jobAppRepo) GetHRPassCount(userID uint) (int, error) {
+	if r.db.ORM == nil {
+		return 0, fmt.Errorf("gorm not initialized")
+	}
+	query := `SELECT COUNT(DISTINCT job_application_id)
+		FROM job_status_history
+		WHERE user_id = $1 AND new_status = $2`
+	var count int
+	if err := r.db.ORM.Raw(query, userID, model.StatusHRPass).Row().Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count HR pass records: %w", err)
+	}
+	return count, nil
 }
 
 func (r *jobAppRepo) BatchCreate(userID uint, applications []model.CreateJobApplicationRequest) ([]model.JobApplication, error) {

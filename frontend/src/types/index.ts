@@ -130,6 +130,7 @@ export const StatusHelper = {
 export interface JobApplicationStatistics {
   total_applications: number
   in_progress: number
+  hr_passed?: number
   passed: number
   failed: number
   pass_rate: string

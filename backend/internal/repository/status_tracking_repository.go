@@ -277,11 +277,6 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 			Entry: []string{
 				string(model.StatusWrittenTest),
 				string(model.StatusWrittenTestPass), string(model.StatusWrittenTestFail),
-				string(model.StatusFirstInterview), string(model.StatusFirstPass), string(model.StatusFirstFail),
-				string(model.StatusSecondInterview), string(model.StatusSecondPass), string(model.StatusSecondFail),
-				string(model.StatusThirdInterview), string(model.StatusThirdPass), string(model.StatusThirdFail),
-				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
-				string(model.StatusOfferAccepted), string(model.StatusRejected),
 			},
 			PassStatuses: []string{
 				string(model.StatusWrittenTestPass),
@@ -296,10 +291,6 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 			Name: "first",
 			Entry: []string{
 				string(model.StatusFirstInterview), string(model.StatusFirstPass), string(model.StatusFirstFail),
-				string(model.StatusSecondInterview), string(model.StatusSecondPass), string(model.StatusSecondFail),
-				string(model.StatusThirdInterview), string(model.StatusThirdPass), string(model.StatusThirdFail),
-				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
-				string(model.StatusOfferAccepted), string(model.StatusRejected),
 			},
 			PassStatuses: []string{
 				string(model.StatusFirstPass),
@@ -313,9 +304,6 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 			Name: "second",
 			Entry: []string{
 				string(model.StatusSecondInterview), string(model.StatusSecondPass), string(model.StatusSecondFail),
-				string(model.StatusThirdInterview), string(model.StatusThirdPass), string(model.StatusThirdFail),
-				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
-				string(model.StatusOfferAccepted), string(model.StatusRejected),
 			},
 			PassStatuses: []string{
 				string(model.StatusSecondPass),
@@ -328,8 +316,6 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 			Name: "third",
 			Entry: []string{
 				string(model.StatusThirdInterview), string(model.StatusThirdPass), string(model.StatusThirdFail),
-				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
-				string(model.StatusOfferAccepted), string(model.StatusRejected),
 			},
 			PassStatuses: []string{
 				string(model.StatusThirdPass),
@@ -341,7 +327,6 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 			Name: "hr",
 			Entry: []string{
 				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
-				string(model.StatusOfferAccepted), string(model.StatusRejected),
 			},
 			PassStatuses: []string{
 				string(model.StatusHRPass),
@@ -349,34 +334,82 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 			},
 		},
 	}
+	// 检查是否存在历史数据，如果没有则回退到基于当前状态的估算
+	hasHistory := false
+	{
+		var marker int
+		err := orm.Raw(`SELECT 1 FROM job_status_history WHERE user_id = $1 LIMIT 1`, userID).Row().Scan(&marker)
+		if err == nil {
+			hasHistory = true
+		} else if err != nil && err != sql.ErrNoRows {
+			return nil, fmt.Errorf("failed to check history availability: %w", err)
+		}
+	}
+
+	countFromHistory := func(stageName string, statuses []string) (int, error) {
+		if len(statuses) == 0 {
+			return 0, nil
+		}
+		var count int
+		query := `
+			SELECT COUNT(DISTINCT job_application_id)
+			FROM job_status_history
+			WHERE user_id = $1 AND new_status = ANY($2)
+		`
+		if err := orm.Raw(query, userID, pq.Array(statuses)).Row().Scan(&count); err != nil {
+			return 0, fmt.Errorf("failed to compute history count for %s: %w", stageName, err)
+		}
+		return count, nil
+	}
+
+	countFromCurrentStatus := func(stageName string, statuses []string) (int, error) {
+		if len(statuses) == 0 {
+			return 0, nil
+		}
+		var count int
+		query := `
+			SELECT COUNT(*) FROM job_applications
+			WHERE user_id = $1 AND status = ANY($2)
+		`
+		if err := orm.Raw(query, userID, pq.Array(statuses)).Row().Scan(&count); err != nil {
+			return 0, fmt.Errorf("failed to compute current status count for %s: %w", stageName, err)
+		}
+		return count, nil
+	}
+
 	for _, st := range stages {
-		// 简化方案：只基于当前状态统计，不依赖历史记录
-		// 统计进入该阶段的总人数（当前状态在Entry列表中）
-		var totalStage int
-		if err := orm.Raw(`
-			SELECT COUNT(*) FROM job_applications
-			WHERE user_id = $1 AND status = ANY($2)
-		`, userID, pq.Array(st.Entry)).Row().Scan(&totalStage); err != nil {
-			return nil, fmt.Errorf("failed to compute stage total for %s: %w", st.Name, err)
+		var totalStage, passed int
+		var err error
+		if hasHistory {
+			totalStage, err = countFromHistory(st.Name, st.Entry)
+			if err != nil {
+				return nil, err
+			}
+			passed, err = countFromHistory(st.Name, st.PassStatuses)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			totalStage, err = countFromCurrentStatus(st.Name, st.Entry)
+			if err != nil {
+				return nil, err
+			}
+			passed, err = countFromCurrentStatus(st.Name, st.PassStatuses)
+			if err != nil {
+				return nil, err
+			}
 		}
-
-		// 统计通过该阶段的人数（当前状态在PassStatuses列表中）
-		var passed int
-		if err := orm.Raw(`
-			SELECT COUNT(*) FROM job_applications
-			WHERE user_id = $1 AND status = ANY($2)
-		`, userID, pq.Array(st.PassStatuses)).Row().Scan(&passed); err != nil {
-			return nil, fmt.Errorf("failed to compute stage pass for %s: %w", st.Name, err)
-		}
-
-		// 调试日志
-		fmt.Printf("[DEBUG] Stage: %s, Total: %d, Passed: %d\n", st.Name, totalStage, passed)
 
 		var rate float64
 		if totalStage > 0 {
 			rate = float64(passed) / float64(totalStage) * 100
 		}
-		analytics.StageAnalysis[st.Name] = model.StageStatistics{StageName: st.Name, TotalCount: totalStage, SuccessCount: passed, SuccessRate: rate}
+		analytics.StageAnalysis[st.Name] = model.StageStatistics{
+			StageName:    st.Name,
+			TotalCount:   totalStage,
+			SuccessCount: passed,
+			SuccessRate:  rate,
+		}
 	}
 	return analytics, nil
 }
