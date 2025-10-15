@@ -32,9 +32,9 @@ func (s *StatusConfigService) ensureRepo() error {
 
 // EnsureDirectTransitionsInDefaultTemplate 确保默认模板包含面试阶段的直通转移规则
 // 若模板不存在则忽略（由外部迁移负责创建）；若存在则在不改变其他配置的前提下补充：
-// 一面中 -> 二面中，二面中 -> (三面中/HR面中)，三面中 -> HR面中
+// 一面中 -> (二面中/HR面中)，二面中 -> (三面中/HR面中)，三面中 -> HR面中
 // EnsureDirectTransitionsInDefaultTemplate
-// 1) 幂等补齐面试阶段直通规则：笔试中→一面中→二面中→(三面中/HR面中)→HR面中
+// 1) 幂等补齐面试阶段直通规则：笔试中→一面中→(二面中/HR面中)→(三面中/HR面中)→HR面中
 // 2) 幂等补齐基础默认规则：已投递→(简历筛选中/简历筛选未通过/已拒绝)，简历筛选中→(笔试中/简历筛选未通过)
 func (s *StatusConfigService) EnsureDirectTransitionsInDefaultTemplate() error {
 	if err := s.ensureRepo(); err != nil {
@@ -69,6 +69,7 @@ func (s *StatusConfigService) EnsureDirectTransitionsInDefaultTemplate() error {
 		},
 		string(model.StatusFirstInterview): {
 			string(model.StatusSecondInterview),
+			string(model.StatusHRInterview),
 		},
 		string(model.StatusSecondInterview): {
 			string(model.StatusThirdInterview),
@@ -371,14 +372,26 @@ func (s *StatusConfigService) GetAvailableStatusTransitions(userID uint, current
 	return setToSlice(transitionsSet), nil
 }
 func (s *StatusConfigService) addImplicitDirectTransitions(currentStatus model.ApplicationStatus, set map[model.ApplicationStatus]bool) {
-	direct := map[model.ApplicationStatus]model.ApplicationStatus{
-		model.StatusWrittenTest:     model.StatusFirstInterview,
-		model.StatusFirstInterview:  model.StatusSecondInterview,
-		model.StatusSecondInterview: model.StatusThirdInterview,
-		model.StatusThirdInterview:  model.StatusHRInterview,
+	direct := map[model.ApplicationStatus][]model.ApplicationStatus{
+		model.StatusWrittenTest: {
+			model.StatusFirstInterview,
+		},
+		model.StatusFirstInterview: {
+			model.StatusSecondInterview,
+			model.StatusHRInterview,
+		},
+		model.StatusSecondInterview: {
+			model.StatusThirdInterview,
+			model.StatusHRInterview,
+		},
+		model.StatusThirdInterview: {
+			model.StatusHRInterview,
+		},
 	}
-	if next, ok := direct[currentStatus]; ok {
-		set[next] = true
+	if nextStates, ok := direct[currentStatus]; ok {
+		for _, next := range nextStates {
+			set[next] = true
+		}
 	}
 }
 

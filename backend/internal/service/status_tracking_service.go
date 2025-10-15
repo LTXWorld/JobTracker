@@ -415,6 +415,7 @@ func (s *StatusTrackingService) isImplicitDirectTransitionAllowed(oldStatus, new
 		},
 		model.StatusFirstInterview: {
 			model.StatusSecondInterview,
+			model.StatusHRInterview,
 		},
 		model.StatusSecondInterview: {
 			model.StatusThirdInterview,
