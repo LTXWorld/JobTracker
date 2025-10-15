@@ -273,9 +273,9 @@ const offerCount = computed(() => {
   return applications.value.filter(app => StatusHelper.isPassedStatus(app.status)).length
 })
 
-// 已OC：仅统计“已收到offer”
+// 已OC：统计“已接受offer”
 const ocCount = computed(() => {
-  return applications.value.filter(app => app.status === ApplicationStatus.OFFER_RECEIVED).length
+  return applications.value.filter(app => app.status === ApplicationStatus.OFFER_ACCEPTED).length
 })
 
 const failedCount = computed(() => {
@@ -288,7 +288,7 @@ const successRate = computed(() => {
   return (offerCount.value / total) * 100
 })
 
-// OC率：仅以"已收到offer"占比计算
+// OC率：仅以"已接受offer"占比计算
 const ocRate = computed(() => {
   const total = applications.value.length
   if (total === 0) return 0
@@ -306,7 +306,7 @@ const conversionRate = computed(() => {
     ApplicationStatus.SECOND_INTERVIEW, ApplicationStatus.SECOND_PASS, ApplicationStatus.SECOND_FAIL,
     ApplicationStatus.THIRD_INTERVIEW, ApplicationStatus.THIRD_PASS, ApplicationStatus.THIRD_FAIL,
     ApplicationStatus.HR_INTERVIEW, ApplicationStatus.HR_PASS, ApplicationStatus.HR_FAIL,
-    ApplicationStatus.OFFER_WAITING, ApplicationStatus.OFFER_RECEIVED, ApplicationStatus.OFFER_ACCEPTED
+    ApplicationStatus.OFFER_ACCEPTED, ApplicationStatus.REJECTED
   ]
 
   const interviewCount = applications.value.filter(app =>
@@ -324,7 +324,7 @@ const interviewCount = computed(() => {
     ApplicationStatus.SECOND_INTERVIEW, ApplicationStatus.SECOND_PASS, ApplicationStatus.SECOND_FAIL,
     ApplicationStatus.THIRD_INTERVIEW, ApplicationStatus.THIRD_PASS, ApplicationStatus.THIRD_FAIL,
     ApplicationStatus.HR_INTERVIEW, ApplicationStatus.HR_PASS, ApplicationStatus.HR_FAIL,
-    ApplicationStatus.OFFER_WAITING, ApplicationStatus.OFFER_RECEIVED, ApplicationStatus.OFFER_ACCEPTED
+    ApplicationStatus.OFFER_ACCEPTED, ApplicationStatus.REJECTED
   ]
 
   return applications.value.filter(app =>
@@ -514,31 +514,31 @@ const stageBarOption = computed(() => {
       name: '笔试',
       entry: S.WRITTEN_TEST,
       pass: [S.WRITTEN_TEST_PASS],
-      next: [S.FIRST_INTERVIEW, S.FIRST_PASS, S.SECOND_INTERVIEW, S.SECOND_PASS, S.THIRD_INTERVIEW, S.THIRD_PASS, S.HR_INTERVIEW, S.HR_PASS, S.OFFER_WAITING, S.OFFER_RECEIVED, S.OFFER_ACCEPTED]
+      next: [S.FIRST_INTERVIEW, S.FIRST_PASS, S.SECOND_INTERVIEW, S.SECOND_PASS, S.THIRD_INTERVIEW, S.THIRD_PASS, S.HR_INTERVIEW, S.HR_PASS, S.OFFER_ACCEPTED, S.REJECTED]
     },
     {
       name: '一面',
       entry: S.FIRST_INTERVIEW,
       pass: [S.FIRST_PASS],
-      next: [S.SECOND_INTERVIEW, S.SECOND_PASS, S.THIRD_INTERVIEW, S.THIRD_PASS, S.HR_INTERVIEW, S.HR_PASS, S.OFFER_WAITING, S.OFFER_RECEIVED, S.OFFER_ACCEPTED]
+      next: [S.SECOND_INTERVIEW, S.SECOND_PASS, S.THIRD_INTERVIEW, S.THIRD_PASS, S.HR_INTERVIEW, S.HR_PASS, S.OFFER_ACCEPTED, S.REJECTED]
     },
     {
       name: '二面',
       entry: S.SECOND_INTERVIEW,
       pass: [S.SECOND_PASS],
-      next: [S.THIRD_INTERVIEW, S.THIRD_PASS, S.HR_INTERVIEW, S.HR_PASS, S.OFFER_WAITING, S.OFFER_RECEIVED, S.OFFER_ACCEPTED]
+      next: [S.THIRD_INTERVIEW, S.THIRD_PASS, S.HR_INTERVIEW, S.HR_PASS, S.OFFER_ACCEPTED, S.REJECTED]
     },
     {
       name: '三面',
       entry: S.THIRD_INTERVIEW,
       pass: [S.THIRD_PASS],
-      next: [S.HR_INTERVIEW, S.HR_PASS, S.OFFER_WAITING, S.OFFER_RECEIVED, S.OFFER_ACCEPTED]
+      next: [S.HR_INTERVIEW, S.HR_PASS, S.OFFER_ACCEPTED, S.REJECTED]
     },
     {
       name: 'HR面',
       entry: S.HR_INTERVIEW,
       pass: [S.HR_PASS],
-      next: [S.OFFER_WAITING, S.OFFER_RECEIVED, S.OFFER_ACCEPTED]
+      next: [S.OFFER_ACCEPTED, S.REJECTED]
     }
   ]
 
@@ -718,7 +718,7 @@ const tableData = computed(() => {
     
     if (interviewStatuses.includes(app.status)) {
       data.interviewing++
-    } else if (app.status === ApplicationStatus.OFFER_RECEIVED || app.status === ApplicationStatus.OFFER_ACCEPTED) {
+    } else if ([ApplicationStatus.HR_PASS, ApplicationStatus.OFFER_ACCEPTED].includes(app.status)) {
       data.offer++
     } else if (app.status === ApplicationStatus.REJECTED) {
       data.rejected++

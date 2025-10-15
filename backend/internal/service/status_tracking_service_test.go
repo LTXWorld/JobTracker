@@ -341,6 +341,78 @@ func TestStatusTrackingService_UpdateJobStatus_FirstInterviewDirectToHR(t *testi
 	require.Equal(t, model.StatusHRInterview, tx.historyInserts[0].NewStatus)
 }
 
+func TestStatusTrackingService_UpdateJobStatus_HRPassToAccepted(t *testing.T) {
+	tx := newFakeStatusTx()
+	now := time.Now().Add(-10 * time.Minute)
+	historyJSON := `{"entries":[]}`
+	durationJSON := `{"durations":{}}`
+	tx.snapshot = &repository.JobStatusSnapshot{
+		Job: model.JobApplication{
+			ID:     412,
+			UserID: 23,
+			Status: model.StatusHRPass,
+		},
+		StatusHistoryRaw: &historyJSON,
+		DurationStatsRaw: &durationJSON,
+		LastStatusChange: &now,
+	}
+
+	repo := &fakeTrackingRepo{tx: tx}
+	cfg := &fakeConfigRepo{
+		flowID:  1,
+		flowCfg: `{"transitions": {"` + string(model.StatusHRPass) + `": []}}`,
+	}
+
+	service := &StatusTrackingService{repo: repo, configRepo: cfg}
+
+	result, err := service.UpdateJobStatus(23, 412, &model.StatusUpdateRequest{
+		Status: model.StatusOfferAccepted,
+	})
+	require.NoError(t, err)
+	require.Equal(t, model.StatusOfferAccepted, result.Status)
+	require.True(t, tx.commitCalled)
+	require.True(t, tx.rollbackCalled)
+	require.Len(t, tx.historyInserts, 1)
+	require.Equal(t, model.StatusHRPass, tx.historyInserts[0].OldStatus)
+	require.Equal(t, model.StatusOfferAccepted, tx.historyInserts[0].NewStatus)
+}
+
+func TestStatusTrackingService_UpdateJobStatus_HRPassToRejected(t *testing.T) {
+	tx := newFakeStatusTx()
+	now := time.Now().Add(-15 * time.Minute)
+	historyJSON := `{"entries":[]}`
+	durationJSON := `{"durations":{}}`
+	tx.snapshot = &repository.JobStatusSnapshot{
+		Job: model.JobApplication{
+			ID:     413,
+			UserID: 23,
+			Status: model.StatusHRPass,
+		},
+		StatusHistoryRaw: &historyJSON,
+		DurationStatsRaw: &durationJSON,
+		LastStatusChange: &now,
+	}
+
+	repo := &fakeTrackingRepo{tx: tx}
+	cfg := &fakeConfigRepo{
+		flowID:  1,
+		flowCfg: `{"transitions": {"` + string(model.StatusHRPass) + `": []}}`,
+	}
+
+	service := &StatusTrackingService{repo: repo, configRepo: cfg}
+
+	result, err := service.UpdateJobStatus(23, 413, &model.StatusUpdateRequest{
+		Status: model.StatusRejected,
+	})
+	require.NoError(t, err)
+	require.Equal(t, model.StatusRejected, result.Status)
+	require.True(t, tx.commitCalled)
+	require.True(t, tx.rollbackCalled)
+	require.Len(t, tx.historyInserts, 1)
+	require.Equal(t, model.StatusHRPass, tx.historyInserts[0].OldStatus)
+	require.Equal(t, model.StatusRejected, tx.historyInserts[0].NewStatus)
+}
+
 func intPtr(v int) *int {
 	return &v
 }

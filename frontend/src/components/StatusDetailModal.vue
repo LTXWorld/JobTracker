@@ -320,11 +320,10 @@ const successProbability = computed(() => {
     '二面通过': 90,
     '三面中': 92,
     '三面通过': 95,
-    'HR面中': 98,
-    'HR面通过': 99,
-    '待发offer': 95,
-    '已收到offer': 100,
-    '已接受offer': 100
+    'HR面中': 97,
+    'HR面通过': 98,
+    '已接受offer': 100,
+    '已拒绝offer': 50
   }
   return statusScores[props.currentStatus] || 20
 })
@@ -338,7 +337,7 @@ const estimatedCompletion = computed(() => {
     '一面中': 15,
     '二面中': 10,
     'HR面中': 5,
-    '待发offer': 3
+    'HR面通过': 3
   }
   
   const days = averageDays[props.currentStatus] || 0

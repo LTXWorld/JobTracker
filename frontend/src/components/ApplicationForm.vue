@@ -135,11 +135,8 @@ const statusOptions = computed(() => [
   { label: '三面通过', value: ApplicationStatus.THIRD_PASS },
   { label: 'HR面中', value: ApplicationStatus.HR_INTERVIEW },
   { label: 'HR面通过', value: ApplicationStatus.HR_PASS },
-  { label: '待发offer', value: ApplicationStatus.OFFER_WAITING },
-  { label: '已拒绝', value: ApplicationStatus.REJECTED },
-  { label: '已收到offer', value: ApplicationStatus.OFFER_RECEIVED },
   { label: '已接受offer', value: ApplicationStatus.OFFER_ACCEPTED },
-  { label: '流程结束', value: ApplicationStatus.PROCESS_FINISHED }
+  { label: '已拒绝offer', value: ApplicationStatus.REJECTED }
 ])
 
 // 表单验证规则（编辑时企业属性可选，新建必填）

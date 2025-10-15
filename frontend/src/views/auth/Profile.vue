@@ -663,13 +663,13 @@ const fetchUserStats = async () => {
     userStats.value = {
       totalApplications: applications.length,
       activeApplications: applications.filter(app => 
-        !['已拒绝', '已接受offer', '简历筛选未通过', '笔试未通过', '一面未通过', '二面未通过', '三面未通过'].includes(app.status)
+        !['已拒绝offer', '已接受offer', '简历筛选未通过', '笔试未通过', '一面未通过', '二面未通过', '三面未通过'].includes(app.status)
       ).length,
       receivedOffers: applications.filter(app => 
-        ['已收到offer', '已接受offer'].includes(app.status)
+        ['HR面通过', '已接受offer'].includes(app.status)
       ).length,
       successRate: applications.length > 0 
-        ? `${Math.round((applications.filter(app => ['已收到offer', '已接受offer'].includes(app.status)).length / applications.length) * 100)}%`
+        ? `${Math.round((applications.filter(app => ['HR面通过', '已接受offer'].includes(app.status)).length / applications.length) * 100)}%`
         : '0%'
     }
   } catch (error) {

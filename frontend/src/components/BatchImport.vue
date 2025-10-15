@@ -221,12 +221,15 @@ const statusMap: Record<string, ApplicationStatus> = {
   '三面通过': ApplicationStatus.THIRD_PASS,
   'HR面': ApplicationStatus.HR_INTERVIEW,
   'HR通过': ApplicationStatus.HR_PASS,
-  '等待offer': ApplicationStatus.OFFER_WAITING,
-  '已挂': ApplicationStatus.REJECTED,
+  'HR面挂': ApplicationStatus.HR_FAIL,
+  '已挂': ApplicationStatus.HR_FAIL,
+  '等待offer': ApplicationStatus.HR_PASS,
   '已拒绝': ApplicationStatus.REJECTED,
-  '收到offer': ApplicationStatus.OFFER_RECEIVED,
+  '已拒绝offer': ApplicationStatus.REJECTED,
+  '拒绝offer': ApplicationStatus.REJECTED,
+  '收到offer': ApplicationStatus.HR_PASS,
   '接受offer': ApplicationStatus.OFFER_ACCEPTED,
-  '流程结束': ApplicationStatus.PROCESS_FINISHED
+  '流程结束': ApplicationStatus.OFFER_ACCEPTED
 }
 
 // 映射表格列配置

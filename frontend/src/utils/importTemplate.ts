@@ -51,9 +51,7 @@ export const statusOptions = [
   '三面通过',
   'HR面',
   'HR通过',
-  '等待offer',
-  '已挂',
-  '收到offer',
+  'HR面挂',
   '接受offer',
-  '流程结束'
+  '拒绝offer'
 ]

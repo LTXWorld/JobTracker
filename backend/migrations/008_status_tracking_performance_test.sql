@@ -124,7 +124,7 @@ DECLARE
     v_status_array application_status[] := ARRAY[
         '已投递'::application_status, '简历筛选中'::application_status, '笔试中'::application_status,
         '一面中'::application_status, '二面中'::application_status, 'HR面中'::application_status,
-        '已收到offer'::application_status, '已拒绝'::application_status
+        'HR面通过'::application_status, '已接受offer'::application_status, '已拒绝offer'::application_status
     ];
 BEGIN
     v_start_time := clock_timestamp();
@@ -287,7 +287,7 @@ BEGIN
     v_test_results := jsonb_set(v_test_results, '{valid_transition}', to_jsonb(v_valid_transition));
     
     -- 测试无效的状态转换
-    SELECT validate_status_transition(1, '已拒绝'::application_status, '一面中'::application_status) INTO v_invalid_transition;
+    SELECT validate_status_transition(1, '已拒绝offer'::application_status, '一面中'::application_status) INTO v_invalid_transition;
     v_test_results := jsonb_set(v_test_results, '{invalid_transition}', to_jsonb(NOT v_invalid_transition));
     
     -- 测试初始状态设置

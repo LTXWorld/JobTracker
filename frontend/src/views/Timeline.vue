@@ -349,9 +349,8 @@ const getStatusColor = (status: ApplicationStatus) => {
 
 const getStatusIcon = (status: ApplicationStatus) => {
   const successStatuses: ApplicationStatus[] = [
-    ApplicationStatus.OFFER_RECEIVED, 
-    ApplicationStatus.OFFER_ACCEPTED, 
-    ApplicationStatus.PROCESS_FINISHED
+    ApplicationStatus.HR_PASS, 
+    ApplicationStatus.OFFER_ACCEPTED
   ]
   if (successStatuses.includes(status)) {
     return CheckCircleOutlined

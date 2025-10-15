@@ -15,11 +15,8 @@ CREATE TYPE application_status AS ENUM (
     '三面通过',
     'HR面中',
     'HR面通过',
-    '待发offer',
-    '已拒绝',
-    '已收到offer',
     '已接受offer',
-    '流程结束'
+    '已拒绝offer'
 );
 
 -- 创建投递记录表

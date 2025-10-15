@@ -278,9 +278,9 @@ func (h *StatusConfigHandler) GetAvailableStatusTransitions(w http.ResponseWrite
 	}
 
 	response := map[string]interface{}{
-		"current_status":       currentStatus,
+		"current_status":        currentStatus,
 		"available_transitions": transitions,
-		"transition_count":     len(transitions),
+		"transition_count":      len(transitions),
 	}
 
 	h.writeSuccessResponse(w, http.StatusOK, "available transitions retrieved successfully", response)
@@ -292,8 +292,8 @@ func (h *StatusConfigHandler) GetAllStatusDefinitions(w http.ResponseWriter, r *
 	// 定义状态分类
 	statusDefinitions := map[string]interface{}{
 		"categories": map[string][]string{
-			"application": {"已投递"},
-			"screening": {"简历筛选中", "简历筛选未通过"},
+			"application":  {"已投递"},
+			"screening":    {"简历筛选中", "简历筛选未通过"},
 			"written_test": {"笔试中", "笔试通过", "笔试未通过"},
 			"interviews": {
 				"一面中", "一面通过", "一面未通过",
@@ -302,8 +302,7 @@ func (h *StatusConfigHandler) GetAllStatusDefinitions(w http.ResponseWriter, r *
 				"HR面中", "HR面通过", "HR面未通过",
 			},
 			"final": {
-				"待发offer", "已收到offer", "已接受offer",
-				"已拒绝", "流程结束",
+				"HR面通过", "已接受offer", "已拒绝offer",
 			},
 		},
 		"all_statuses": []string{
@@ -313,13 +312,12 @@ func (h *StatusConfigHandler) GetAllStatusDefinitions(w http.ResponseWriter, r *
 			"二面中", "二面通过", "二面未通过",
 			"三面中", "三面通过", "三面未通过",
 			"HR面中", "HR面通过", "HR面未通过",
-			"待发offer", "已收到offer", "已接受offer",
-			"已拒绝", "流程结束",
+			"已接受offer", "已拒绝offer",
 		},
 		"status_types": map[string][]string{
 			"in_progress": {"已投递", "简历筛选中", "笔试中", "一面中", "二面中", "三面中", "HR面中"},
-			"passed": {"笔试通过", "一面通过", "二面通过", "三面通过", "HR面通过", "待发offer", "已收到offer", "已接受offer", "流程结束"},
-			"failed": {"简历筛选未通过", "笔试未通过", "一面未通过", "二面未通过", "三面未通过", "HR面未通过", "已拒绝"},
+			"passed":      {"笔试通过", "一面通过", "二面通过", "三面通过", "HR面通过", "已接受offer", "已拒绝offer"},
+			"failed":      {"简历筛选未通过", "笔试未通过", "一面未通过", "二面未通过", "三面未通过", "HR面未通过"},
 		},
 	}
 

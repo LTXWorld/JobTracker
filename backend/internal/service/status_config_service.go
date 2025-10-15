@@ -35,7 +35,7 @@ func (s *StatusConfigService) ensureRepo() error {
 // 一面中 -> (二面中/HR面中)，二面中 -> (三面中/HR面中)，三面中 -> HR面中
 // EnsureDirectTransitionsInDefaultTemplate
 // 1) 幂等补齐面试阶段直通规则：笔试中→一面中→(二面中/HR面中)→(三面中/HR面中)→HR面中
-// 2) 幂等补齐基础默认规则：已投递→(简历筛选中/简历筛选未通过/已拒绝)，简历筛选中→(笔试中/简历筛选未通过)
+// 2) 幂等补齐基础默认规则：已投递→(简历筛选中/简历筛选未通过/已拒绝offer)，简历筛选中→(笔试中/简历筛选未通过)
 func (s *StatusConfigService) EnsureDirectTransitionsInDefaultTemplate() error {
 	if err := s.ensureRepo(); err != nil {
 		return err
@@ -77,6 +77,13 @@ func (s *StatusConfigService) EnsureDirectTransitionsInDefaultTemplate() error {
 		},
 		string(model.StatusThirdInterview): {
 			string(model.StatusHRInterview),
+		},
+		string(model.StatusHRInterview): {
+			string(model.StatusHRPass),
+		},
+		string(model.StatusHRPass): {
+			string(model.StatusOfferAccepted),
+			string(model.StatusRejected),
 		},
 	}
 	baseline := map[string][]string{
@@ -329,11 +336,8 @@ func (s *StatusConfigService) GetAvailableStatusTransitions(userID uint, current
 			model.StatusHRInterview,
 			model.StatusHRPass,
 			model.StatusHRFail,
-			model.StatusOfferWaiting,
 			model.StatusRejected,
-			model.StatusOfferReceived,
 			model.StatusOfferAccepted,
-			model.StatusProcessFinished,
 		}
 		for _, st := range all {
 			if st != currentStatus {
@@ -386,6 +390,13 @@ func (s *StatusConfigService) addImplicitDirectTransitions(currentStatus model.A
 		},
 		model.StatusThirdInterview: {
 			model.StatusHRInterview,
+		},
+		model.StatusHRInterview: {
+			model.StatusHRPass,
+		},
+		model.StatusHRPass: {
+			model.StatusOfferAccepted,
+			model.StatusRejected,
 		},
 	}
 	if nextStates, ok := direct[currentStatus]; ok {
@@ -552,11 +563,8 @@ func (s *StatusConfigService) getDefaultPreferenceConfig() map[string]interface{
 				"HR面中":     "#8b5cf6",
 				"HR面通过":    "#10b981",
 				"HR面未通过":   "#ef4444",
-				"待发offer":  "#f59e0b",
-				"已收到offer": "#059669",
 				"已接受offer": "#10b981",
-				"已拒绝":      "#ef4444",
-				"流程结束":     "#6b7280",
+				"已拒绝offer": "#f97316",
 			},
 			"show_duration": true,
 		},

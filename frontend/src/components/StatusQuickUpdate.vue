@@ -232,29 +232,24 @@ const getDefaultNextStatuses = (currentStatus: ApplicationStatus): ApplicationSt
   const statusFlow: Record<ApplicationStatus, ApplicationStatus[]> = {
     '已投递': ['简历筛选中', '简历筛选未通过'],
     '简历筛选中': ['笔试中', '一面中', '简历筛选未通过'],
-    // 增加直通：笔试中 -> 一面中
     '笔试中': ['一面中', '笔试通过', '笔试未通过'],
     '笔试通过': ['一面中'],
-    // 允许面试阶段直通推进
     '一面中': ['二面中', '一面通过', '一面未通过'],
-    '一面通过': ['二面中', 'HR面中', '待发offer'],
+    '一面通过': ['二面中', 'HR面中'],
     '二面中': ['三面中', 'HR面中', '二面通过', '二面未通过'],
-    '二面通过': ['三面中', 'HR面中', '待发offer'],
+    '二面通过': ['三面中', 'HR面中'],
     '三面中': ['HR面中', '三面通过', '三面未通过'],
-    '三面通过': ['HR面中', '待发offer'],
+    '三面通过': ['HR面中'],
     'HR面中': ['HR面通过', 'HR面未通过'],
-    'HR面通过': ['待发offer'],
-    '待发offer': ['已收到offer', '已拒绝'],
-    '已收到offer': ['已接受offer', '已拒绝'],
-    '已接受offer': ['流程结束'],
-    '已拒绝': ['流程结束'],
-    '简历筛选未通过': ['流程结束'],
-    '笔试未通过': ['流程结束'],
-    '一面未通过': ['流程结束'],
-    '二面未通过': ['流程结束'],
-    '三面未通过': ['流程结束'],
-    'HR面未通过': ['流程结束'],
-    '流程结束': []
+    'HR面通过': ['已接受offer', '已拒绝offer'],
+    '已接受offer': [],
+    '已拒绝offer': [],
+    '简历筛选未通过': [],
+    '笔试未通过': [],
+    '一面未通过': [],
+    '二面未通过': [],
+    '三面未通过': [],
+    'HR面未通过': []
   }
   
   return statusFlow[currentStatus] || []
@@ -274,10 +269,11 @@ const getSmartPair = (currentStatus: ApplicationStatus): ApplicationStatus[] => 
     '已投递': '简历筛选中',
     '简历筛选中': '笔试中',
     '笔试中': '一面中',
-    '一面中': '二面中',
+    '一面中': ['二面中', 'HR面中'],
     '二面中': ['三面中', 'HR面中'],
     '三面中': 'HR面中',
-    'HR面中': 'HR面通过', // 安全选择（模板通常允许），后续可由规则自动进入待发offer
+    'HR面中': 'HR面通过',
+    'HR面通过': ['已接受offer', '已拒绝offer']
   }
   const pair: ApplicationStatus[] = []
   const f = failMap[currentStatus]
@@ -321,15 +317,9 @@ const stageRank = (status: ApplicationStatus): number => {
     case 'HR面通过':
     case 'HR面未通过':
       return 60
-    case '待发offer':
-      return 70
-    case '已收到offer':
-      return 80
     case '已接受offer':
-    case '已拒绝':
-      return 90
-    case '流程结束':
-      return 100
+    case '已拒绝offer':
+      return 70
     default:
       return 0
   }
@@ -339,8 +329,8 @@ const isBackward = (from: ApplicationStatus, to: ApplicationStatus) => stageRank
 
 const isTerminal = (status: ApplicationStatus) => {
   return [
-    '流程结束',
-    '已拒绝',
+    '已接受offer',
+    '已拒绝offer',
     '简历筛选未通过',
     '笔试未通过',
     '一面未通过',
@@ -360,8 +350,7 @@ const getBackwardStatuses = (currentStatus: ApplicationStatus): ApplicationStatu
     '二面中', '二面通过', '二面未通过',
     '三面中', '三面通过', '三面未通过',
     'HR面中', 'HR面通过', 'HR面未通过',
-    '待发offer', '已收到offer', '已接受offer',
-    '已拒绝', '流程结束'
+    '已接受offer', '已拒绝offer'
   ]
   const currRank = stageRank(currentStatus)
   return all.filter(st => stageRank(st) < currRank)

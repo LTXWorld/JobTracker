@@ -41,11 +41,8 @@ const (
 	StatusHRFail      ApplicationStatus = "HR面未通过"
 
 	// 最终状态
-	StatusOfferWaiting    ApplicationStatus = "待发offer"
-	StatusRejected        ApplicationStatus = "已拒绝"
-	StatusOfferReceived   ApplicationStatus = "已收到offer"
-	StatusOfferAccepted   ApplicationStatus = "已接受offer"
-	StatusProcessFinished ApplicationStatus = "流程结束"
+	StatusRejected      ApplicationStatus = "已拒绝offer"
+	StatusOfferAccepted ApplicationStatus = "已接受offer"
 
 	// 新增的失败状态
 	StatusResumeScreeningFail ApplicationStatus = "简历筛选未通过"
@@ -107,11 +104,8 @@ func (s ApplicationStatus) IsValid() bool {
 		StatusHRFail,
 
 		// 最终状态
-		StatusOfferWaiting,
 		StatusRejected,
-		StatusOfferReceived,
 		StatusOfferAccepted,
-		StatusProcessFinished,
 	}
 
 	for _, validStatus := range validStatuses {
@@ -131,7 +125,6 @@ func (s ApplicationStatus) IsFailedStatus() bool {
 		StatusSecondFail,
 		StatusThirdFail,
 		StatusHRFail,
-		StatusRejected,
 	}
 
 	for _, failedStatus := range failedStatuses {
@@ -170,10 +163,8 @@ func (s ApplicationStatus) IsPassedStatus() bool {
 		StatusSecondPass,
 		StatusThirdPass,
 		StatusHRPass,
-		StatusOfferWaiting,
-		StatusOfferReceived,
 		StatusOfferAccepted,
-		StatusProcessFinished,
+		StatusRejected,
 	}
 
 	for _, passedStatus := range passedStatuses {

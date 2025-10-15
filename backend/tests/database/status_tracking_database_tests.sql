@@ -201,7 +201,7 @@ BEGIN
         END IF;
         
         -- 测试无效的状态转换
-        SELECT validate_status_transition(1, '已拒绝', '已投递') INTO is_valid;
+        SELECT validate_status_transition(1, '已拒绝offer', '已投递') INTO is_valid;
         
         IF NOT is_valid THEN
             RAISE NOTICE '✅ 无效状态转换验证正确';
