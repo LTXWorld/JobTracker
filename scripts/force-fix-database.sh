@@ -204,6 +204,7 @@ BEGIN
         (v_template_id, '简历筛选中', '一面中', true, true),
         (v_template_id, '笔试中', '一面中', false, true),
         (v_template_id, '一面中', '二面中', false, true),
+        (v_template_id, '一面中', 'HR面中', true, true),
         (v_template_id, '二面中', '三面中', false, true),
         (v_template_id, '二面中', 'HR面中', true, true),
         (v_template_id, '三面中', 'HR面中', false, true),

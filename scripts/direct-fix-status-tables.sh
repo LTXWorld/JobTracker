@@ -108,6 +108,7 @@ CROSS JOIN (VALUES
     ('简历筛选中', '一面中', true, true),
     ('笔试中', '一面中', false, true),
     ('一面中', '二面中', false, true),
+    ('一面中', 'HR面中', true, true),
     ('二面中', '三面中', false, true),
     ('二面中', 'HR面中', true, true),
     ('三面中', 'HR面中', false, true),
