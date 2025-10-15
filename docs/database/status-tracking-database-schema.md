@@ -156,7 +156,7 @@ CREATE TABLE status_flow_templates (
 ```json
 {
   "transitions": {
-    "已投递": ["简历筛选中", "简历筛选未通过", "已拒绝"],
+    "已投递": ["简历筛选中", "简历筛选未通过", "已拒绝offer"],
     "简历筛选中": ["笔试中", "简历筛选未通过"],
     "笔试中": ["笔试通过", "笔试未通过"]
   },
@@ -164,7 +164,7 @@ CREATE TABLE status_flow_templates (
     "auto_transitions": {
       "笔试通过": "一面中"
     },
-    "require_confirmation": ["已拒绝", "流程结束"],
+    "require_confirmation": ["已拒绝offer"],
     "time_limits": {
       "简历筛选中": 7,
       "笔试中": 3
@@ -374,7 +374,7 @@ SELECT
     COUNT(CASE WHEN status IN ('已投递', '简历筛选中') THEN 1 END) as early_stage_count,
     COUNT(CASE WHEN status LIKE '%面%' THEN 1 END) as interview_stage_count,
     COUNT(CASE WHEN status IN ('待发offer', '已收到offer', '已接受offer') THEN 1 END) as offer_stage_count,
-    COUNT(CASE WHEN status LIKE '%未通过' OR status = '已拒绝' THEN 1 END) as failed_count,
+    COUNT(CASE WHEN status LIKE '%未通过' OR status = '已拒绝offer' THEN 1 END) as failed_count,
     
     -- 成功率分析
     ROUND(

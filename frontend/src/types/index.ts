@@ -31,11 +31,8 @@ export const ApplicationStatus = {
   HR_FAIL: 'HR面未通过',
   
   // 最终状态
-  OFFER_WAITING: '待发offer',
-  REJECTED: '已拒绝',
-  OFFER_RECEIVED: '已收到offer',
-  OFFER_ACCEPTED: '已接受offer',
-  PROCESS_FINISHED: '流程结束'
+  REJECTED: '已拒绝offer',
+  OFFER_ACCEPTED: '已接受offer'
 } as const
 
 export type ApplicationStatus = typeof ApplicationStatus[keyof typeof ApplicationStatus]
@@ -50,8 +47,7 @@ export const StatusHelper = {
       ApplicationStatus.FIRST_FAIL,
       ApplicationStatus.SECOND_FAIL,
       ApplicationStatus.THIRD_FAIL,
-      ApplicationStatus.HR_FAIL,
-      ApplicationStatus.REJECTED
+      ApplicationStatus.HR_FAIL
     ]
     return failedStatuses.includes(status)
   },
@@ -78,10 +74,8 @@ export const StatusHelper = {
       ApplicationStatus.SECOND_PASS,
       ApplicationStatus.THIRD_PASS,
       ApplicationStatus.HR_PASS,
-      ApplicationStatus.OFFER_WAITING,
-      ApplicationStatus.OFFER_RECEIVED,
       ApplicationStatus.OFFER_ACCEPTED,
-      ApplicationStatus.PROCESS_FINISHED
+      ApplicationStatus.REJECTED
     ]
     return passedStatuses.includes(status)
   },
@@ -94,8 +88,7 @@ export const StatusHelper = {
       ApplicationStatus.FIRST_FAIL,
       ApplicationStatus.SECOND_FAIL,
       ApplicationStatus.THIRD_FAIL,
-      ApplicationStatus.HR_FAIL,
-      ApplicationStatus.REJECTED
+      ApplicationStatus.HR_FAIL
     ]
     
     const inProgressStatuses: ApplicationStatus[] = [
@@ -114,14 +107,13 @@ export const StatusHelper = {
       ApplicationStatus.SECOND_PASS,
       ApplicationStatus.THIRD_PASS,
       ApplicationStatus.HR_PASS,
-      ApplicationStatus.OFFER_WAITING,
-      ApplicationStatus.OFFER_RECEIVED,
       ApplicationStatus.OFFER_ACCEPTED,
-      ApplicationStatus.PROCESS_FINISHED
+      ApplicationStatus.REJECTED
     ]
     
     if (failedStatuses.includes(status)) return 'red'
     if (inProgressStatuses.includes(status)) return 'blue'
+    if (status === ApplicationStatus.REJECTED) return '#f97316'
     if (passedStatuses.includes(status)) return 'green'
     return 'default'
   },

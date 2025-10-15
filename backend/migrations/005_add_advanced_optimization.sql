@@ -55,8 +55,8 @@ SELECT
     user_id,
     COUNT(*) as total_applications,
     COUNT(CASE WHEN status IN ('已投递', '简历筛选中', '笔试中', '一面中', '二面中', '三面中', 'HR面中') THEN 1 END) as in_progress_count,
-    COUNT(CASE WHEN status IN ('笔试通过', '一面通过', '二面通过', '三面通过', 'HR面通过', '待发offer', '已收到offer', '已接受offer', '流程结束') THEN 1 END) as success_count,
-    COUNT(CASE WHEN status IN ('简历筛选未通过', '笔试未通过', '一面未通过', '二面未通过', '三面未通过', 'HR面未通过', '已拒绝') THEN 1 END) as failed_count,
+    COUNT(CASE WHEN status IN ('笔试通过', '一面通过', '二面通过', '三面通过', 'HR面通过', '已接受offer', '已拒绝offer') THEN 1 END) as success_count,
+    COUNT(CASE WHEN status IN ('简历筛选未通过', '笔试未通过', '一面未通过', '二面未通过', '三面未通过', 'HR面未通过') THEN 1 END) as failed_count,
     MIN(application_date) as first_application_date,
     MAX(application_date) as latest_application_date,
     COUNT(CASE WHEN reminder_enabled = TRUE THEN 1 END) as reminder_count,
@@ -87,7 +87,7 @@ SELECT
     user_id,
     DATE_TRUNC('month', application_date::DATE) as month,
     COUNT(*) as applications_count,
-    COUNT(CASE WHEN status NOT IN ('简历筛选未通过', '笔试未通过', '一面未通过', '二面未通过', '三面未通过', 'HR面未通过', '已拒绝') THEN 1 END) as non_failed_count
+    COUNT(CASE WHEN status NOT IN ('简历筛选未通过', '笔试未通过', '一面未通过', '二面未通过', '三面未通过', 'HR面未通过') THEN 1 END) as non_failed_count
 FROM job_applications
 WHERE user_id IS NOT NULL 
   AND application_date IS NOT NULL
@@ -254,7 +254,7 @@ DECLARE
         '已投递', '简历筛选中', '简历筛选未通过', '笔试中', '笔试通过', '笔试未通过',
         '一面中', '一面通过', '一面未通过', '二面中', '二面通过', '二面未通过',
         '三面中', '三面通过', '三面未通过', 'HR面中', 'HR面通过', 'HR面未通过',
-        '待发offer', '已拒绝', '已收到offer', '已接受offer', '流程结束'
+        '已接受offer', '已拒绝offer'
     ];
 BEGIN
     -- 警告：仅用于测试环境

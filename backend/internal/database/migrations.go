@@ -401,7 +401,7 @@ BEGIN
         RETURN TRUE;
     END IF;
 
-    -- 内置直通规则补充：笔试中->一面中->(二面中/HR面中)->(三面中/HR面中)->HR面中
+    -- 内置直通规则补充：笔试中->一面中->(二面中/HR面中)->(三面中/HR面中)->HR面中->HR面通过->(已接受offer/已拒绝offer)
     IF p_old_status = '笔试中' AND p_new_status = '一面中' THEN
         RETURN TRUE;
     ELSIF p_old_status = '一面中' AND p_new_status = '二面中' THEN
@@ -413,6 +413,12 @@ BEGIN
     ELSIF p_old_status = '二面中' AND p_new_status = 'HR面中' THEN
         RETURN TRUE;
     ELSIF p_old_status = '三面中' AND p_new_status = 'HR面中' THEN
+        RETURN TRUE;
+    ELSIF p_old_status = 'HR面中' AND p_new_status = 'HR面通过' THEN
+        RETURN TRUE;
+    ELSIF p_old_status = 'HR面通过' AND p_new_status = '已接受offer' THEN
+        RETURN TRUE;
+    ELSIF p_old_status = 'HR面通过' AND p_new_status = '已拒绝offer' THEN
         RETURN TRUE;
     END IF;
 
@@ -492,6 +498,12 @@ BEGIN
     ELSIF p_old_status::text = '二面中' AND p_new_status::text = 'HR面中' THEN
         RETURN TRUE;
     ELSIF p_old_status::text = '三面中' AND p_new_status::text = 'HR面中' THEN
+        RETURN TRUE;
+    ELSIF p_old_status::text = 'HR面中' AND p_new_status::text = 'HR面通过' THEN
+        RETURN TRUE;
+    ELSIF p_old_status::text = 'HR面通过' AND p_new_status::text = '已接受offer' THEN
+        RETURN TRUE;
+    ELSIF p_old_status::text = 'HR面通过' AND p_new_status::text = '已拒绝offer' THEN
         RETURN TRUE;
     END IF;
 
@@ -669,7 +681,7 @@ func (db *DB) ensureStatusTrackingInfrastructure() error {
             '默认求职申请状态流转模板',
             '{
                 "transitions": {
-                    "已投递": ["简历筛选中", "简历筛选未通过", "已拒绝"],
+                    "已投递": ["简历筛选中", "简历筛选未通过", "已拒绝offer"],
                     "简历筛选中": ["笔试中", "简历筛选未通过"]
                 },
                 "rules": {}

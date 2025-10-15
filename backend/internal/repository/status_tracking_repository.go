@@ -281,7 +281,7 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 				string(model.StatusSecondInterview), string(model.StatusSecondPass), string(model.StatusSecondFail),
 				string(model.StatusThirdInterview), string(model.StatusThirdPass), string(model.StatusThirdFail),
 				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
-				string(model.StatusOfferWaiting), string(model.StatusOfferReceived), string(model.StatusOfferAccepted),
+				string(model.StatusOfferAccepted), string(model.StatusRejected),
 			},
 			PassStatuses: []string{
 				string(model.StatusWrittenTestPass),
@@ -289,7 +289,7 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 				string(model.StatusSecondInterview), string(model.StatusSecondPass), string(model.StatusSecondFail),
 				string(model.StatusThirdInterview), string(model.StatusThirdPass), string(model.StatusThirdFail),
 				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
-				string(model.StatusOfferWaiting), string(model.StatusOfferReceived), string(model.StatusOfferAccepted),
+				string(model.StatusOfferAccepted), string(model.StatusRejected),
 			},
 		},
 		{
@@ -299,14 +299,14 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 				string(model.StatusSecondInterview), string(model.StatusSecondPass), string(model.StatusSecondFail),
 				string(model.StatusThirdInterview), string(model.StatusThirdPass), string(model.StatusThirdFail),
 				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
-				string(model.StatusOfferWaiting), string(model.StatusOfferReceived), string(model.StatusOfferAccepted),
+				string(model.StatusOfferAccepted), string(model.StatusRejected),
 			},
 			PassStatuses: []string{
 				string(model.StatusFirstPass),
 				string(model.StatusSecondInterview), string(model.StatusSecondPass), string(model.StatusSecondFail),
 				string(model.StatusThirdInterview), string(model.StatusThirdPass), string(model.StatusThirdFail),
 				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
-				string(model.StatusOfferWaiting), string(model.StatusOfferReceived), string(model.StatusOfferAccepted),
+				string(model.StatusOfferAccepted), string(model.StatusRejected),
 			},
 		},
 		{
@@ -315,13 +315,13 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 				string(model.StatusSecondInterview), string(model.StatusSecondPass), string(model.StatusSecondFail),
 				string(model.StatusThirdInterview), string(model.StatusThirdPass), string(model.StatusThirdFail),
 				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
-				string(model.StatusOfferWaiting), string(model.StatusOfferReceived), string(model.StatusOfferAccepted),
+				string(model.StatusOfferAccepted), string(model.StatusRejected),
 			},
 			PassStatuses: []string{
 				string(model.StatusSecondPass),
 				string(model.StatusThirdInterview), string(model.StatusThirdPass), string(model.StatusThirdFail),
 				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
-				string(model.StatusOfferWaiting), string(model.StatusOfferReceived), string(model.StatusOfferAccepted),
+				string(model.StatusOfferAccepted), string(model.StatusRejected),
 			},
 		},
 		{
@@ -329,23 +329,23 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 			Entry: []string{
 				string(model.StatusThirdInterview), string(model.StatusThirdPass), string(model.StatusThirdFail),
 				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
-				string(model.StatusOfferWaiting), string(model.StatusOfferReceived), string(model.StatusOfferAccepted),
+				string(model.StatusOfferAccepted), string(model.StatusRejected),
 			},
 			PassStatuses: []string{
 				string(model.StatusThirdPass),
 				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
-				string(model.StatusOfferWaiting), string(model.StatusOfferReceived), string(model.StatusOfferAccepted),
+				string(model.StatusOfferAccepted), string(model.StatusRejected),
 			},
 		},
 		{
 			Name: "hr",
 			Entry: []string{
 				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
-				string(model.StatusOfferWaiting), string(model.StatusOfferReceived), string(model.StatusOfferAccepted),
+				string(model.StatusOfferAccepted), string(model.StatusRejected),
 			},
 			PassStatuses: []string{
 				string(model.StatusHRPass),
-				string(model.StatusOfferWaiting), string(model.StatusOfferReceived), string(model.StatusOfferAccepted),
+				string(model.StatusOfferAccepted), string(model.StatusRejected),
 			},
 		},
 	}

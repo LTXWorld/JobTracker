@@ -58,7 +58,7 @@ func setupTestData(service *JobApplicationService, userID uint, count int) error
 	statuses := []model.ApplicationStatus{
 		model.StatusApplied, model.StatusResumeScreening, model.StatusWrittenTest,
 		model.StatusFirstInterview, model.StatusSecondInterview, model.StatusHRInterview,
-		model.StatusOfferReceived, model.StatusRejected,
+		model.StatusHRPass, model.StatusOfferAccepted, model.StatusRejected,
 	}
 
 	for i := 0; i < count; i++ {

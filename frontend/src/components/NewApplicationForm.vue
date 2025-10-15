@@ -121,16 +121,6 @@
           </a-select-opt-group>
 
           <a-select-opt-group label="最终状态">
-            <a-select-option :value="ApplicationStatus.OFFER_WAITING">
-              <span :style="{ color: StatusHelper.getStatusColor(ApplicationStatus.OFFER_WAITING) }">
-                {{ ApplicationStatus.OFFER_WAITING }}
-              </span>
-            </a-select-option>
-            <a-select-option :value="ApplicationStatus.OFFER_RECEIVED">
-              <span :style="{ color: StatusHelper.getStatusColor(ApplicationStatus.OFFER_RECEIVED) }">
-                {{ ApplicationStatus.OFFER_RECEIVED }}
-              </span>
-            </a-select-option>
             <a-select-option :value="ApplicationStatus.OFFER_ACCEPTED">
               <span :style="{ color: StatusHelper.getStatusColor(ApplicationStatus.OFFER_ACCEPTED) }">
                 {{ ApplicationStatus.OFFER_ACCEPTED }}
@@ -139,11 +129,6 @@
             <a-select-option :value="ApplicationStatus.REJECTED">
               <span :style="{ color: StatusHelper.getStatusColor(ApplicationStatus.REJECTED) }">
                 {{ ApplicationStatus.REJECTED }}
-              </span>
-            </a-select-option>
-            <a-select-option :value="ApplicationStatus.PROCESS_FINISHED">
-              <span :style="{ color: StatusHelper.getStatusColor(ApplicationStatus.PROCESS_FINISHED) }">
-                {{ ApplicationStatus.PROCESS_FINISHED }}
               </span>
             </a-select-option>
           </a-select-opt-group>

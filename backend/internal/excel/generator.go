@@ -30,8 +30,8 @@ type StyleConfig struct {
 // NewGenerator 创建新的 Excel 生成器
 func NewGenerator() *Generator {
 	return &Generator{
-		file:      excelize.NewFile(),
-		sheetName: "求职投递记录",
+		file:       excelize.NewFile(),
+		sheetName:  "求职投递记录",
 		currentRow: 1,
 	}
 }
@@ -127,17 +127,16 @@ func (g *Generator) initializeStyles() error {
 
 	// 状态颜色编码样式
 	statusColors := map[model.ApplicationStatus]string{
-		model.StatusApplied:          "#E3F2FD", // 浅蓝色
-		model.StatusResumeScreening:  "#FFF3E0", // 浅橙色
-		model.StatusWrittenTest:      "#F3E5F5", // 浅紫色
-		model.StatusFirstInterview:   "#E8F5E8", // 浅绿色
-		model.StatusSecondInterview:  "#E8F5E8", // 浅绿色
-		model.StatusThirdInterview:   "#E8F5E8", // 浅绿色
-		model.StatusHRInterview:      "#E8F5E8", // 浅绿色
-		model.StatusOfferReceived:    "#C8E6C9", // 绿色
-		model.StatusOfferAccepted:    "#4CAF50", // 深绿色
-		model.StatusRejected:         "#FFCDD2", // 浅红色
-		model.StatusProcessFinished:  "#F5F5F5", // 灰色
+		model.StatusApplied:         "#E3F2FD", // 浅蓝色
+		model.StatusResumeScreening: "#FFF3E0", // 浅橙色
+		model.StatusWrittenTest:     "#F3E5F5", // 浅紫色
+		model.StatusFirstInterview:  "#E8F5E8", // 浅绿色
+		model.StatusSecondInterview: "#E8F5E8", // 浅绿色
+		model.StatusThirdInterview:  "#E8F5E8", // 浅绿色
+		model.StatusHRInterview:     "#E8F5E8", // 浅绿色
+		model.StatusHRPass:          "#C8E6C9", // 绿色
+		model.StatusOfferAccepted:   "#4CAF50", // 深绿色
+		model.StatusRejected:        "#FFE0B2", // 浅橙色
 	}
 
 	for status, color := range statusColors {
@@ -218,14 +217,14 @@ func (g *Generator) WriteJobApplications(applications []model.JobApplication) er
 // WriteJobApplicationStream 流式写入求职投递数据
 func (g *Generator) WriteJobApplicationStream(applications <-chan model.JobApplication, totalCount int) error {
 	sequenceNumber := 1
-	
+
 	for app := range applications {
 		if err := g.writeJobApplication(sequenceNumber, &app); err != nil {
 			return fmt.Errorf("写入第%d条记录失败: %v", sequenceNumber, err)
 		}
 		sequenceNumber++
 	}
-	
+
 	return nil
 }
 
@@ -235,22 +234,22 @@ func (g *Generator) writeJobApplication(sequenceNumber int, app *model.JobApplic
 
 	// 数据映射：按照表头顺序
 	values := []interface{}{
-		sequenceNumber,                          // 序号
-		app.CompanyName,                         // 公司名称
-		app.PositionTitle,                       // 职位标题
-		app.ApplicationDate,                     // 投递日期
-		string(app.Status),                      // 当前状态
-		g.getString(app.SalaryRange),            // 薪资范围
-		g.getString(app.WorkLocation),           // 工作地点
-		g.getTimeString(app.InterviewTime),      // 面试时间
-		g.getString(app.InterviewLocation),      // 面试地点
-		g.getString(app.InterviewType),          // 面试类型
-		g.getString(app.HRName),                 // HR姓名
-		g.getString(app.HRPhone),                // HR电话
-		g.getString(app.HREmail),                // HR邮箱
-		g.getTimeString(app.ReminderTime),       // 提醒时间
-		g.getString(app.FollowUpDate),           // 跟进日期
-		g.getString(app.Notes),                  // 备注
+		sequenceNumber,                              // 序号
+		app.CompanyName,                             // 公司名称
+		app.PositionTitle,                           // 职位标题
+		app.ApplicationDate,                         // 投递日期
+		string(app.Status),                          // 当前状态
+		g.getString(app.SalaryRange),                // 薪资范围
+		g.getString(app.WorkLocation),               // 工作地点
+		g.getTimeString(app.InterviewTime),          // 面试时间
+		g.getString(app.InterviewLocation),          // 面试地点
+		g.getString(app.InterviewType),              // 面试类型
+		g.getString(app.HRName),                     // HR姓名
+		g.getString(app.HRPhone),                    // HR电话
+		g.getString(app.HREmail),                    // HR邮箱
+		g.getTimeString(app.ReminderTime),           // 提醒时间
+		g.getString(app.FollowUpDate),               // 跟进日期
+		g.getString(app.Notes),                      // 备注
 		app.CreatedAt.Format("2006-01-02 15:04:05"), // 创建时间
 		app.UpdatedAt.Format("2006-01-02 15:04:05"), // 更新时间
 	}
@@ -294,7 +293,7 @@ func (g *Generator) writeJobApplication(sequenceNumber int, app *model.JobApplic
 // AddStatisticsSheet 添加统计工作表
 func (g *Generator) AddStatisticsSheet(stats map[string]interface{}) error {
 	statsSheetName := "统计概览"
-	
+
 	// 创建新工作表
 	index, err := g.file.NewSheet(statsSheetName)
 	if err != nil {
@@ -316,7 +315,7 @@ func (g *Generator) AddStatisticsSheet(stats map[string]interface{}) error {
 
 	// 切回主工作表
 	g.file.SetActiveSheet(0)
-	
+
 	return nil
 }
 
@@ -333,12 +332,12 @@ func (g *Generator) setStatisticsHeaders(sheetName string) error {
 			if err != nil {
 				return err
 			}
-			
+
 			cell := fmt.Sprintf("%s%d", colName, rowIndex+1)
 			if err := g.file.SetCellValue(sheetName, cell, header); err != nil {
 				return err
 			}
-			
+
 			// 应用样式
 			if rowIndex == 0 {
 				// 合并标题行
@@ -348,7 +347,7 @@ func (g *Generator) setStatisticsHeaders(sheetName string) error {
 					}
 				}
 			}
-			
+
 			if err := g.file.SetCellStyle(sheetName, cell, cell, g.styleConfig.HeaderStyle); err != nil {
 				return err
 			}
@@ -424,7 +423,7 @@ func (g *Generator) GetBuffer() ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("生成Excel缓冲区失败: %v", err)
 	}
-	
+
 	return buffer.Bytes(), nil
 }
 
@@ -462,10 +461,10 @@ func GenerateFilename(username string, timestamp time.Time) string {
 func EstimateFileSize(recordCount int) int64 {
 	// 基础文件大小约 10KB
 	baseSize := int64(10240)
-	
+
 	// 每条记录大约 500 字节
 	recordSize := int64(recordCount * 500)
-	
+
 	return baseSize + recordSize
 }
 
@@ -474,7 +473,7 @@ func (g *Generator) ValidateData(applications []model.JobApplication) error {
 	if len(applications) == 0 {
 		return fmt.Errorf("没有可导出的数据")
 	}
-	
+
 	// 检查必填字段
 	for i, app := range applications {
 		if app.CompanyName == "" {
@@ -484,6 +483,6 @@ func (g *Generator) ValidateData(applications []model.JobApplication) error {
 			return fmt.Errorf("第%d条记录缺少职位标题", i+1)
 		}
 	}
-	
+
 	return nil
 }

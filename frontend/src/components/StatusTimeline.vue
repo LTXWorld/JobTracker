@@ -205,10 +205,7 @@ import {
   TeamOutlined,
   CrownOutlined,
   ContactsOutlined,
-  GiftOutlined,
   StopOutlined,
-  TrophyOutlined,
-  FlagOutlined,
   QuestionCircleOutlined
 } from '@ant-design/icons-vue'
 import { useStatusTrackingStore } from '../stores/statusTracking'
@@ -284,7 +281,7 @@ const totalDuration = computed((): number => {
 })
 
 const offerReached = computed(() => {
-  const terminalNames = new Set(['已收到offer', '已接受offer', '待发offer', '流程结束', '已拒绝'])
+  const terminalNames = new Set(['HR面通过', '已接受offer', '已拒绝offer'])
   return timelineData.value.some(i => terminalNames.has(i.status) || StatusHelper.isFailedStatus(i.status))
 })
 
@@ -367,10 +364,7 @@ const iconComponents = {
   TeamOutlined,
   CrownOutlined,
   ContactsOutlined,
-  GiftOutlined,
   StopOutlined,
-  TrophyOutlined,
-  FlagOutlined,
   QuestionCircleOutlined
 }
 
@@ -403,11 +397,10 @@ const getProgressPercent = (status: ApplicationStatus): number => {
     '二面通过': 80,
     '三面中': 85,
     '三面通过': 90,
-    'HR面中': 95,
-    'HR面通过': 98,
-    '待发offer': 99,
-    '已收到offer': 100,
-    '已接受offer': 100
+    'HR面中': 92,
+    'HR面通过': 96,
+    '已接受offer': 100,
+    '已拒绝offer': 96
   }
   return progressMap[status] || 0
 }

@@ -253,11 +253,8 @@ export const useStatusTrackingStore = defineStore('statusTracking', () => {
       'HR面中': 'ContactsOutlined',
       'HR面通过': 'CheckCircleOutlined',
       'HR面未通过': 'CloseCircleOutlined',
-      '待发offer': 'GiftOutlined',
-      '已拒绝': 'StopOutlined',
-      '已收到offer': 'TrophyOutlined',
       '已接受offer': 'CrownOutlined',
-      '流程结束': 'FlagOutlined'
+      '已拒绝offer': 'StopOutlined'
     }
     return iconMap[status] || 'QuestionCircleOutlined'
   }

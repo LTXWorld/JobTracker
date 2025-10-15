@@ -105,13 +105,13 @@ const kanbanGroups: SimpleGroup[] = [
   },
   {
     key: 'success',
-    title: '成功状态',
+    title: '通过阶段',
     collapsible: false,
     defaultCollapsed: false,
     columns: [
-      { status: ApplicationStatus.OFFER_WAITING, title: '待发Offer', color: '#faad14' },
-      { status: ApplicationStatus.OFFER_RECEIVED, title: '已收Offer', color: '#52c41a' },
-      { status: ApplicationStatus.PROCESS_FINISHED, title: '流程结束', color: '#52c41a' }
+      { status: ApplicationStatus.HR_PASS, title: 'HR面通过', color: '#10b981' },
+      { status: ApplicationStatus.OFFER_ACCEPTED, title: '已接受offer', color: '#2563eb' },
+      { status: ApplicationStatus.REJECTED, title: '已拒绝offer', color: '#f97316' }
     ]
   },
   {

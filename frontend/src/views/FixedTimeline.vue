@@ -156,7 +156,7 @@ const interviewingCount = computed(() =>
 const rejectedCount = computed(() => applications.value.filter(app => app.status === ApplicationStatus.REJECTED).length)
 const offerCount = computed(() => applications.value.filter(app => {
   const offerStatuses: ApplicationStatus[] = [
-    ApplicationStatus.OFFER_RECEIVED, 
+    ApplicationStatus.HR_PASS, 
     ApplicationStatus.OFFER_ACCEPTED
   ]
   return offerStatuses.includes(app.status)

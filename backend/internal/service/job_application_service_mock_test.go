@@ -316,7 +316,7 @@ func TestJobApplicationService_GetStatusStatistics_AggregatesFromRepository(t *t
 		return map[string]int{
 			string(model.StatusApplied):        3,
 			string(model.StatusFirstInterview): 2,
-			string(model.StatusOfferReceived):  1,
+			string(model.StatusHRPass):         1,
 			string(model.StatusRejected):       4,
 		}, nil
 	}
@@ -330,12 +330,12 @@ func TestJobApplicationService_GetStatusStatistics_AggregatesFromRepository(t *t
 	assert.Equal(t, expectedUserID, stats["user_id"])
 	assert.Equal(t, 10, stats["total_applications"])
 	assert.Equal(t, 5, stats["in_progress"])
-	assert.Equal(t, 1, stats["passed"])
-	assert.Equal(t, 4, stats["failed"])
+	assert.Equal(t, 5, stats["passed"])
+	assert.Equal(t, 0, stats["failed"])
 	breakdown, ok := stats["status_breakdown"].(map[string]int)
 	require.True(t, ok)
 	assert.Equal(t, 3, breakdown[string(model.StatusApplied)])
-	assert.Equal(t, "20.0%", stats["pass_rate"])
+	assert.Equal(t, "100.0%", stats["pass_rate"])
 }
 
 func TestJobApplicationService_GetApplicationsByDateRange_DelegatesToRepository(t *testing.T) {

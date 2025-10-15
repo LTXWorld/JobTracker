@@ -103,39 +103,35 @@ INSERT INTO status_flow_templates (name, description, flow_config, is_default, i
     '默认求职申请状态流转模板',
     '{
         "transitions": {
-            "已投递": ["简历筛选中", "简历筛选未通过", "已拒绝"],
+            "已投递": ["简历筛选中", "简历筛选未通过", "已拒绝offer"],
             "简历筛选中": ["笔试中", "简历筛选未通过"],
-            "简历筛选未通过": ["流程结束"],
+            "简历筛选未通过": [],
             "笔试中": ["笔试通过", "笔试未通过"],
             "笔试通过": ["一面中"],
-            "笔试未通过": ["流程结束"],
+            "笔试未通过": [],
             "一面中": ["一面通过", "一面未通过", "HR面中"],
             "一面通过": ["二面中", "三面中", "HR面中"],
-            "一面未通过": ["流程结束"],
+            "一面未通过": [],
             "二面中": ["二面通过", "二面未通过"],
             "二面通过": ["三面中", "HR面中"],
-            "二面未通过": ["流程结束"],
+            "二面未通过": [],
             "三面中": ["三面通过", "三面未通过"],
             "三面通过": ["HR面中"],
-            "三面未通过": ["流程结束"],
+            "三面未通过": [],
             "HR面中": ["HR面通过", "HR面未通过"],
-            "HR面通过": ["待发offer"],
-            "HR面未通过": ["流程结束"],
-            "待发offer": ["已收到offer", "已拒绝"],
-            "已收到offer": ["已接受offer", "已拒绝"],
-            "已接受offer": ["流程结束"],
-            "已拒绝": ["流程结束"],
-            "流程结束": []
+            "HR面通过": ["已接受offer", "已拒绝offer"],
+            "HR面未通过": [],
+            "已接受offer": [],
+            "已拒绝offer": []
         },
         "rules": {
             "auto_transitions": {
                 "笔试通过": "一面中",
                 "一面通过": "二面中",
                 "二面通过": "三面中",
-                "三面通过": "HR面中",
-                "HR面通过": "待发offer"
+                "三面通过": "HR面中"
             },
-            "require_confirmation": ["已拒绝", "流程结束"],
+            "require_confirmation": ["已拒绝offer"],
             "time_limits": {
                 "简历筛选中": 7,
                 "笔试中": 3,
@@ -424,9 +420,9 @@ SELECT
     -- 状态分布
     COUNT(CASE WHEN status IN ('已投递', '简历筛选中') THEN 1 END) as early_stage_count,
     COUNT(CASE WHEN status IN ('笔试中', '笔试通过', '一面中', '一面通过', '二面中', '二面通过', '三面中', '三面通过', 'HR面中', 'HR面通过') THEN 1 END) as interview_stage_count,
-    COUNT(CASE WHEN status IN ('待发offer', '已收到offer', '已接受offer') THEN 1 END) as offer_stage_count,
-    COUNT(CASE WHEN status LIKE '%未通过' OR status = '已拒绝' THEN 1 END) as failed_count,
-    COUNT(CASE WHEN status = '流程结束' THEN 1 END) as completed_count,
+    COUNT(CASE WHEN status IN ('HR面通过', '已接受offer', '已拒绝offer') THEN 1 END) as offer_stage_count,
+    COUNT(CASE WHEN status LIKE '%未通过' THEN 1 END) as failed_count,
+    COUNT(CASE WHEN status IN ('已接受offer', '已拒绝offer') THEN 1 END) as completed_count,
     
     -- 时间统计
     AVG(EXTRACT(EPOCH FROM (NOW() - last_status_change)) / 60) as avg_current_status_duration_minutes,
@@ -435,7 +431,7 @@ SELECT
     
     -- 成功率分析
     ROUND(
-        COUNT(CASE WHEN status IN ('已收到offer', '已接受offer') THEN 1 END) * 100.0 / 
+        COUNT(CASE WHEN status = '已接受offer' THEN 1 END) * 100.0 / 
         NULLIF(COUNT(*), 0), 2
     ) as success_rate_percentage
 
