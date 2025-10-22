@@ -139,7 +139,24 @@
 
         <!-- 各阶段通过率 -->
         <a-col :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
-          <a-card title="各阶段通过率" :bordered="false" class="chart-card">
+          <a-card :bordered="false" class="chart-card">
+            <template #title>
+              <span>各阶段通过率</span>
+              <a-tooltip placement="top">
+                <template #title>
+                  <div>
+                    <div><strong>统计说明:</strong></div>
+                    <div>只统计实际经历过该阶段的岗位</div>
+                    <div style="margin-top: 8px;">
+                      例如:从一面直接到HR面的岗位<br/>
+                      <span style="color: #52c41a;">✓</span> 会计入一面通过率<br/>
+                      <span style="color: #ff4d4f;">✗</span> 不会计入二面/三面通过率
+                    </div>
+                  </div>
+                </template>
+                <InfoCircleOutlined style="margin-left: 4px; font-size: 14px; color: #999; cursor: help;" />
+              </a-tooltip>
+            </template>
             <component :is="VChart" class="chart" :option="stageBarOption" />
           </a-card>
         </a-col>

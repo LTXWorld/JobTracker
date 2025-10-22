@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"jobView-backend/internal/database"
@@ -219,6 +220,51 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 	if err != nil {
 		return nil, err
 	}
+	legacyAliases := map[string][]string{
+		string(model.StatusResumeScreeningFail): {"简历挂"},
+		string(model.StatusWrittenTestFail):     {"笔试挂"},
+		string(model.StatusFirstFail):           {"一面挂"},
+		string(model.StatusSecondFail):          {"二面挂"},
+		string(model.StatusThirdFail):           {"三面挂"},
+		string(model.StatusHRFail):              {"HR面挂"},
+		string(model.StatusHRPass):              {"待发offer", "已收到offer"},
+		string(model.StatusRejected):            {"被拒绝", "已拒绝"},
+		string(model.StatusOfferAccepted):       {"已入职"},
+	}
+	expandStatuses := func(statuses []string) (canon []string, aliases []string) {
+		if len(statuses) == 0 {
+			return nil, nil
+		}
+		seen := make(map[string]struct{}, len(statuses))
+		seenCanon := make(map[string]struct{})
+		seenAlias := make(map[string]struct{})
+
+		queue := make([]string, 0, len(statuses))
+		for _, status := range statuses {
+			queue = append(queue, status)
+			if extra, ok := legacyAliases[status]; ok {
+				queue = append(queue, extra...)
+			}
+		}
+		for _, status := range queue {
+			if _, ok := seen[status]; ok {
+				continue
+			}
+			seen[status] = struct{}{}
+			if model.ApplicationStatus(status).IsValid() {
+				if _, ok := seenCanon[status]; !ok {
+					seenCanon[status] = struct{}{}
+					canon = append(canon, status)
+				}
+			} else {
+				if _, ok := seenAlias[status]; !ok {
+					seenAlias[status] = struct{}{}
+					aliases = append(aliases, status)
+				}
+			}
+		}
+		return canon, aliases
+	}
 	analytics := &model.StatusAnalyticsResponse{
 		UserID:             userID,
 		StatusDistribution: make(map[string]int),
@@ -268,8 +314,8 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 
 	type stageDef struct {
 		Name         string
-		Entry        []string // 该阶段及之后的所有状态（用于统计总数）
-		PassStatuses []string // 通过该阶段后的所有状态（用于统计通过数）
+		Entry        []string // 真正进入该阶段的状态(只统计实际经历过该阶段的岗位)
+		PassStatuses []string // 通过该阶段后的所有状态(用于判断是否通过该阶段)
 	}
 	stages := []stageDef{
 		{
@@ -295,9 +341,6 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 			PassStatuses: []string{
 				string(model.StatusFirstPass),
 				string(model.StatusSecondInterview), string(model.StatusSecondPass), string(model.StatusSecondFail),
-				string(model.StatusThirdInterview), string(model.StatusThirdPass), string(model.StatusThirdFail),
-				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
-				string(model.StatusOfferAccepted), string(model.StatusRejected),
 			},
 		},
 		{
@@ -308,8 +351,6 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 			PassStatuses: []string{
 				string(model.StatusSecondPass),
 				string(model.StatusThirdInterview), string(model.StatusThirdPass), string(model.StatusThirdFail),
-				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
-				string(model.StatusOfferAccepted), string(model.StatusRejected),
 			},
 		},
 		{
@@ -320,7 +361,6 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 			PassStatuses: []string{
 				string(model.StatusThirdPass),
 				string(model.StatusHRInterview), string(model.StatusHRPass), string(model.StatusHRFail),
-				string(model.StatusOfferAccepted), string(model.StatusRejected),
 			},
 		},
 		{
@@ -330,73 +370,67 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 			},
 			PassStatuses: []string{
 				string(model.StatusHRPass),
-				string(model.StatusOfferAccepted), string(model.StatusRejected),
 			},
 		},
 	}
-	// 检查是否存在历史数据，如果没有则回退到基于当前状态的估算
-	hasHistory := false
-	{
-		var marker int
-		err := orm.Raw(`SELECT 1 FROM job_status_history WHERE user_id = $1 LIMIT 1`, userID).Row().Scan(&marker)
-		if err == nil {
-			hasHistory = true
-		} else if err != nil && err != sql.ErrNoRows {
-			return nil, fmt.Errorf("failed to check history availability: %w", err)
+	fetchIDsFromHistory := func(statuses []string) (map[int]struct{}, error) {
+		canonical, aliasOnly := expandStatuses(statuses)
+		if len(canonical) == 0 && len(aliasOnly) == 0 {
+			return map[int]struct{}{}, nil
 		}
-	}
+		conditions := make([]string, 0, 2)
+		args := []interface{}{userID}
 
-	countFromHistory := func(stageName string, statuses []string) (int, error) {
-		if len(statuses) == 0 {
-			return 0, nil
+		if len(canonical) > 0 {
+			args = append(args, pq.Array(canonical))
+			placeholder := len(args)
+			conditions = append(conditions, fmt.Sprintf("new_status = ANY($%d)", placeholder))
 		}
-		var count int
-		query := `
-			SELECT COUNT(DISTINCT job_application_id)
+		if len(aliasOnly) > 0 {
+			args = append(args, pq.Array(aliasOnly))
+			placeholder := len(args)
+			conditions = append(conditions, fmt.Sprintf("new_status::text = ANY($%d)", placeholder))
+		}
+
+		query := fmt.Sprintf(`
+			SELECT DISTINCT job_application_id
 			FROM job_status_history
-			WHERE user_id = $1 AND new_status = ANY($2)
-		`
-		if err := orm.Raw(query, userID, pq.Array(statuses)).Row().Scan(&count); err != nil {
-			return 0, fmt.Errorf("failed to compute history count for %s: %w", stageName, err)
-		}
-		return count, nil
-	}
+			WHERE user_id = $1 AND (%s)
+		`, strings.Join(conditions, " OR "))
 
-	countFromCurrentStatus := func(stageName string, statuses []string) (int, error) {
-		if len(statuses) == 0 {
-			return 0, nil
+		rows, err := orm.Raw(query, args...).Rows()
+		if err != nil {
+			return nil, err
 		}
-		var count int
-		query := `
-			SELECT COUNT(*) FROM job_applications
-			WHERE user_id = $1 AND status = ANY($2)
-		`
-		if err := orm.Raw(query, userID, pq.Array(statuses)).Row().Scan(&count); err != nil {
-			return 0, fmt.Errorf("failed to compute current status count for %s: %w", stageName, err)
+		defer rows.Close()
+		result := make(map[int]struct{})
+		for rows.Next() {
+			var id int
+			if scanErr := rows.Scan(&id); scanErr != nil {
+				return nil, scanErr
+			}
+			result[id] = struct{}{}
 		}
-		return count, nil
+		return result, nil
 	}
 
 	for _, st := range stages {
-		var totalStage, passed int
-		var err error
-		if hasHistory {
-			totalStage, err = countFromHistory(st.Name, st.Entry)
-			if err != nil {
-				return nil, err
-			}
-			passed, err = countFromHistory(st.Name, st.PassStatuses)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			totalStage, err = countFromCurrentStatus(st.Name, st.Entry)
-			if err != nil {
-				return nil, err
-			}
-			passed, err = countFromCurrentStatus(st.Name, st.PassStatuses)
-			if err != nil {
-				return nil, err
+		entryIDs, entryErr := fetchIDsFromHistory(st.Entry)
+		if entryErr != nil {
+			return nil, fmt.Errorf("failed to compute history entry for %s: %w", st.Name, entryErr)
+		}
+		passIDs, passErr := fetchIDsFromHistory(st.PassStatuses)
+		if passErr != nil {
+			return nil, fmt.Errorf("failed to compute history pass for %s: %w", st.Name, passErr)
+		}
+
+		totalStage := len(entryIDs)
+		passed := 0
+		if totalStage > 0 && len(passIDs) > 0 {
+			for id := range passIDs {
+				if _, ok := entryIDs[id]; ok {
+					passed++
+				}
 			}
 		}
 

@@ -306,6 +306,78 @@ func (db *DB) ensureApplicationStatusEnumValues() error {
 		return nil
 	}
 
+	// 统一“已拒绝”与“已拒绝offer”的枚举值，兼容旧库与新库
+	labelExistsSQL := `
+        SELECT EXISTS (
+            SELECT 1
+            FROM pg_type t
+            JOIN pg_enum e ON t.oid = e.enumtypid
+            WHERE t.typname = 'application_status'
+              AND e.enumlabel = $1
+        )
+    `
+	var hasRejected, hasRejectedOffer bool
+	if err := db.QueryRow(labelExistsSQL, "已拒绝").Scan(&hasRejected); err != nil {
+		return err
+	}
+	if err := db.QueryRow(labelExistsSQL, "已拒绝offer").Scan(&hasRejectedOffer); err != nil {
+		return err
+	}
+
+	if hasRejected && !hasRejectedOffer {
+		if _, err := db.Exec("ALTER TYPE application_status RENAME VALUE '已拒绝' TO '已拒绝offer'"); err != nil {
+			log.Printf("Warning: failed to rename enum value '已拒绝' to '已拒绝offer' (will fallback to coexist): %v", err)
+		} else {
+			hasRejected = false
+			hasRejectedOffer = true
+		}
+	}
+
+	if !hasRejectedOffer {
+		addRejectedOffer := `
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_type t
+        JOIN pg_enum e ON t.oid = e.enumtypid
+        WHERE t.typname = 'application_status'
+          AND e.enumlabel = '已拒绝offer'
+    ) THEN
+        ALTER TYPE application_status ADD VALUE '已拒绝offer';
+    END IF;
+END $$;`
+		if _, err := db.Exec(addRejectedOffer); err != nil {
+			log.Printf("Warning: failed to add enum value '已拒绝offer': %v", err)
+		} else {
+			hasRejectedOffer = true
+		}
+	}
+
+	if hasRejected && hasRejectedOffer {
+		if hasHistory, err := db.checkTableExists("job_status_history"); err == nil && hasHistory {
+			updateStatements := []string{
+				"UPDATE job_status_history SET new_status = '已拒绝offer' WHERE new_status = '已拒绝';",
+				"UPDATE job_status_history SET old_status = '已拒绝offer' WHERE old_status = '已拒绝';",
+			}
+			for _, stmt := range updateStatements {
+				if _, err := db.Exec(stmt); err != nil {
+					log.Printf("Warning: failed to translate job_status_history legacy status with statement [%s]: %v", stmt, err)
+				}
+			}
+		} else if err != nil {
+			log.Printf("Warning: failed to check job_status_history existence while normalizing status labels: %v", err)
+		}
+
+		if hasApplications, err := db.checkTableExists("job_applications"); err == nil && hasApplications {
+			if _, err := db.Exec("UPDATE job_applications SET status = '已拒绝offer' WHERE status = '已拒绝';"); err != nil {
+				log.Printf("Warning: failed to translate job_applications legacy status: %v", err)
+			}
+		} else if err != nil {
+			log.Printf("Warning: failed to check job_applications existence while normalizing status labels: %v", err)
+		}
+	}
+
 	// 需要补齐的新增状态（与后端枚举保持一致）
 	values := []string{
 		"简历筛选未通过",
