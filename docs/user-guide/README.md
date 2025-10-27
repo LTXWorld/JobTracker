@@ -22,6 +22,7 @@
 - [🎯 拖拽状态更新](./kanban-board.md#拖拽操作)
 - [👁️ 状态可视化](./kanban-board.md#状态展示)
 - [🔄 状态流转规则](./kanban-board.md#状态流转)
+- [↩️ 状态撤销指引](./status-undo.md)
 
 ### 📈 时间线视图
 - [⏰ 时间轴展示](./timeline-view.md#时间轴)

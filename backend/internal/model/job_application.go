@@ -374,6 +374,21 @@ type StatusHistoryEntry struct {
 	CreatedAt        time.Time              `json:"created_at" db:"created_at"`
 }
 
+// InterviewExperience 面试体验记录模型
+type InterviewExperience struct {
+	ID            int64             `json:"id" db:"id"`
+	ApplicationID int               `json:"application_id" db:"application_id"`
+	FromStatus    ApplicationStatus `json:"from_status" db:"from_status"`
+	ToStatus      ApplicationStatus `json:"to_status" db:"to_status"`
+	Rating        *string           `json:"rating,omitempty" db:"rating"`
+	Note          *string           `json:"note,omitempty" db:"note"`
+	Skip          bool              `json:"skip" db:"skip"`
+	SkipReason    *string           `json:"skip_reason,omitempty" db:"skip_reason"`
+	RecordedBy    int               `json:"recorded_by" db:"recorded_by"`
+	RecordedAt    time.Time         `json:"recorded_at" db:"recorded_at"`
+	CreatedAt     time.Time         `json:"created_at" db:"created_at"`
+}
+
 // StatusMetadata 状态元数据
 type StatusMetadata struct {
 	TotalChanges         int       `json:"total_changes"`
@@ -433,6 +448,31 @@ type StatusUpdateRequest struct {
 	Version  *int                   `json:"version,omitempty"` // 乐观锁版本控制
 	// ConfirmBackward 当进行回退操作（将状态从后往前调整）时需要显式确认
 	ConfirmBackward *bool `json:"confirm_backward,omitempty"`
+}
+
+// StatusUpdateResult 状态更新结果
+type StatusUpdateResult struct {
+	Job                *JobApplication        `json:"job"`
+	HistoryID          *int64                 `json:"history_id,omitempty"`
+	StatusVersion      *int                   `json:"status_version,omitempty"`
+	UndoAvailableUntil *time.Time             `json:"undo_available_until,omitempty"`
+	Metadata           map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// StatusUndoRequest 撤销状态更新请求
+type StatusUndoRequest struct {
+	HistoryID int64 `json:"history_id" binding:"required"`
+	Version   *int  `json:"version,omitempty"`
+}
+
+// StatusUndoResult 撤销操作结果
+type StatusUndoResult struct {
+	Job             *JobApplication   `json:"job"`
+	RevertedTo      ApplicationStatus `json:"reverted_to"`
+	UndoHistoryID   int64             `json:"undo_history_id"`
+	SourceHistoryID int64             `json:"source_history_id"`
+	StatusVersion   *int              `json:"status_version,omitempty"`
+	UndoCompletedAt time.Time         `json:"undo_completed_at"`
 }
 
 // StatusHistoryResponse 状态历史响应

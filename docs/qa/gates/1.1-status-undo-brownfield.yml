@@ -1,0 +1,37 @@
+schema: 1
+story: '1.1'
+story_title: '状态撤销功能 - Brownfield Addition'
+gate: PASS
+status_reason: '撤销流程已启用 backward 会话标志，数据库允许回退写入'
+reviewer: 'Quinn (Test Architect)'
+updated: '2025-10-23T12:44:36+08:00'
+top_issues: []
+waiver:
+  active: false
+quality_score: 95
+expires: '2025-11-06T12:44:46+08:00'
+evidence:
+  tests_reviewed: 5
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    ac_gaps: []
+nfr_validation:
+  security:
+    status: PASS
+    notes: '接口鉴权沿用既有机制，未发现新增风险'
+  performance:
+    status: PASS
+    notes: '撤销窗口内仅触发单次额外查询，影响可接受'
+  reliability:
+    status: PASS
+    notes: '撤销成功写回旧状态与历史，数据一致性恢复'
+  maintainability:
+    status: PASS
+    notes: 'Undo 流程与 Update 路径统一使用会话标志，减少遗漏风险'
+recommendations:
+  immediate: []
+  future:
+    - action: '覆盖回退 + 撤销链路的端到端测试，验证长窗口与并发场景'
+      refs:
+        - frontend/tests/stores/statusTracking.undo.test.ts

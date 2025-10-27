@@ -128,6 +128,59 @@ Content-Type: application/json
 }
 ```
 
+### 更新投递状态（携带面试体验）
+```http
+POST /api/v1/job-applications/123/status
+Authorization: Bearer YOUR_JWT_TOKEN
+Content-Type: application/json
+
+{
+  "status": "二面中",
+  "metadata": {
+    "interview_experience": {
+      "rating": "good",
+      "note": "一面沟通顺畅，反馈积极",
+      "recorded_at": "2025-02-01T09:30:00Z"
+    }
+  }
+}
+```
+
+> **说明**
+> - `rating` 仅接受 `good`/`average`/`bad`，当 `skip=false`（默认值）时必填。
+> - `note`、`skip_reason` 最长 200 字符，服务端会自动裁剪并清洗输入内容。
+> - 若完全缺省 `interview_experience`，系统会为该次流转记录一条 `skip=true` 的默认反馈，确保历史数据完整。
+> - 兼容前端老版本：未携带体验数据的请求仍遵循既有状态更新逻辑。
+> - 自 2025-10-23 起，状态时间轴与状态详情弹窗会自动展示 `interview_experience` 的评分、备注或跳过原因，并在刷新历史后实时更新。
+
+### 获取岗位面试体验记录
+```http
+GET /api/v1/applications/123/interview-experiences
+Authorization: Bearer YOUR_JWT_TOKEN
+```
+
+**响应示例**
+```json
+{
+  "code": 200,
+  "message": "interview experiences retrieved successfully",
+  "data": [
+    {
+      "id": 15,
+      "application_id": 123,
+      "from_status": "一面中",
+      "to_status": "二面中",
+      "rating": "good",
+      "note": "反馈积极，准备深入业务题",
+      "skip": false,
+      "recorded_by": 42,
+      "recorded_at": "2025-02-01T09:30:00Z",
+      "created_at": "2025-02-01T09:30:00Z"
+    }
+  ]
+}
+```
+
 ### 批量操作
 ```http
 POST /api/v1/applications/batch

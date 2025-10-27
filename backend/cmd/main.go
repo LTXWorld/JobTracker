@@ -159,7 +159,9 @@ func main() {
 	// 状态跟踪相关路由
 	api.HandleFunc("/job-applications/{id}/status-history", statusTrackingHandler.GetStatusHistory).Methods("GET")
 	api.HandleFunc("/job-applications/{id}/status", statusTrackingHandler.UpdateJobStatus).Methods("POST")
+	api.HandleFunc("/job-applications/{id}/status/undo", statusTrackingHandler.UndoJobStatus).Methods("POST")
 	api.HandleFunc("/job-applications/{id}/status-timeline", statusTrackingHandler.GetStatusTimeline).Methods("GET")
+	api.HandleFunc("/applications/{id}/interview-experiences", statusTrackingHandler.GetInterviewExperiences).Methods("GET")
 	api.HandleFunc("/job-applications/status/batch", statusTrackingHandler.BatchUpdateStatus).Methods("PUT")
 	api.HandleFunc("/job-applications/status-analytics", statusTrackingHandler.GetStatusAnalytics).Methods("GET")
 	api.HandleFunc("/job-applications/status-trends", statusTrackingHandler.GetStatusTrends).Methods("GET")

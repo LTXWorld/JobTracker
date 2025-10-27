@@ -122,7 +122,8 @@ import {
   HistoryOutlined
 } from '@ant-design/icons-vue'
 import { useStatusTrackingStore } from '../stores/statusTracking'
-import { StatusHelper, type ApplicationStatus } from '../types'
+import { useInterviewExperienceCapture } from '../composables/useInterviewExperienceCapture'
+import { StatusHelper, type ApplicationStatus, type UpdateStatusRequest } from '../types'
 import StatusTimeline from './StatusTimeline.vue'
 import StatusUpdateContent from './StatusUpdateContent.vue'
 import { message, Modal } from 'ant-design-vue'
@@ -164,6 +165,7 @@ const emit = defineEmits<{
 
 // Store
 const statusTrackingStore = useStatusTrackingStore()
+const { requestInterviewExperience, shouldCaptureInterviewExperience } = useInterviewExperienceCapture()
 
 // 响应式数据
 const loading = ref(false)
@@ -364,7 +366,7 @@ const handleQuickUpdate = async () => {
 
   loading.value = true
   try {
-    const updateData: any = {
+    let updateData: UpdateStatusRequest = {
       status: selectedStatus.value,
       note: note.value || undefined
     }
@@ -401,9 +403,30 @@ const handleQuickUpdate = async () => {
         })
       })
       updateData.confirm_backward = true
+    } else if (shouldCaptureInterviewExperience(props.currentStatus)) {
+      const result = await requestInterviewExperience({
+        fromStatus: props.currentStatus,
+        toStatus: selectedStatus.value
+      })
+      if (result.cancelled) {
+        loading.value = false
+        return
+      }
+      if (result.submission) {
+        updateData = statusTrackingStore.assembleUpdateRequestWithInterviewExperience(
+          updateData,
+          {
+            fromStatus: props.currentStatus,
+            toStatus: selectedStatus.value
+          },
+          result.submission
+        )
+      }
     }
 
-    await statusTrackingStore.updateApplicationStatus(props.applicationId, updateData)
+    await statusTrackingStore.updateApplicationStatus(props.applicationId, updateData, {
+      onUndo: async () => emit('updated', props.currentStatus)
+    })
     
     emit('updated', selectedStatus.value, note.value || undefined)
     resetForm()

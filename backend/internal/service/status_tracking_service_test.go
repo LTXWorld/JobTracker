@@ -3,12 +3,15 @@ package service
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"jobView-backend/internal/model"
 	"jobView-backend/internal/repository"
+	"jobView-backend/internal/utils"
 )
 
 type fakeTrackingRepo struct {
@@ -22,6 +25,10 @@ func (f *fakeTrackingRepo) GetStatusHistory(ctx context.Context, userID uint, jo
 }
 
 func (f *fakeTrackingRepo) GetStatusTimeline(ctx context.Context, userID uint, jobApplicationID int) ([]model.StatusHistoryEntry, error) {
+	panic("not implemented")
+}
+
+func (f *fakeTrackingRepo) GetInterviewExperiences(ctx context.Context, userID uint, jobApplicationID int) ([]model.InterviewExperience, error) {
 	panic("not implemented")
 }
 
@@ -87,6 +94,7 @@ func (f *fakeConfigRepo) UpsertPreferences(userID uint, preferenceBytes []byte, 
 type fakeStatusTx struct {
 	snapshot              *repository.JobStatusSnapshot
 	historyInserts        []repository.StatusHistoryInsert
+	interviewInserts      []repository.InterviewExperienceInsert
 	updateCalls           []repository.UpdateJobApplicationParams
 	commitCalled          bool
 	rollbackCalled        bool
@@ -96,6 +104,9 @@ type fakeStatusTx struct {
 		changedAt *time.Time
 		err       error
 	}
+	latestHistoryEntry *model.StatusHistoryEntry
+	latestHistoryErr   error
+	metadataUpdates    map[int64][]byte
 }
 
 func newFakeStatusTx() *fakeStatusTx {
@@ -106,6 +117,7 @@ func newFakeStatusTx() *fakeStatusTx {
 			changedAt *time.Time
 			err       error
 		}),
+		metadataUpdates: make(map[int64][]byte),
 	}
 }
 
@@ -126,6 +138,11 @@ func (f *fakeStatusTx) InsertStatusHistory(entry repository.StatusHistoryInsert)
 	return int64(len(f.historyInserts)), nil
 }
 
+func (f *fakeStatusTx) InsertInterviewExperience(entry repository.InterviewExperienceInsert) (int64, error) {
+	f.interviewInserts = append(f.interviewInserts, entry)
+	return int64(len(f.interviewInserts)), nil
+}
+
 func (f *fakeStatusTx) UpdateJobApplication(params repository.UpdateJobApplicationParams) (*model.JobApplication, error) {
 	f.updateCalls = append(f.updateCalls, params)
 	job := &model.JobApplication{ID: params.JobApplicationID, UserID: params.UserID, Status: params.NewStatus}
@@ -138,6 +155,21 @@ func (f *fakeStatusTx) GetCurrentStatus(userID uint, jobApplicationID int) (mode
 		return "", nil, sql.ErrNoRows
 	}
 	return resp.status, resp.changedAt, resp.err
+}
+
+func (f *fakeStatusTx) GetLatestHistoryEntry(userID uint, jobApplicationID int) (*model.StatusHistoryEntry, error) {
+	if f.latestHistoryErr != nil {
+		return nil, f.latestHistoryErr
+	}
+	if f.latestHistoryEntry == nil {
+		return nil, sql.ErrNoRows
+	}
+	return f.latestHistoryEntry, nil
+}
+
+func (f *fakeStatusTx) UpdateHistoryMetadata(historyID int64, metadata []byte) error {
+	f.metadataUpdates[historyID] = metadata
+	return nil
 }
 
 func (f *fakeStatusTx) Commit() error {
@@ -187,7 +219,12 @@ func TestStatusTrackingService_UpdateJobStatus_ForwardTransition(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, model.StatusWrittenTest, result.Status)
+	require.NotNil(t, result)
+	require.NotNil(t, result.Job)
+	require.Equal(t, model.StatusWrittenTest, result.Job.Status)
+	require.NotNil(t, result.HistoryID)
+	require.NotNil(t, result.StatusVersion)
+	require.NotNil(t, result.UndoAvailableUntil)
 	require.True(t, tx.commitCalled)
 	require.True(t, tx.rollbackCalled)
 	require.Contains(t, tx.flags, "jobview.skip_history")
@@ -200,6 +237,156 @@ func TestStatusTrackingService_UpdateJobStatus_ForwardTransition(t *testing.T) {
 	require.NotNil(t, tx.updateCalls[0].DurationStatsJSON)
 	require.NotNil(t, tx.updateCalls[0].StatusVersion)
 	require.False(t, tx.updateCalls[0].SuppressHistory)
+}
+
+func TestStatusTrackingService_UpdateJobStatus_CapturesInterviewExperience(t *testing.T) {
+	tx := newFakeStatusTx()
+	lastChange := time.Now().Add(-15 * time.Minute)
+	historyJSON := `{"history":[],"metadata":{"total_changes":0}}`
+	durationJSON := `{"status_durations":{}}`
+	tx.snapshot = &repository.JobStatusSnapshot{
+		Job: model.JobApplication{
+			ID:     201,
+			UserID: 18,
+			Status: model.StatusFirstInterview,
+		},
+		StatusHistoryRaw: &historyJSON,
+		DurationStatsRaw: &durationJSON,
+		LastStatusChange: &lastChange,
+	}
+
+	repo := &fakeTrackingRepo{tx: tx}
+	cfg := &fakeConfigRepo{
+		flowID:  1,
+		flowCfg: `{"transitions": {"` + string(model.StatusFirstInterview) + `": ["` + string(model.StatusSecondInterview) + `"]}}`,
+	}
+
+	service := &StatusTrackingService{repo: repo, configRepo: cfg}
+	recordedAt := time.Now().Add(-5 * time.Minute).UTC().Format(time.RFC3339)
+
+	result, err := service.UpdateJobStatus(18, 201, &model.StatusUpdateRequest{
+		Status: model.StatusSecondInterview,
+		Metadata: map[string]interface{}{
+			"interview_experience": map[string]interface{}{
+				"rating":      "GOOD",
+				"note":        " 表现不错 ",
+				"recorded_at": recordedAt,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Len(t, tx.interviewInserts, 1)
+	insert := tx.interviewInserts[0]
+	require.Equal(t, 201, insert.ApplicationID)
+	require.EqualValues(t, 18, insert.UserID)
+	require.False(t, insert.Skip)
+	require.NotNil(t, insert.Rating)
+	require.Equal(t, "good", *insert.Rating)
+	require.NotNil(t, insert.Note)
+	require.Equal(t, "表现不错", *insert.Note)
+	parsedRecordedAt, _ := time.Parse(time.RFC3339, recordedAt)
+	require.WithinDuration(t, parsedRecordedAt, insert.RecordedAt, time.Second)
+	require.Nil(t, insert.SkipReason)
+
+	require.Len(t, tx.historyInserts, 1)
+	var stored map[string]interface{}
+	require.NoError(t, json.Unmarshal(tx.historyInserts[0].Metadata, &stored))
+	meta, ok := stored["interview_experience"].(map[string]interface{})
+	require.True(t, ok)
+	require.Equal(t, "good", meta["rating"])
+	require.Equal(t, false, meta["skip"])
+	require.Equal(t, "表现不错", meta["note"])
+	require.Equal(t, float64(18), meta["recorded_by"])
+	require.Equal(t, string(model.StatusFirstInterview), meta["from_status"])
+	require.Equal(t, string(model.StatusSecondInterview), meta["to_status"])
+	require.Equal(t, recordedAt, meta["recorded_at"])
+
+	require.Len(t, tx.updateCalls, 1)
+	var updatedHistory model.StatusHistory
+	require.NoError(t, json.Unmarshal(tx.updateCalls[0].StatusHistoryJSON, &updatedHistory))
+	require.NotEmpty(t, updatedHistory.History)
+	lastEntry := updatedHistory.History[len(updatedHistory.History)-1]
+	require.NotNil(t, lastEntry.Metadata)
+	hMeta, ok := lastEntry.Metadata["interview_experience"].(map[string]interface{})
+	require.True(t, ok)
+	require.Equal(t, "good", hMeta["rating"])
+}
+
+func TestStatusTrackingService_UpdateJobStatus_DefaultSkipInterviewExperience(t *testing.T) {
+	tx := newFakeStatusTx()
+	lastChange := time.Now().Add(-20 * time.Minute)
+	tx.snapshot = &repository.JobStatusSnapshot{
+		Job: model.JobApplication{
+			ID:     302,
+			UserID: 27,
+			Status: model.StatusSecondInterview,
+		},
+		LastStatusChange: &lastChange,
+	}
+
+	repo := &fakeTrackingRepo{tx: tx}
+	cfg := &fakeConfigRepo{
+		flowID:  1,
+		flowCfg: `{"transitions": {"` + string(model.StatusSecondInterview) + `": ["` + string(model.StatusThirdInterview) + `"]}}`,
+	}
+
+	service := &StatusTrackingService{repo: repo, configRepo: cfg}
+
+	result, err := service.UpdateJobStatus(27, 302, &model.StatusUpdateRequest{
+		Status: model.StatusThirdInterview,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Len(t, tx.interviewInserts, 1)
+	insert := tx.interviewInserts[0]
+	require.True(t, insert.Skip)
+	require.Nil(t, insert.Rating)
+	require.Nil(t, insert.Note)
+	require.Nil(t, insert.SkipReason)
+
+	var stored map[string]interface{}
+	require.NoError(t, json.Unmarshal(tx.historyInserts[0].Metadata, &stored))
+	meta, ok := stored["interview_experience"].(map[string]interface{})
+	require.True(t, ok)
+	require.Equal(t, true, meta["skip"])
+	require.NotEmpty(t, meta["recorded_at"])
+}
+
+func TestStatusTrackingService_UpdateJobStatus_MissingInterviewRating(t *testing.T) {
+	tx := newFakeStatusTx()
+	lastChange := time.Now().Add(-25 * time.Minute)
+	tx.snapshot = &repository.JobStatusSnapshot{
+		Job: model.JobApplication{
+			ID:     410,
+			UserID: 35,
+			Status: model.StatusFirstInterview,
+		},
+		LastStatusChange: &lastChange,
+	}
+
+	repo := &fakeTrackingRepo{tx: tx}
+	cfg := &fakeConfigRepo{
+		flowID:  1,
+		flowCfg: `{"transitions": {"` + string(model.StatusFirstInterview) + `": ["` + string(model.StatusSecondInterview) + `"]}}`,
+	}
+
+	service := &StatusTrackingService{repo: repo, configRepo: cfg}
+
+	_, err := service.UpdateJobStatus(35, 410, &model.StatusUpdateRequest{
+		Status: model.StatusSecondInterview,
+		Metadata: map[string]interface{}{
+			"interview_experience": map[string]interface{}{
+				"note": "缺少评分",
+			},
+		},
+	})
+	require.Error(t, err)
+	var validationErr utils.ValidationError
+	require.True(t, errors.As(err, &validationErr))
+	require.Contains(t, validationErr.Error(), "缺失评价")
+	require.Empty(t, tx.interviewInserts)
+	require.False(t, tx.commitCalled)
 }
 
 func TestStatusTrackingService_UpdateJobStatus_BackwardRequiresConfirm(t *testing.T) {
@@ -230,6 +417,52 @@ func TestStatusTrackingService_UpdateJobStatus_BackwardRequiresConfirm(t *testin
 	require.False(t, tx.commitCalled)
 	require.True(t, tx.rollbackCalled)
 	require.Empty(t, tx.historyInserts)
+}
+
+func TestStatusTrackingService_UpdateJobStatus_BackwardConfirmCreatesHistory(t *testing.T) {
+	tx := newFakeStatusTx()
+	now := time.Now().Add(-30 * time.Minute)
+	historyJSON := `{"entries":[]}`
+	durationJSON := `{"durations":{}}`
+	tx.snapshot = &repository.JobStatusSnapshot{
+		Job: model.JobApplication{
+			ID:     200,
+			UserID: 11,
+			Status: model.StatusSecondInterview,
+		},
+		StatusVersion:    intPtr(7),
+		StatusHistoryRaw: &historyJSON,
+		DurationStatsRaw: &durationJSON,
+		LastStatusChange: &now,
+	}
+
+	repo := &fakeTrackingRepo{tx: tx}
+	cfg := &fakeConfigRepo{
+		flowID:  1,
+		flowCfg: `{"transitions": {}}`,
+	}
+
+	service := &StatusTrackingService{repo: repo, configRepo: cfg}
+	confirm := true
+
+	result, err := service.UpdateJobStatus(11, 200, &model.StatusUpdateRequest{
+		Status:          model.StatusFirstInterview,
+		ConfirmBackward: &confirm,
+		Note:            strPtr("重新安排面试"),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.Job)
+	require.Equal(t, model.StatusFirstInterview, result.Job.Status)
+	require.NotNil(t, result.HistoryID)
+	require.NotNil(t, result.StatusVersion)
+	require.True(t, len(tx.historyInserts[0].Metadata) > 0)
+	require.True(t, tx.commitCalled)
+	require.True(t, tx.rollbackCalled)
+	require.Len(t, tx.historyInserts, 1)
+	require.Equal(t, model.StatusSecondInterview, tx.historyInserts[0].OldStatus)
+	require.Equal(t, model.StatusFirstInterview, tx.historyInserts[0].NewStatus)
+	require.True(t, tx.historyInserts[0].Metadata != nil)
 }
 
 func TestStatusTrackingService_BatchUpdateStatus(t *testing.T) {
@@ -296,7 +529,8 @@ func TestStatusTrackingService_UpdateJobStatus_SecondInterviewDirectToHR(t *test
 		Status: model.StatusHRInterview,
 	})
 	require.NoError(t, err)
-	require.Equal(t, model.StatusHRInterview, result.Status)
+	require.NotNil(t, result.Job)
+	require.Equal(t, model.StatusHRInterview, result.Job.Status)
 	require.True(t, tx.commitCalled)
 	require.True(t, tx.rollbackCalled)
 	require.Len(t, tx.historyInserts, 1)
@@ -333,7 +567,8 @@ func TestStatusTrackingService_UpdateJobStatus_FirstInterviewDirectToHR(t *testi
 		Status: model.StatusHRInterview,
 	})
 	require.NoError(t, err)
-	require.Equal(t, model.StatusHRInterview, result.Status)
+	require.NotNil(t, result.Job)
+	require.Equal(t, model.StatusHRInterview, result.Job.Status)
 	require.True(t, tx.commitCalled)
 	require.True(t, tx.rollbackCalled)
 	require.Len(t, tx.historyInserts, 1)
@@ -369,12 +604,100 @@ func TestStatusTrackingService_UpdateJobStatus_HRPassToAccepted(t *testing.T) {
 		Status: model.StatusOfferAccepted,
 	})
 	require.NoError(t, err)
-	require.Equal(t, model.StatusOfferAccepted, result.Status)
+	require.NotNil(t, result.Job)
+	require.Equal(t, model.StatusOfferAccepted, result.Job.Status)
 	require.True(t, tx.commitCalled)
 	require.True(t, tx.rollbackCalled)
 	require.Len(t, tx.historyInserts, 1)
 	require.Equal(t, model.StatusHRPass, tx.historyInserts[0].OldStatus)
 	require.Equal(t, model.StatusOfferAccepted, tx.historyInserts[0].NewStatus)
+}
+
+func TestStatusTrackingService_UndoJobStatus_Success(t *testing.T) {
+	tx := newFakeStatusTx()
+	oldStatus := model.StatusFirstInterview
+	changeTime := time.Now().Add(-5 * time.Second)
+	tx.latestHistoryEntry = &model.StatusHistoryEntry{
+		ID:               88,
+		JobApplicationID: 900,
+		UserID:           501,
+		OldStatus:        &oldStatus,
+		NewStatus:        model.StatusSecondInterview,
+		StatusChangedAt:  changeTime,
+		Metadata:         map[string]interface{}{"source": "test"},
+	}
+	tx.snapshot = &repository.JobStatusSnapshot{
+		Job: model.JobApplication{
+			ID:     900,
+			UserID: 501,
+			Status: model.StatusSecondInterview,
+		},
+		StatusVersion:    intPtr(3),
+		LastStatusChange: &changeTime,
+	}
+
+	repo := &fakeTrackingRepo{tx: tx}
+	service := &StatusTrackingService{repo: repo}
+
+	result, err := service.UndoJobStatus(501, 900, &model.StatusUndoRequest{
+		HistoryID: tx.latestHistoryEntry.ID,
+		Version:   intPtr(3),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.Job)
+	require.Equal(t, oldStatus, result.Job.Status)
+	require.Equal(t, oldStatus, result.RevertedTo)
+	require.NotZero(t, result.UndoHistoryID)
+	require.Equal(t, tx.latestHistoryEntry.ID, result.SourceHistoryID)
+	require.NotNil(t, result.StatusVersion)
+	require.Equal(t, 2, *result.StatusVersion)
+	require.NotNil(t, result.Job.StatusVersion)
+	require.Equal(t, *result.StatusVersion, *result.Job.StatusVersion)
+	require.True(t, tx.flags["jobview.skip_history"])
+	require.True(t, tx.flags["jobview.allow_backward"])
+	require.True(t, tx.commitCalled)
+	require.True(t, tx.rollbackCalled)
+	require.Len(t, tx.historyInserts, 1)
+	require.Equal(t, model.StatusSecondInterview, tx.historyInserts[0].OldStatus)
+	require.Equal(t, oldStatus, tx.historyInserts[0].NewStatus)
+	require.Contains(t, tx.metadataUpdates, tx.latestHistoryEntry.ID)
+}
+
+func TestStatusTrackingService_UndoJobStatus_Expired(t *testing.T) {
+	tx := newFakeStatusTx()
+	oldStatus := model.StatusApplied
+	past := time.Now().Add(-2 * time.Minute)
+	tx.latestHistoryEntry = &model.StatusHistoryEntry{
+		ID:               55,
+		JobApplicationID: 300,
+		UserID:           77,
+		OldStatus:        &oldStatus,
+		NewStatus:        model.StatusResumeScreening,
+		StatusChangedAt:  past,
+	}
+	tx.snapshot = &repository.JobStatusSnapshot{
+		Job: model.JobApplication{
+			ID:     300,
+			UserID: 77,
+			Status: model.StatusResumeScreening,
+		},
+		StatusVersion:    intPtr(4),
+		LastStatusChange: &past,
+	}
+
+	repo := &fakeTrackingRepo{tx: tx}
+	service := &StatusTrackingService{repo: repo}
+
+	_, err := service.UndoJobStatus(77, 300, &model.StatusUndoRequest{
+		HistoryID: tx.latestHistoryEntry.ID,
+		Version:   intPtr(4),
+	})
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrUndoExpired))
+	require.False(t, tx.commitCalled)
+	require.True(t, tx.rollbackCalled)
+	require.Empty(t, tx.historyInserts)
 }
 
 func TestStatusTrackingService_UpdateJobStatus_HRPassToRejected(t *testing.T) {
@@ -405,7 +728,8 @@ func TestStatusTrackingService_UpdateJobStatus_HRPassToRejected(t *testing.T) {
 		Status: model.StatusRejected,
 	})
 	require.NoError(t, err)
-	require.Equal(t, model.StatusRejected, result.Status)
+	require.NotNil(t, result.Job)
+	require.Equal(t, model.StatusRejected, result.Job.Status)
 	require.True(t, tx.commitCalled)
 	require.True(t, tx.rollbackCalled)
 	require.Len(t, tx.historyInserts, 1)
@@ -414,5 +738,9 @@ func TestStatusTrackingService_UpdateJobStatus_HRPassToRejected(t *testing.T) {
 }
 
 func intPtr(v int) *int {
+	return &v
+}
+
+func strPtr(v string) *string {
 	return &v
 }

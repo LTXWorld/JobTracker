@@ -7,6 +7,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"jobView-backend/internal/auth"
 	"jobView-backend/internal/model"
 	"jobView-backend/internal/service"
@@ -80,6 +81,41 @@ func (h *StatusTrackingHandler) GetStatusHistory(w http.ResponseWriter, r *http.
 	h.writeSuccessResponse(w, http.StatusOK, "status history retrieved successfully", history)
 }
 
+// GetInterviewExperiences 获取岗位面试体验记录
+// GET /api/v1/applications/{id}/interview-experiences
+func (h *StatusTrackingHandler) GetInterviewExperiences(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.GetUserIDFromContext(r.Context())
+	if !ok {
+		h.writeErrorResponse(w, http.StatusUnauthorized, "用户未认证", nil)
+		return
+	}
+
+	vars := mux.Vars(r)
+	jobIDStr, ok := vars["id"]
+	if !ok {
+		h.writeErrorResponse(w, http.StatusBadRequest, "missing job application id", nil)
+		return
+	}
+
+	jobID, err := strconv.Atoi(jobIDStr)
+	if err != nil {
+		h.writeErrorResponse(w, http.StatusBadRequest, "invalid job application id", err)
+		return
+	}
+
+	experiences, err := h.statusService.GetInterviewExperiences(uint(userID), jobID)
+	if err != nil {
+		if err.Error() == "job application not found or access denied" {
+			h.writeErrorResponse(w, http.StatusNotFound, "job application not found", nil)
+		} else {
+			h.writeErrorResponse(w, http.StatusInternalServerError, "failed to get interview experiences", err)
+		}
+		return
+	}
+
+	h.writeSuccessResponse(w, http.StatusOK, "interview experiences retrieved successfully", experiences)
+}
+
 // UpdateJobStatus 更新岗位状态
 // POST /api/v1/job-applications/{id}/status
 func (h *StatusTrackingHandler) UpdateJobStatus(w http.ResponseWriter, r *http.Request) {
@@ -118,27 +154,91 @@ func (h *StatusTrackingHandler) UpdateJobStatus(w http.ResponseWriter, r *http.R
 	}
 
 	// 调用服务更新状态
-    updatedJob, err := h.statusService.UpdateJobStatus(uint(userID), jobID, &req)
-    if err != nil {
-        if err.Error() == "job application not found" {
-            h.writeErrorResponse(w, http.StatusNotFound, "job application not found", nil)
-        } else if err.Error() == "version conflict" {
-            h.writeErrorResponse(w, http.StatusConflict, "version conflict, please refresh and try again", nil)
-        } else if err.Error() == "BACKWARD_CONFIRM_REQUIRED" {
-            // 回退操作需要确认
-            h.writeErrorResponse(w, http.StatusConflict, "BACKWARD_CONFIRM_REQUIRED", nil)
-        } else if err.Error() == "NOTE_REQUIRED_FOR_BACKWARD" {
-            // 终态回退必须备注
-            h.writeErrorResponse(w, http.StatusBadRequest, "NOTE_REQUIRED_FOR_BACKWARD", nil)
-        } else if err.Error() == "BACKWARD_DISABLED" {
-            h.writeErrorResponse(w, http.StatusForbidden, "BACKWARD_DISABLED", nil)
-        } else {
-            h.writeErrorResponse(w, http.StatusInternalServerError, "failed to update job status", err)
-        }
-        return
-    }
+	updateResult, err := h.statusService.UpdateJobStatus(uint(userID), jobID, &req)
+	if err != nil {
+		if err.Error() == "job application not found" {
+			h.writeErrorResponse(w, http.StatusNotFound, "job application not found", nil)
+		} else if err.Error() == "version conflict" {
+			h.writeErrorResponse(w, http.StatusConflict, "version conflict, please refresh and try again", nil)
+		} else if err.Error() == "BACKWARD_CONFIRM_REQUIRED" {
+			// 回退操作需要确认
+			h.writeErrorResponse(w, http.StatusConflict, "BACKWARD_CONFIRM_REQUIRED", nil)
+		} else if err.Error() == "NOTE_REQUIRED_FOR_BACKWARD" {
+			// 终态回退必须备注
+			h.writeErrorResponse(w, http.StatusBadRequest, "NOTE_REQUIRED_FOR_BACKWARD", nil)
+		} else if err.Error() == "BACKWARD_DISABLED" {
+			h.writeErrorResponse(w, http.StatusForbidden, "BACKWARD_DISABLED", nil)
+		} else {
+			var validationErr utils.ValidationError
+			if errors.As(err, &validationErr) {
+				h.writeErrorResponse(w, http.StatusBadRequest, validationErr.Message, nil)
+			} else {
+				var validationErrors utils.ValidationErrors
+				if errors.As(err, &validationErrors) {
+					h.writeErrorResponse(w, http.StatusBadRequest, validationErrors.Error(), nil)
+				} else {
+					h.writeErrorResponse(w, http.StatusInternalServerError, "failed to update job status", err)
+				}
+			}
+		}
+		return
+	}
 
-	h.writeSuccessResponse(w, http.StatusOK, "job status updated successfully", updatedJob)
+	h.writeSuccessResponse(w, http.StatusOK, "job status updated successfully", updateResult)
+}
+
+// UndoJobStatus 撤销最近一次岗位状态更新
+// POST /api/v1/job-applications/{id}/status/undo
+func (h *StatusTrackingHandler) UndoJobStatus(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.GetUserIDFromContext(r.Context())
+	if !ok {
+		h.writeErrorResponse(w, http.StatusUnauthorized, "用户未认证", nil)
+		return
+	}
+
+	vars := mux.Vars(r)
+	jobIDStr, ok := vars["id"]
+	if !ok {
+		h.writeErrorResponse(w, http.StatusBadRequest, "missing job application id", nil)
+		return
+	}
+
+	jobID, err := strconv.Atoi(jobIDStr)
+	if err != nil {
+		h.writeErrorResponse(w, http.StatusBadRequest, "invalid job application id", err)
+		return
+	}
+
+	var req model.StatusUndoRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeErrorResponse(w, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+	if req.HistoryID <= 0 {
+		h.writeErrorResponse(w, http.StatusBadRequest, "history_id is required", nil)
+		return
+	}
+
+	result, err := h.statusService.UndoJobStatus(uint(userID), jobID, &req)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrUndoHistoryNotFound):
+			h.writeErrorResponse(w, http.StatusNotFound, "no undoable history found", nil)
+		case errors.Is(err, service.ErrUndoExpired):
+			h.writeErrorResponse(w, http.StatusGone, "undo window expired", nil)
+		case errors.Is(err, service.ErrUndoVersionMismatch):
+			h.writeErrorResponse(w, http.StatusConflict, "version conflict, please refresh and retry", nil)
+		case errors.Is(err, service.ErrUndoStatusMismatch):
+			h.writeErrorResponse(w, http.StatusConflict, "status mismatch, please refresh data", nil)
+		case errors.Is(err, service.ErrUndoInvalidTarget):
+			h.writeErrorResponse(w, http.StatusBadRequest, "invalid undo request", nil)
+		default:
+			h.writeErrorResponse(w, http.StatusInternalServerError, "failed to undo job status", err)
+		}
+		return
+	}
+
+	h.writeSuccessResponse(w, http.StatusOK, "job status undone successfully", result)
 }
 
 // GetStatusTimeline 获取岗位状态时间轴视图
@@ -292,8 +392,8 @@ func (h *StatusTrackingHandler) GetProcessInsights(w http.ResponseWriter, r *htt
 	// 构建洞察数据
 	insights := map[string]interface{}{
 		"summary": map[string]interface{}{
-			"total_applications": analytics.TotalApplications,
-			"success_rate":      analytics.SuccessRate,
+			"total_applications":  analytics.TotalApplications,
+			"success_rate":        analytics.SuccessRate,
 			"active_applications": h.calculateActiveApplications(analytics.StatusDistribution),
 		},
 		"performance": map[string]interface{}{

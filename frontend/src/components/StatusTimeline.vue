@@ -129,6 +129,43 @@
                 <FileTextOutlined />
                 <span class="status-note">{{ item.note }}</span>
               </div>
+
+              <div
+                v-if="item.interviewExperience"
+                class="interview-experience-card"
+                :class="{ skip: item.interviewExperience?.skip }"
+              >
+                <div class="experience-header">
+                  <component
+                    :is="getInterviewExperienceMeta(item.interviewExperience).icon"
+                    class="experience-icon"
+                  />
+                  <a-tag
+                    class="experience-tag"
+                    :color="getInterviewExperienceMeta(item.interviewExperience).color"
+                  >
+                    {{ getInterviewExperienceMeta(item.interviewExperience).label }}
+                  </a-tag>
+                  <span
+                    v-if="item.interviewExperience?.recordedAt"
+                    class="experience-time"
+                  >
+                    记录于 {{ formatTimestamp(item.interviewExperience.recordedAt, 'YYYY-MM-DD HH:mm') }}
+                  </span>
+                </div>
+                <p
+                  v-if="getInterviewExperiencePrimary(item.interviewExperience)"
+                  class="experience-note"
+                >
+                  {{ getInterviewExperiencePrimary(item.interviewExperience) }}
+                </p>
+                <p
+                  v-if="getInterviewExperienceSecondary(item.interviewExperience)"
+                  class="experience-extra"
+                >
+                  {{ getInterviewExperienceSecondary(item.interviewExperience) }}
+                </p>
+              </div>
             </div>
 
             <!-- 时间进度条（对于当前状态显示） -->
@@ -190,7 +227,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick, type Component } from 'vue'
 import { 
   HistoryOutlined, 
   ReloadOutlined, 
@@ -206,11 +243,14 @@ import {
   CrownOutlined,
   ContactsOutlined,
   StopOutlined,
-  QuestionCircleOutlined
+  QuestionCircleOutlined,
+  InfoCircleOutlined,
+  SmileOutlined,
+  MehOutlined,
+  FrownOutlined
 } from '@ant-design/icons-vue'
 import { useStatusTrackingStore } from '../stores/statusTracking'
-import { StatusHelper, type ApplicationStatus, type StatusTimelineItem, type StatusHistory } from '../types'
-import dayjs from 'dayjs'
+import { StatusHelper, type ApplicationStatus, type StatusTimelineItem, type StatusHistory, type InterviewExperienceRating } from '../types'
 
 // Props
 interface Props {
@@ -378,6 +418,56 @@ const getTimelineColor = (item: StatusTimelineItem): string => {
   if (item.is_passed) return '#52c41a'
   if (item.is_current) return '#1890ff'
   return '#d9d9d9'
+}
+
+type ExperienceMeta = {
+  label: string;
+  color: string;
+  icon: Component;
+}
+
+const interviewExperienceRatingMeta: Record<InterviewExperienceRating, ExperienceMeta> = {
+  good: { label: '体验良好', color: '#52c41a', icon: SmileOutlined },
+  average: { label: '体验一般', color: '#faad14', icon: MehOutlined },
+  bad: { label: '体验欠佳', color: '#ff4d4f', icon: FrownOutlined }
+}
+
+const interviewExperienceSkipMeta: ExperienceMeta = {
+  label: '已跳过反馈',
+  color: '#faad14',
+  icon: InfoCircleOutlined
+}
+
+const interviewExperienceDefaultMeta: ExperienceMeta = {
+  label: '面试体验',
+  color: '#1890ff',
+  icon: InfoCircleOutlined
+}
+
+const getInterviewExperienceMeta = (experience?: StatusTimelineItem['interviewExperience']): ExperienceMeta => {
+  if (!experience) return interviewExperienceDefaultMeta
+  if (experience.skip) return interviewExperienceSkipMeta
+  if (experience.rating && interviewExperienceRatingMeta[experience.rating]) {
+    return interviewExperienceRatingMeta[experience.rating]
+  }
+  return interviewExperienceDefaultMeta
+}
+
+const getInterviewExperiencePrimary = (experience?: StatusTimelineItem['interviewExperience']): string => {
+  if (!experience) return ''
+  if (experience.skip) {
+    if (experience.skipReason) return `原因：${experience.skipReason}`
+    return '本轮反馈已跳过'
+  }
+  return experience.note ?? ''
+}
+
+const getInterviewExperienceSecondary = (experience?: StatusTimelineItem['interviewExperience']): string => {
+  if (!experience) return ''
+  if (experience.skip) {
+    return experience.note ? `备注：${experience.note}` : ''
+  }
+  return ''
 }
 
 const getCurrentStatusDuration = (timestamp: string): number => {
@@ -757,6 +847,61 @@ watch(() => props.currentStatus, (cur, prev) => {
   padding: 4px 8px;
   border-radius: 4px;
   border-left: 3px solid var(--border-color);
+}
+
+.interview-experience-card {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: #f5faff;
+  border: 1px solid #c9e4ff;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.interview-experience-card.skip {
+  background: #fffbe6;
+  border-color: #ffe58f;
+}
+
+.experience-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #595959;
+}
+
+.experience-icon {
+  font-size: 16px;
+  color: #1890ff;
+}
+
+.interview-experience-card.skip .experience-icon {
+  color: #faad14;
+}
+
+.experience-tag {
+  margin: 0;
+}
+
+.experience-time {
+  margin-left: auto;
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+.experience-note {
+  margin: 0;
+  font-size: 13px;
+  color: #262626;
+}
+
+.experience-extra {
+  margin: 0;
+  font-size: 12px;
+  color: #8c8c8c;
 }
 
 .time-progress {

@@ -6,7 +6,7 @@
     <a-card title="投递记录 Timeline" :loading="loading">
       <template #extra>
         <a-space>
-          <a-button type="primary" @click="showCreateModal = true">
+          <a-button type="primary" @click="openCreateModal">
             <template #icon><PlusOutlined /></template>
             添加投递
           </a-button>
@@ -49,7 +49,7 @@
       <!-- Timeline展示 -->
       <div v-if="filteredApplications.length === 0 && !loading" class="empty-state">
         <a-empty :description="hasFilters ? '没有符合条件的投递记录' : '暂无投递记录'">
-          <a-button v-if="!hasFilters" type="primary" @click="showCreateModal = true">添加第一条记录</a-button>
+          <a-button v-if="!hasFilters" type="primary" @click="openCreateModal">添加第一条记录</a-button>
           <a-button v-else @click="clearFilters">清除筛选条件</a-button>
         </a-empty>
       </div>
@@ -111,6 +111,7 @@
       v-model:visible="showCreateModal"
       :initial-data="editingApplication"
       @success="handleFormSuccess"
+      @cancel="handleFormCancel"
     />
     
     <!-- 批量导入弹窗 -->
@@ -157,6 +158,11 @@ const editingApplication = ref<JobApplication | null>(null)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const currentFilters = ref<any>({})
+
+const openCreateModal = () => {
+  editingApplication.value = null
+  showCreateModal.value = true
+}
 
 // 筛选后的数据
 const filteredApplications = computed(() => {
@@ -404,6 +410,10 @@ const handleFormSuccess = () => {
   showCreateModal.value = false
   editingApplication.value = null
   fetchData()
+}
+
+const handleFormCancel = () => {
+  editingApplication.value = null
 }
 
 const handleImportSuccess = () => {

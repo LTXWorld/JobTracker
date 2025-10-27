@@ -116,3 +116,6 @@ test-results.xml
 TODO.md
 NOTES.md
 PERSONAL.md
+# BMAD (local only)
+.bmad-core/
+.bmad-*/

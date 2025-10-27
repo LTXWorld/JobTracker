@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, h } from 'vue'
 import { StatusTrackingAPI } from '../api/statusTracking'
 import { StatusHelper } from '../types'
 import type { 
@@ -11,10 +11,18 @@ import type {
   BatchStatusUpdateRequest,
   StatusTimelineItem,
   StatusStatsCard,
-  ApplicationStatus
+  ApplicationStatus,
+  StatusUpdateResult,
+  StatusUndoRequest,
+  InterviewExperienceRating,
+  InterviewExperienceSubmission,
+  InterviewExperienceMetadata,
+  InterviewExperienceCaptureContext,
+  StatusHistoryEntryMetadata
 } from '../types'
-import { message } from 'ant-design-vue'
-import dayjs from 'dayjs'
+import { message, notification, Button } from 'ant-design-vue'
+import dayjs, { type Dayjs } from 'dayjs'
+import { useJobApplicationStore } from './jobApplication'
 
 /**
  * 状态跟踪功能的Pinia Store
@@ -31,6 +39,19 @@ export const useStatusTrackingStore = defineStore('statusTracking', () => {
   const userPreferences = ref<UserStatusPreferences | null>(null)
   const dashboardData = ref<any>(null)
   const statusDefinitions = ref<any>(null)
+
+  type UndoContext = {
+    historyId: number
+    expiresAt: Dayjs
+    notificationKey: string
+    timer?: ReturnType<typeof setInterval>
+    version?: number
+    onUndo?: () => Promise<void> | void
+  }
+
+  const pendingUndo = ref<Map<number, UndoContext>>(new Map())
+  const jobApplicationStore = useJobApplicationStore()
+  const lastInterviewExperience = ref<InterviewExperienceSubmission | null>(null)
 
   // 加载状态
   const analyticsLoading = ref(false)
@@ -146,28 +167,164 @@ export const useStatusTrackingStore = defineStore('statusTracking', () => {
     }
   }
 
+  const clearUndoContext = (applicationId: number, options?: { silent?: boolean }) => {
+    const ctx = pendingUndo.value.get(applicationId)
+    if (!ctx) return
+
+    if (ctx.timer) {
+      clearInterval(ctx.timer)
+    }
+
+    if (!options?.silent) {
+      notification.close(ctx.notificationKey)
+    }
+
+    pendingUndo.value.delete(applicationId)
+  }
+
+  const undoStatusUpdate = async (applicationId: number) => {
+    const ctx = pendingUndo.value.get(applicationId)
+    if (!ctx) {
+      message.warning('当前没有可撤销的状态更新')
+      return
+    }
+
+    const payload: StatusUndoRequest = {
+      history_id: ctx.historyId
+    }
+    if (ctx.version !== undefined) {
+      payload.version = ctx.version
+    }
+
+    if (ctx.timer) {
+      clearInterval(ctx.timer)
+      ctx.timer = undefined
+    }
+
+    loading.value = true
+    try {
+      const result = await StatusTrackingAPI.undoStatus(applicationId, payload)
+      clearUndoContext(applicationId)
+
+      statusHistories.value.delete(applicationId)
+      await fetchStatusHistory(applicationId, true)
+      await jobApplicationStore.fetchApplications()
+      if (analytics.value) {
+        await fetchAnalytics(true)
+      }
+
+      if (ctx.onUndo) {
+        await ctx.onUndo()
+      }
+
+      const reverted = result?.job?.status
+      message.success(reverted ? `已撤销至「${reverted}」` : '已撤销最近一次状态更新')
+    } catch (error) {
+      clearUndoContext(applicationId)
+      const msg = (error as Error)?.message || '撤销状态失败'
+      if (msg.includes('undo window expired')) {
+        message.error('撤销失败：倒计时已结束，请刷新后重试')
+      } else if (msg.includes('version conflict')) {
+        message.error('撤销失败：数据版本冲突，请刷新后重试')
+      } else if (msg.includes('status mismatch')) {
+        message.error('撤销失败：当前状态已变化，请刷新后重试')
+      } else if (msg.includes('no undoable history') || msg.includes('UNDO_HISTORY_NOT_FOUND')) {
+        message.error('撤销失败：找不到可撤销的记录')
+      } else {
+        message.error('撤销失败: ' + msg)
+      }
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const scheduleUndoNotification = (applicationId: number, result: StatusUpdateResult, options?: { onUndo?: () => Promise<void> | void }) => {
+    if (!result || !result.history_id || !result.undo_available_until) {
+      message.success('状态更新成功')
+      return
+    }
+
+    const deadline = dayjs(result.undo_available_until)
+    if (!deadline.isValid() || deadline.isBefore(dayjs())) {
+      message.success('状态更新成功')
+      return
+    }
+
+    clearUndoContext(applicationId)
+
+    const key = `status-undo-${applicationId}-${result.history_id}`
+    const context: UndoContext = {
+      historyId: result.history_id,
+      expiresAt: deadline,
+      notificationKey: key,
+      version: result.status_version ?? result.job?.status_version ?? undefined,
+      onUndo: options?.onUndo
+    }
+
+    const openNotification = () => {
+      const secondsLeft = Math.max(0, Math.ceil(context.expiresAt.diff(dayjs(), 'second')))
+      notification.open({
+        key,
+        message: '状态更新成功',
+        description: `状态已更新为「${result.job?.status ?? '新状态'}」，可在倒计时结束前撤销。`,
+        duration: 0,
+        btn: h(Button, {
+          type: 'link',
+          size: 'small',
+          disabled: secondsLeft <= 0,
+          onClick: () => undoStatusUpdate(applicationId)
+        }, {
+          default: () => `撤销（${secondsLeft}s）`
+        }),
+        onClose: () => {
+          clearUndoContext(applicationId, { silent: true })
+        }
+      })
+    }
+
+    openNotification()
+
+    context.timer = setInterval(() => {
+      const secondsLeft = Math.ceil(context.expiresAt.diff(dayjs(), 'second'))
+      if (secondsLeft <= 0) {
+        clearUndoContext(applicationId)
+        message.info('撤销机会已过期')
+        return
+      }
+      openNotification()
+    }, 1000)
+
+    pendingUndo.value.set(applicationId, context)
+  }
+
   /**
    * 更新岗位状态
    * @param applicationId 岗位ID
    * @param data 状态更新数据
    */
-  const updateApplicationStatus = async (applicationId: number, data: UpdateStatusRequest) => {
+  const updateApplicationStatus = async (
+    applicationId: number,
+    data: UpdateStatusRequest,
+    options?: { onUndo?: () => Promise<void> | void }
+  ): Promise<StatusUpdateResult | undefined> => {
     loading.value = true
     try {
-      await StatusTrackingAPI.updateStatus(applicationId, data)
+      const result = await StatusTrackingAPI.updateStatus(applicationId, data)
       
       // 清除缓存，强制刷新
       statusHistories.value.delete(applicationId)
       
       // 重新获取历史记录
       await fetchStatusHistory(applicationId, true)
-      
-      message.success('状态更新成功')
+
+      scheduleUndoNotification(applicationId, result, options)
       
       // 刷新分析数据
       if (analytics.value) {
         await fetchAnalytics(true)
       }
+
+      return result
     } catch (error) {
       message.error('状态更新失败: ' + (error as Error).message)
       throw error
@@ -204,16 +361,110 @@ export const useStatusTrackingStore = defineStore('statusTracking', () => {
     }
   }
 
+  const interviewExperienceRatings = new Set<InterviewExperienceRating>(['good', 'average', 'bad'])
+
+  const normalizeExperienceText = (value: unknown): string | undefined => {
+    if (typeof value !== 'string') return undefined
+    const trimmed = value.trim()
+    return trimmed.length > 0 ? trimmed : undefined
+  }
+
+  const cacheInterviewExperience = (submission: InterviewExperienceSubmission | null) => {
+    lastInterviewExperience.value = submission ? { ...submission } : null
+  }
+
+  const getCachedInterviewExperience = (): InterviewExperienceSubmission | null => {
+    const cached = lastInterviewExperience.value
+    return cached ? { ...cached } : null
+  }
+
+  const buildInterviewExperienceMetadata = (
+    context: InterviewExperienceCaptureContext,
+    submission: InterviewExperienceSubmission
+  ): InterviewExperienceMetadata => {
+    const note = normalizeExperienceText(submission.note) ?? null
+    const metadata: InterviewExperienceMetadata = {
+      skip: submission.skip,
+      recorded_at: dayjs().toISOString(),
+      recorded_by: null,
+      from_status: context.fromStatus,
+      to_status: context.toStatus,
+      note
+    }
+
+    if (submission.skip) {
+      metadata.skip_reason = normalizeExperienceText(submission.skip_reason) ?? null
+    } else {
+      metadata.rating = submission.rating
+      metadata.skip_reason = null
+    }
+
+    return metadata
+  }
+
+  const assembleUpdateRequestWithInterviewExperience = (
+    base: UpdateStatusRequest,
+    context: InterviewExperienceCaptureContext,
+    submission?: InterviewExperienceSubmission | null
+  ): UpdateStatusRequest => {
+    if (!submission) {
+      return { ...base }
+    }
+
+    const metadata = {
+      ...(base.metadata ?? {}),
+      interview_experience: buildInterviewExperienceMetadata(context, submission)
+    }
+
+    cacheInterviewExperience(submission)
+
+    return {
+      ...base,
+      metadata
+    }
+  }
+
+  const normalizeInterviewExperience = (
+    raw: StatusHistoryEntryMetadata['interview_experience']
+  ): StatusTimelineItem['interviewExperience'] | undefined => {
+    if (!raw || typeof raw !== 'object') return undefined
+    const data = raw as Record<string, unknown>
+
+    const ratingCandidate = data['rating']
+    const rating = typeof ratingCandidate === 'string' && interviewExperienceRatings.has(ratingCandidate as InterviewExperienceRating)
+      ? ratingCandidate as InterviewExperienceRating
+      : undefined
+
+    const skipValue = data['skip']
+    const skip = skipValue !== undefined ? Boolean(skipValue) : false
+
+    const recordedByValue = data['recorded_by']
+    const fromStatusValue = data['from_status']
+    const toStatusValue = data['to_status']
+
+    return {
+      skip,
+      rating,
+      note: normalizeExperienceText(data['note']),
+      skipReason: normalizeExperienceText(data['skip_reason']),
+      recordedAt: normalizeExperienceText(data['recorded_at']),
+      recordedBy: typeof recordedByValue === 'number' ? recordedByValue : undefined,
+      fromStatus: typeof fromStatusValue === 'string' ? fromStatusValue : undefined,
+      toStatus: typeof toStatusValue === 'string' ? toStatusValue : undefined,
+      raw: { ...data }
+    }
+  }
+
   /**
    * 将状态历史转换为时间轴数据
    * @param history 状态历史记录
    */
   const convertToTimelineData = (history: StatusHistory): StatusTimelineItem[] => {
-    return history.history.map((entry, index) => {
+    const mappedEntries = history.history.map((entry, index) => {
       const isCurrentStatus = index === history.history.length - 1
       const status = entry.status as ApplicationStatus
-      
-      return {
+      const metadata = (entry.metadata ?? {}) as StatusHistoryEntryMetadata
+      const item: StatusTimelineItem = {
         id: `${entry.timestamp}_${entry.status}`,
         status,
         timestamp: entry.timestamp,
@@ -224,9 +475,29 @@ export const useStatusTrackingStore = defineStore('statusTracking', () => {
         is_passed: StatusHelper.isPassedStatus(status),
         icon: getStatusIcon(status),
         color: StatusHelper.getStatusColor(status),
-        interview_scheduled: entry.interview_scheduled || undefined
+        interview_scheduled: entry.interview_scheduled || undefined,
+        interviewExperience: normalizeInterviewExperience(metadata['interview_experience'] ?? null)
+      }
+      return { item, metadata }
+    })
+
+    mappedEntries.forEach(({ metadata }, index) => {
+      const undoApplied = typeof metadata['undo_applied'] === 'boolean' ? (metadata['undo_applied'] as boolean) : false
+      const isUndoRecord = typeof metadata['undo'] === 'boolean' ? (metadata['undo'] as boolean) : false
+
+      if (undoApplied) {
+        mappedEntries[index].item.interviewExperience = undefined
+      }
+
+      if (isUndoRecord) {
+        mappedEntries[index].item.interviewExperience = undefined
+        if (index > 0) {
+          mappedEntries[index - 1].item.interviewExperience = undefined
+        }
       }
     })
+
+    return mappedEntries.map(entry => entry.item)
   }
 
   /**
@@ -510,6 +781,7 @@ export const useStatusTrackingStore = defineStore('statusTracking', () => {
     updateApplicationStatus,
     batchUpdateStatuses,
     convertToTimelineData,
+    undoStatusUpdate,
     
     // 分析数据方法
     fetchAnalytics,
@@ -530,6 +802,9 @@ export const useStatusTrackingStore = defineStore('statusTracking', () => {
     formatDuration,
     formatTimestamp,
     calculateDuration,
+    cacheInterviewExperience,
+    getCachedInterviewExperience,
+    assembleUpdateRequestWithInterviewExperience,
     clearCache
   }
 })

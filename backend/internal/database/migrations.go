@@ -793,6 +793,46 @@ func (db *DB) ensureStatusTrackingInfrastructure() error {
         END $$;`); err != nil {
 		log.Printf("Warning: ensure trigger tr_job_applications_status_change failed: %v", err)
 	}
+
+	// 6) interview_experiences 表（面试体验记录）
+	var hasStatusEnum bool
+	if err := db.QueryRow(`
+        SELECT EXISTS (
+            SELECT 1
+            FROM pg_type
+            WHERE typname = 'application_status'
+              AND typtype = 'e'
+        )`).Scan(&hasStatusEnum); err != nil {
+		return fmt.Errorf("check application_status enum: %w", err)
+	}
+	statusColumnType := "VARCHAR(64)"
+	if hasStatusEnum {
+		statusColumnType = "application_status"
+	}
+	createInterviewExperiences := fmt.Sprintf(`
+        CREATE TABLE IF NOT EXISTS interview_experiences (
+            id BIGSERIAL PRIMARY KEY,
+            application_id INTEGER NOT NULL REFERENCES job_applications(id) ON DELETE CASCADE,
+            from_status %s NOT NULL,
+            to_status %s NOT NULL,
+            rating VARCHAR(16),
+            note VARCHAR(200),
+            skip BOOLEAN NOT NULL DEFAULT FALSE,
+            skip_reason VARCHAR(200),
+            recorded_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            recorded_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            CONSTRAINT chk_interview_experiences_rating CHECK (
+                rating IS NULL OR rating IN ('good', 'average', 'bad')
+            )
+        );`, statusColumnType, statusColumnType)
+	if _, err := db.Exec(createInterviewExperiences); err != nil {
+		return fmt.Errorf("create interview_experiences: %w", err)
+	}
+	if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_interview_experiences_application_id ON interview_experiences(application_id, recorded_at DESC)"); err != nil {
+		log.Printf("Warning: create index idx_interview_experiences_application_id failed: %v", err)
+	}
+
 	return nil
 }
 

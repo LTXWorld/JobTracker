@@ -1,0 +1,37 @@
+schema: 1
+story: '1.2'
+story_title: 'Story 1.2: 面试体验数据模型与 API 扩展'
+gate: PASS
+status_reason: '服务层校验、迁移与查询验证通过，面试体验功能满足 AC1-AC6'
+reviewer: 'Quinn (Test Architect)'
+updated: '2025-10-23T22:27:29+08:00'
+top_issues: []
+waiver:
+  active: false
+quality_score: 95
+expires: '2025-11-06T22:27:29+08:00'
+evidence:
+  tests_reviewed: 2
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6]
+    ac_gaps: []
+nfr_validation:
+  security:
+    status: PASS
+    notes: '鉴权沿用既有中间件，新增端点继续复用认证'
+  performance:
+    status: PASS
+    notes: '写入与查询均使用索引，事务耗时与既有流程相当'
+  reliability:
+    status: PASS
+    notes: '迁移补齐后端到端调用验证通过'
+  maintainability:
+    status: PASS
+    notes: '逻辑集中于服务层，具备针对性测试覆盖'
+recommendations:
+  immediate: []
+  future:
+    - action: '后续可考虑补充仓储层排序测试，验证多记录同时间戳时的稳定性'
+      refs:
+        - backend/internal/repository/status_tracking_repository.go

@@ -9,19 +9,30 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"jobView-backend/internal/model"
 	"jobView-backend/internal/repository"
+	"jobView-backend/internal/utils"
 )
 
 type StatusTrackingService struct {
 	repo       repository.StatusTrackingRepository
 	configRepo repository.StatusConfigRepository
 }
+
+var (
+	ErrUndoHistoryNotFound = errors.New("UNDO_HISTORY_NOT_FOUND")
+	ErrUndoExpired         = errors.New("UNDO_EXPIRED")
+	ErrUndoVersionMismatch = errors.New("UNDO_VERSION_CONFLICT")
+	ErrUndoStatusMismatch  = errors.New("UNDO_STATUS_MISMATCH")
+	ErrUndoInvalidTarget   = errors.New("UNDO_INVALID_TARGET")
+)
 
 func NewStatusTrackingService(repo repository.StatusTrackingRepository, configRepo repository.StatusConfigRepository) *StatusTrackingService {
 	return &StatusTrackingService{repo: repo, configRepo: configRepo}
@@ -61,7 +72,7 @@ func (s *StatusTrackingService) GetStatusHistory(userID uint, jobApplicationID i
 	}, nil
 }
 
-func (s *StatusTrackingService) UpdateJobStatus(userID uint, jobApplicationID int, request *model.StatusUpdateRequest) (*model.JobApplication, error) {
+func (s *StatusTrackingService) UpdateJobStatus(userID uint, jobApplicationID int, request *model.StatusUpdateRequest) (*model.StatusUpdateResult, error) {
 	if err := s.ensureRepo(); err != nil {
 		return nil, err
 	}
@@ -93,7 +104,14 @@ func (s *StatusTrackingService) UpdateJobStatus(userID uint, jobApplicationID in
 		if err := tx.Commit(); err != nil {
 			return nil, fmt.Errorf("failed to commit transaction: %w", err)
 		}
-		return &snapshot.Job, nil
+		result := &model.StatusUpdateResult{
+			Job: &snapshot.Job,
+		}
+		if snapshot.StatusVersion != nil {
+			result.StatusVersion = snapshot.StatusVersion
+			result.Job.StatusVersion = snapshot.StatusVersion
+		}
+		return result, nil
 	}
 
 	validateErr := s.validateStatusTransition(userID, snapshot.Job.Status, request.Status)
@@ -123,8 +141,8 @@ func (s *StatusTrackingService) UpdateJobStatus(userID uint, jobApplicationID in
 	if err := tx.SetLocalFlag("jobview.skip_history", true); err != nil {
 		return nil, fmt.Errorf("failed to set session flag: %w", err)
 	}
-	suppressHistory := isBackward && request.ConfirmBackward != nil && *request.ConfirmBackward
-	if suppressHistory {
+	allowBackwardFlag := isBackward && request.ConfirmBackward != nil && *request.ConfirmBackward
+	if allowBackwardFlag {
 		if err := tx.SetLocalFlag("jobview.allow_backward", true); err != nil {
 			return nil, fmt.Errorf("failed to enable backward flag: %w", err)
 		}
@@ -140,12 +158,27 @@ func (s *StatusTrackingService) UpdateJobStatus(userID uint, jobApplicationID in
 	useDBTriggerForHistory := false
 	var statusHistoryBytes []byte
 	var durationStatsBytes []byte
-	if !useDBTriggerForHistory && !suppressHistory {
+	var insertedHistoryID *int64
+	var experienceInsert *repository.InterviewExperienceInsert
+	if !useDBTriggerForHistory {
 		metadata := make(map[string]interface{})
 		if request.Metadata != nil {
 			for k, v := range request.Metadata {
+				if k == "interview_experience" {
+					continue
+				}
 				metadata[k] = v
 			}
+		}
+		if s.shouldCaptureInterviewExperience(snapshot.Job.Status) {
+			interviewMeta, insertPayload, err := s.prepareInterviewExperience(request.Metadata, userID, jobApplicationID, snapshot.Job.Status, request.Status, now)
+			if err != nil {
+				return nil, err
+			}
+			if len(interviewMeta) > 0 {
+				metadata["interview_experience"] = interviewMeta
+			}
+			experienceInsert = insertPayload
 		}
 		if isBackward {
 			metadata["backward"] = true
@@ -156,7 +189,7 @@ func (s *StatusTrackingService) UpdateJobStatus(userID uint, jobApplicationID in
 			}
 		}
 		metadataBytes, _ := json.Marshal(metadata)
-		_, err = tx.InsertStatusHistory(repository.StatusHistoryInsert{
+		historyID, insertErr := tx.InsertStatusHistory(repository.StatusHistoryInsert{
 			JobApplicationID: jobApplicationID,
 			UserID:           userID,
 			OldStatus:        snapshot.Job.Status,
@@ -165,15 +198,21 @@ func (s *StatusTrackingService) UpdateJobStatus(userID uint, jobApplicationID in
 			DurationMinutes:  durationMinutes,
 			Metadata:         metadataBytes,
 		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to insert status history: %w", err)
+		if insertErr != nil {
+			return nil, fmt.Errorf("failed to insert status history: %w", insertErr)
+		}
+		insertedHistoryID = &historyID
+		if experienceInsert != nil {
+			if _, err := tx.InsertInterviewExperience(*experienceInsert); err != nil {
+				return nil, fmt.Errorf("failed to insert interview experience: %w", err)
+			}
 		}
 
 		currentHistory := ""
 		if snapshot.StatusHistoryRaw != nil {
 			currentHistory = *snapshot.StatusHistoryRaw
 		}
-		history := s.updateStatusHistoryJSON(currentHistory, snapshot.Job.Status, request.Status, now, durationMinutes)
+		history := s.updateStatusHistoryJSON(currentHistory, snapshot.Job.Status, request.Status, now, durationMinutes, metadata)
 		statusHistoryBytes, _ = json.Marshal(history)
 
 		currentStats := ""
@@ -198,10 +237,10 @@ func (s *StatusTrackingService) UpdateJobStatus(userID uint, jobApplicationID in
 		StatusVersion:     &newVersion,
 		StatusHistoryJSON: statusHistoryBytes,
 		DurationStatsJSON: durationStatsBytes,
-		SuppressHistory:   suppressHistory,
+		SuppressHistory:   false,
 		UseTrigger:        useDBTriggerForHistory,
 	}
-	if suppressHistory || useDBTriggerForHistory {
+	if useDBTriggerForHistory {
 		params.LastStatusChange = nil
 		params.StatusHistoryJSON = nil
 		params.DurationStatsJSON = nil
@@ -217,7 +256,195 @@ func (s *StatusTrackingService) UpdateJobStatus(userID uint, jobApplicationID in
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	return updatedJob, nil
+	resultVersion := updatedJob.StatusVersion
+	if params.StatusVersion != nil {
+		versionCopy := newVersion
+		resultVersion = &versionCopy
+		updatedJob.StatusVersion = resultVersion
+	}
+
+	result := &model.StatusUpdateResult{
+		Job:           updatedJob,
+		StatusVersion: resultVersion,
+	}
+	if insertedHistoryID != nil {
+		result.HistoryID = insertedHistoryID
+		deadline := now.Add(s.undoWindowDuration())
+		result.UndoAvailableUntil = &deadline
+		result.Metadata = map[string]interface{}{
+			"undo_window_seconds": int(s.undoWindowDuration().Seconds()),
+		}
+	}
+
+	return result, nil
+}
+
+func (s *StatusTrackingService) UndoJobStatus(userID uint, jobApplicationID int, request *model.StatusUndoRequest) (*model.StatusUndoResult, error) {
+	if err := s.ensureRepo(); err != nil {
+		return nil, err
+	}
+	if request == nil {
+		return nil, fmt.Errorf("%w: missing request body", ErrUndoInvalidTarget)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+	if err := tx.SetLocalFlag("jobview.skip_history", true); err != nil {
+		return nil, fmt.Errorf("failed to set session flag: %w", err)
+	}
+	if err := tx.SetLocalFlag("jobview.allow_backward", true); err != nil {
+		return nil, fmt.Errorf("failed to enable backward flag: %w", err)
+	}
+
+	snapshot, err := tx.GetJobApplicationForUpdate(userID, jobApplicationID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("%w: job application not found", ErrUndoInvalidTarget)
+		}
+		return nil, fmt.Errorf("failed to load job application: %w", err)
+	}
+
+	if snapshot.StatusVersion != nil && request.Version == nil {
+		return nil, fmt.Errorf("%w: version required", ErrUndoVersionMismatch)
+	}
+	if snapshot.StatusVersion != nil && request.Version != nil && int32(*snapshot.StatusVersion) != int32(*request.Version) {
+		return nil, fmt.Errorf("%w: expected %d but got %d", ErrUndoVersionMismatch, *snapshot.StatusVersion, *request.Version)
+	}
+
+	latest, err := tx.GetLatestHistoryEntry(userID, jobApplicationID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrUndoHistoryNotFound
+		}
+		return nil, fmt.Errorf("failed to fetch latest history: %w", err)
+	}
+	if latest == nil {
+		return nil, ErrUndoHistoryNotFound
+	}
+	if latest.OldStatus == nil {
+		return nil, fmt.Errorf("%w: missing previous status", ErrUndoInvalidTarget)
+	}
+	if latest.NewStatus != snapshot.Job.Status {
+		return nil, fmt.Errorf("%w: current status %s does not match history %s", ErrUndoStatusMismatch, snapshot.Job.Status, latest.NewStatus)
+	}
+	if request.HistoryID != 0 && request.HistoryID != latest.ID {
+		return nil, fmt.Errorf("%w: history mismatch", ErrUndoStatusMismatch)
+	}
+
+	window := s.undoWindowDuration()
+	if time.Since(latest.StatusChangedAt) > window {
+		return nil, ErrUndoExpired
+	}
+
+	now := time.Now()
+	var durationMinutes *int
+	if snapshot.LastStatusChange != nil {
+		delta := int(now.Sub(*snapshot.LastStatusChange).Minutes())
+		if delta < 0 {
+			delta = 0
+		}
+		durationMinutes = &delta
+	}
+
+	undoMetadata := map[string]interface{}{
+		"undo":          true,
+		"undo_by":       userID,
+		"undo_source":   latest.ID,
+		"undo_at":       now,
+		"reverted_to":   string(*latest.OldStatus),
+		"undo_window":   int(window.Seconds()),
+		"undo_deadline": latest.StatusChangedAt.Add(window),
+	}
+	undoMetadataBytes, _ := json.Marshal(undoMetadata)
+	undoHistoryID, err := tx.InsertStatusHistory(repository.StatusHistoryInsert{
+		JobApplicationID: jobApplicationID,
+		UserID:           userID,
+		OldStatus:        snapshot.Job.Status,
+		NewStatus:        *latest.OldStatus,
+		ChangedAt:        now,
+		DurationMinutes:  durationMinutes,
+		Metadata:         undoMetadataBytes,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to insert undo history: %w", err)
+	}
+
+	originalMetadata := make(map[string]interface{})
+	if latest.Metadata != nil {
+		for k, v := range latest.Metadata {
+			originalMetadata[k] = v
+		}
+	}
+	originalMetadata["undo_applied"] = true
+	originalMetadata["undo_by"] = userID
+	originalMetadata["undo_at"] = now
+	originalMetadata["undo_history_id"] = undoHistoryID
+	originalMetadataBytes, _ := json.Marshal(originalMetadata)
+	if err := tx.UpdateHistoryMetadata(latest.ID, originalMetadataBytes); err != nil {
+		return nil, fmt.Errorf("failed to update source history metadata: %w", err)
+	}
+
+	currentHistory := ""
+	if snapshot.StatusHistoryRaw != nil {
+		currentHistory = *snapshot.StatusHistoryRaw
+	}
+	history := s.updateStatusHistoryJSON(currentHistory, snapshot.Job.Status, *latest.OldStatus, now, durationMinutes, undoMetadata)
+	statusHistoryBytes, _ := json.Marshal(history)
+
+	currentStats := ""
+	if snapshot.DurationStatsRaw != nil {
+		currentStats = *snapshot.DurationStatsRaw
+	}
+	stats := s.updateDurationStats(currentStats, snapshot.Job.Status, durationMinutes)
+	durationStatsBytes, _ := json.Marshal(stats)
+
+	var newVersionPtr *int
+	if snapshot.StatusVersion != nil {
+		v := *snapshot.StatusVersion - 1
+		if v < 0 {
+			v = 0
+		}
+		newVersionPtr = &v
+	}
+
+	params := repository.UpdateJobApplicationParams{
+		JobApplicationID:  jobApplicationID,
+		UserID:            userID,
+		NewStatus:         *latest.OldStatus,
+		Now:               now,
+		LastStatusChange:  &now,
+		StatusVersion:     newVersionPtr,
+		StatusHistoryJSON: statusHistoryBytes,
+		DurationStatsJSON: durationStatsBytes,
+	}
+
+	updatedJob, err := tx.UpdateJobApplication(params)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit undo transaction: %w", err)
+	}
+
+	if newVersionPtr != nil {
+		updatedJob.StatusVersion = newVersionPtr
+	}
+
+	return &model.StatusUndoResult{
+		Job:             updatedJob,
+		RevertedTo:      *latest.OldStatus,
+		UndoHistoryID:   undoHistoryID,
+		SourceHistoryID: latest.ID,
+		StatusVersion:   newVersionPtr,
+		UndoCompletedAt: now,
+	}, nil
 }
 
 func (s *StatusTrackingService) GetStatusTimeline(userID uint, jobApplicationID int) (map[string]interface{}, error) {
@@ -258,6 +485,20 @@ func (s *StatusTrackingService) GetStatusTimeline(userID uint, jobApplicationID 
 		"total_duration_minutes": totalDuration,
 		"total_changes":          len(timeline),
 	}, nil
+}
+
+func (s *StatusTrackingService) GetInterviewExperiences(userID uint, jobApplicationID int) ([]model.InterviewExperience, error) {
+	if err := s.ensureRepo(); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	experiences, err := s.repo.GetInterviewExperiences(ctx, userID, jobApplicationID)
+	if err != nil {
+		return nil, err
+	}
+	return experiences, nil
 }
 
 func (s *StatusTrackingService) BatchUpdateStatus(userID uint, updates []model.BatchStatusUpdate) error {
@@ -502,8 +743,243 @@ func (s *StatusTrackingService) isTerminalStatus(st model.ApplicationStatus) boo
 		st == model.StatusThirdFail || st == model.StatusHRFail
 }
 
+func (s *StatusTrackingService) undoWindowDuration() time.Duration {
+	if value := os.Getenv("STATUS_UNDO_WINDOW_SECONDS"); value != "" {
+		if seconds, err := strconv.Atoi(value); err == nil && seconds > 0 {
+			return time.Duration(seconds) * time.Second
+		}
+	}
+	return 10 * time.Second
+}
+
+var interviewStageStatuses = map[model.ApplicationStatus]struct{}{
+	model.StatusFirstInterview:  {},
+	model.StatusSecondInterview: {},
+	model.StatusThirdInterview:  {},
+	model.StatusHRInterview:     {},
+}
+
+func (s *StatusTrackingService) shouldCaptureInterviewExperience(status model.ApplicationStatus) bool {
+	_, ok := interviewStageStatuses[status]
+	return ok
+}
+
+func (s *StatusTrackingService) prepareInterviewExperience(rawMetadata map[string]interface{}, userID uint, applicationID int, fromStatus, toStatus model.ApplicationStatus, now time.Time) (map[string]interface{}, *repository.InterviewExperienceInsert, error) {
+	experience := &repository.InterviewExperienceInsert{
+		ApplicationID: applicationID,
+		UserID:        userID,
+		FromStatus:    fromStatus,
+		ToStatus:      toStatus,
+		Skip:          true,
+		RecordedAt:    now,
+	}
+
+	sanitized := map[string]interface{}{
+		"skip":        true,
+		"recorded_by": userID,
+		"recorded_at": now.UTC().Format(time.RFC3339),
+		"from_status": string(fromStatus),
+		"to_status":   string(toStatus),
+	}
+
+	if rawMetadata == nil {
+		return sanitized, experience, nil
+	}
+
+	rawExperience, ok := rawMetadata["interview_experience"]
+	if !ok || rawExperience == nil {
+		return sanitized, experience, nil
+	}
+
+	experienceMap, ok := rawExperience.(map[string]interface{})
+	if !ok {
+		return nil, nil, utils.NewValidationError("metadata.interview_experience", "interview_experience 必须是对象")
+	}
+
+	skip := false
+	if rawSkip, exists := experienceMap["skip"]; exists {
+		parsedSkip, err := castToBool(rawSkip)
+		if err != nil {
+			return nil, nil, utils.NewValidationError("metadata.interview_experience.skip", "skip 字段值无效")
+		}
+		skip = parsedSkip
+	}
+	experience.Skip = skip
+	sanitized["skip"] = skip
+
+	recordedAt := now
+	if rawRecordedAt, exists := experienceMap["recorded_at"]; exists && rawRecordedAt != nil {
+		parsedAt, err := parseInterviewRecordedAt(rawRecordedAt)
+		if err != nil {
+			return nil, nil, utils.NewValidationError("metadata.interview_experience.recorded_at", "recorded_at 需符合 RFC3339 格式")
+		}
+		recordedAt = parsedAt
+	}
+	experience.RecordedAt = recordedAt
+	sanitized["recorded_at"] = recordedAt.UTC().Format(time.RFC3339)
+	sanitized["recorded_by"] = userID
+	sanitized["from_status"] = string(fromStatus)
+	sanitized["to_status"] = string(toStatus)
+
+	if !skip {
+		rawRating, exists := experienceMap["rating"]
+		if !exists || rawRating == nil {
+			return nil, nil, utils.NewValidationError("metadata.interview_experience.rating", "缺失评价")
+		}
+		rating, err := extractString(rawRating)
+		if err != nil {
+			return nil, nil, utils.NewValidationError("metadata.interview_experience.rating", "rating 必须为字符串")
+		}
+		rating = strings.ToLower(strings.TrimSpace(rating))
+		if !isValidInterviewRating(rating) {
+			return nil, nil, utils.NewValidationError("metadata.interview_experience.rating", "rating 仅支持 good/average/bad")
+		}
+		sanitized["rating"] = rating
+		ratingCopy := rating
+		experience.Rating = &ratingCopy
+	} else if rawRating, exists := experienceMap["rating"]; exists && rawRating != nil {
+		rating, err := extractString(rawRating)
+		if err == nil && rating != "" {
+			rating = strings.ToLower(strings.TrimSpace(rating))
+			if isValidInterviewRating(rating) {
+				sanitized["rating"] = rating
+				ratingCopy := rating
+				experience.Rating = &ratingCopy
+			}
+		}
+	}
+
+	if rawNote, exists := experienceMap["note"]; exists && rawNote != nil {
+		note, err := extractString(rawNote)
+		if err != nil {
+			return nil, nil, utils.NewValidationError("metadata.interview_experience.note", "note 必须为字符串")
+		}
+		note = utils.SanitizeInput(note)
+		if len([]rune(note)) > 200 {
+			return nil, nil, utils.NewValidationError("metadata.interview_experience.note", "note 最长 200 字符")
+		}
+		if note != "" {
+			sanitized["note"] = note
+			noteCopy := note
+			experience.Note = &noteCopy
+		}
+	}
+
+	if rawReason, exists := experienceMap["skip_reason"]; exists && rawReason != nil {
+		reason, err := extractString(rawReason)
+		if err != nil {
+			return nil, nil, utils.NewValidationError("metadata.interview_experience.skip_reason", "skip_reason 必须为字符串")
+		}
+		reason = utils.SanitizeInput(reason)
+		if len([]rune(reason)) > 200 {
+			return nil, nil, utils.NewValidationError("metadata.interview_experience.skip_reason", "skip_reason 最长 200 字符")
+		}
+		if reason != "" {
+			sanitized["skip_reason"] = reason
+			reasonCopy := reason
+			experience.SkipReason = &reasonCopy
+		}
+	}
+
+	return sanitized, experience, nil
+}
+
+func castToBool(value interface{}) (bool, error) {
+	switch v := value.(type) {
+	case bool:
+		return v, nil
+	case string:
+		trimmed := strings.TrimSpace(strings.ToLower(v))
+		switch trimmed {
+		case "true", "1", "yes", "y":
+			return true, nil
+		case "false", "0", "no", "n":
+			return false, nil
+		default:
+			return false, fmt.Errorf("invalid boolean string")
+		}
+	case float64:
+		if v == 1 {
+			return true, nil
+		}
+		if v == 0 {
+			return false, nil
+		}
+		return false, fmt.Errorf("invalid boolean number")
+	default:
+		return false, fmt.Errorf("unsupported boolean type")
+	}
+}
+
+func extractString(value interface{}) (string, error) {
+	switch v := value.(type) {
+	case string:
+		return strings.TrimSpace(v), nil
+	case fmt.Stringer:
+		return strings.TrimSpace(v.String()), nil
+	default:
+		return "", fmt.Errorf("value is not a string")
+	}
+}
+
+func parseInterviewRecordedAt(value interface{}) (time.Time, error) {
+	switch v := value.(type) {
+	case string:
+		trimmed := strings.TrimSpace(v)
+		if trimmed == "" {
+			return time.Time{}, fmt.Errorf("empty time")
+		}
+		if ts, err := time.Parse(time.RFC3339, trimmed); err == nil {
+			return ts, nil
+		}
+		if ts, err := time.Parse(time.RFC3339Nano, trimmed); err == nil {
+			return ts, nil
+		}
+		return time.Time{}, fmt.Errorf("invalid time format")
+	case time.Time:
+		return v, nil
+	default:
+		return time.Time{}, fmt.Errorf("unsupported time type")
+	}
+}
+
+func isValidInterviewRating(rating string) bool {
+	switch rating {
+	case "good", "average", "bad":
+		return true
+	default:
+		return false
+	}
+}
+
+func cloneStatusMetadata(src map[string]interface{}) map[string]interface{} {
+	if src == nil {
+		return nil
+	}
+	cloned := make(map[string]interface{}, len(src))
+	for k, v := range src {
+		switch nested := v.(type) {
+		case map[string]interface{}:
+			cloned[k] = cloneStatusMetadata(nested)
+		case []interface{}:
+			copied := make([]interface{}, len(nested))
+			for i, item := range nested {
+				if child, ok := item.(map[string]interface{}); ok {
+					copied[i] = cloneStatusMetadata(child)
+				} else {
+					copied[i] = item
+				}
+			}
+			cloned[k] = copied
+		default:
+			cloned[k] = nested
+		}
+	}
+	return cloned
+}
+
 // updateStatusHistoryJSON 更新状态历史JSON
-func (s *StatusTrackingService) updateStatusHistoryJSON(currentHistoryStr string, oldStatus, newStatus model.ApplicationStatus, changedAt time.Time, durationMinutes *int) model.StatusHistory {
+func (s *StatusTrackingService) updateStatusHistoryJSON(currentHistoryStr string, oldStatus, newStatus model.ApplicationStatus, changedAt time.Time, durationMinutes *int, metadata map[string]interface{}) model.StatusHistory {
 	var history model.StatusHistory
 
 	// 解析现有历史
@@ -525,6 +1001,9 @@ func (s *StatusTrackingService) updateStatusHistoryJSON(currentHistoryStr string
 	}
 	if durationMinutes != nil {
 		entry.DurationMinutes = durationMinutes
+	}
+	if metadata != nil && len(metadata) > 0 {
+		entry.Metadata = cloneStatusMetadata(metadata)
 	}
 
 	history.History = append(history.History, entry)

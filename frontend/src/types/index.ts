@@ -123,6 +123,17 @@ export const StatusHelper = {
     if (StatusHelper.isFailedStatus(status)) return '已失败'
     if (StatusHelper.isInProgressStatus(status)) return '进行中'
     return '已通过'
+  },
+
+  // 判断是否处于需要采集面试体验的阶段
+  shouldCaptureInterviewExperience: (status: ApplicationStatus): boolean => {
+    const interviewStatuses: ApplicationStatus[] = [
+      ApplicationStatus.FIRST_INTERVIEW,
+      ApplicationStatus.SECOND_INTERVIEW,
+      ApplicationStatus.THIRD_INTERVIEW,
+      ApplicationStatus.HR_INTERVIEW
+    ]
+    return interviewStatuses.includes(status)
   }
 }
 
@@ -144,6 +155,7 @@ export interface JobApplication {
   position_title: string;
   application_date: string;
   status: ApplicationStatus;
+  status_version?: number;
   company_attribute?: '央国企' | '私企' | null; // 企业属性
   job_description?: string | null;
   salary_range?: string | null;
@@ -321,7 +333,7 @@ export interface StatusHistoryEntry {
   trigger?: 'manual' | 'auto' | 'system';
   user_id?: number;
   interview_scheduled?: string | null; // 面试安排时间
-  metadata?: Record<string, any>; // 额外元数据
+  metadata?: StatusHistoryEntryMetadata | null; // 额外元数据（含面试体验等扩展字段）
 }
 
 // 状态历史记录
@@ -462,6 +474,31 @@ export interface UpdateStatusRequest {
   confirm_backward?: boolean;
 }
 
+// 状态更新响应
+export interface StatusUpdateResult {
+  job: JobApplication;
+  history_id?: number;
+  status_version?: number;
+  undo_available_until?: string;
+  metadata?: Record<string, any>;
+}
+
+// 撤销状态更新请求
+export interface StatusUndoRequest {
+  history_id: number;
+  version?: number;
+}
+
+// 撤销状态更新响应
+export interface StatusUndoResult {
+  job: JobApplication;
+  reverted_to: ApplicationStatus;
+  undo_history_id: number;
+  source_history_id: number;
+  status_version?: number;
+  undo_completed_at: string;
+}
+
 // 批量状态更新请求
 export interface BatchStatusUpdateRequest {
   updates: Array<{
@@ -481,6 +518,54 @@ export interface StatusHistoryParams {
   page_size?: number;
 }
 
+export type InterviewExperienceRating = 'good' | 'average' | 'bad';
+
+export interface InterviewExperienceMetadata {
+  rating?: InterviewExperienceRating;
+  note?: string | null;
+  skip?: boolean;
+  skip_reason?: string | null;
+  recorded_at?: string | null;
+  recorded_by?: number | null;
+  from_status?: ApplicationStatus | string | null;
+  to_status?: ApplicationStatus | string | null;
+  [key: string]: unknown;
+}
+
+export interface StatusHistoryEntryMetadata extends Record<string, unknown> {
+  interview_experience?: InterviewExperienceMetadata | null;
+}
+
+export type InterviewExperienceSubmission =
+  | {
+      skip: false;
+      rating: InterviewExperienceRating;
+      note?: string;
+      skip_reason?: string;
+    }
+  | {
+      skip: true;
+      note?: string;
+      skip_reason?: string;
+    };
+
+export interface InterviewExperienceCaptureContext {
+  fromStatus: ApplicationStatus;
+  toStatus: ApplicationStatus;
+}
+
+export interface StatusTimelineInterviewExperience {
+  skip: boolean;
+  rating?: InterviewExperienceRating;
+  note?: string;
+  skipReason?: string;
+  recordedAt?: string;
+  recordedBy?: number;
+  fromStatus?: ApplicationStatus | string;
+  toStatus?: ApplicationStatus | string;
+  raw?: Record<string, unknown>;
+}
+
 // 状态流转时间轴项目
 export interface StatusTimelineItem {
   id: string;
@@ -494,6 +579,7 @@ export interface StatusTimelineItem {
   icon: string;
   color: string;
   interview_scheduled?: string;
+  interviewExperience?: StatusTimelineInterviewExperience;
 }
 
 // 看板拖拽事件数据

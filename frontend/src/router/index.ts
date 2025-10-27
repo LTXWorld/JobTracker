@@ -73,6 +73,15 @@ const router = createRouter({
         requiresAuth: true
       }
     },
+    {
+      path: '/interview-experience',
+      name: 'interview-experience',
+      component: () => import('../views/InterviewExperienceForm.vue'),
+      meta: {
+        title: '记录面试体验',
+        requiresAuth: true
+      }
+    },
     // 状态分析页面已下线，如需恢复请在此处恢复路由
     {
       path: '/statistics',

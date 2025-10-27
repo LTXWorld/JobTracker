@@ -51,7 +51,7 @@
         
         <!-- 操作按钮 -->
         <div class="kanban-actions">
-          <a-button type="primary" @click="showCreateModal = true">
+          <a-button type="primary" @click="openCreateModal">
             <template #icon><PlusOutlined /></template>
             添加投递
           </a-button>
@@ -435,6 +435,7 @@
       v-model:visible="showCreateModal"
       :initial-data="editingApplication"
       @success="handleFormSuccess"
+      @cancel="handleFormCancel"
     />
     
     <!-- 批量导入弹窗 -->
@@ -488,7 +489,8 @@ import {
 } from '@ant-design/icons-vue'
 import { useJobApplicationStore } from '../stores/jobApplication'
 import { useStatusTrackingStore } from '../stores/statusTracking'
-import { ApplicationStatus, StatusHelper, type JobApplication, type ApplicationStatus as AppStatus } from '../types'
+import { useInterviewExperienceCapture } from '../composables/useInterviewExperienceCapture'
+import { ApplicationStatus, StatusHelper, type JobApplication, type ApplicationStatus as AppStatus, type UpdateStatusRequest } from '../types'
 import NewApplicationForm from '../components/NewApplicationForm.vue'
 import BatchImport from '../components/BatchImport.vue'
 import ExportDialog from '../components/ExportDialog.vue'
@@ -506,6 +508,7 @@ interface KanbanColumn {
 
 const jobStore = useJobApplicationStore()
 const statusTrackingStore = useStatusTrackingStore()
+const { requestInterviewExperience, shouldCaptureInterviewExperience } = useInterviewExperienceCapture()
 const { applications, loading } = storeToRefs(jobStore)
 
 const showCreateModal = ref(false)
@@ -517,6 +520,11 @@ const editingApplication = ref<JobApplication | null>(null)
 const selectedApplication = ref<JobApplication | null>(null)
 const selectedApplicationId = ref<number>(0)
 const selectedApplicationStatus = ref<AppStatus>('已投递')
+
+const openCreateModal = () => {
+  editingApplication.value = null
+  showCreateModal.value = true
+}
 
 // 搜索相关
 const searchText = ref('')
@@ -816,7 +824,7 @@ const handleDragChange = async (evt: any, newStatus: ApplicationStatus) => {
 
   // 若为回退，先确认
   const backward = isBackward(app.status, newStatus)
-  let payload: any = { status: newStatus }
+  let payload: UpdateStatusRequest = { status: newStatus }
   if (backward) {
     // 终态回退提示必须备注
     let note: string | undefined
@@ -845,11 +853,32 @@ const handleDragChange = async (evt: any, newStatus: ApplicationStatus) => {
     }
     payload.confirm_backward = true
     if (note && note.trim()) payload.note = note.trim()
+  } else if (shouldCaptureInterviewExperience(app.status as ApplicationStatus)) {
+    const result = await requestInterviewExperience({
+      fromStatus: app.status as ApplicationStatus,
+      toStatus: newStatus
+    })
+    if (result.cancelled) {
+      message.info('已取消：当前状态保持不变')
+      await fetchData()
+      return
+    }
+    if (result.submission) {
+      payload = statusTrackingStore.assembleUpdateRequestWithInterviewExperience(
+        payload,
+        {
+          fromStatus: app.status as ApplicationStatus,
+          toStatus: newStatus
+        },
+        result.submission
+      )
+    }
   }
 
   try {
-    await statusTrackingStore.updateApplicationStatus(app.id, payload)
-    message.success(`已更新状态为: ${newStatus}`)
+    await statusTrackingStore.updateApplicationStatus(app.id, payload, {
+      onUndo: fetchData
+    })
     await fetchData()
   } catch (error: any) {
     const msg = (error?.message as string) || '状态更新失败'
@@ -867,7 +896,7 @@ const handleDragChange = async (evt: any, newStatus: ApplicationStatus) => {
         })
       })
       if (confirmed) {
-        const retry: any = { status: newStatus, confirm_backward: true }
+        const retry: UpdateStatusRequest = { status: newStatus, confirm_backward: true }
         if (isTerminal(app.status)) {
           const note = window.prompt('该回退操作需要备注，请输入原因：') || ''
           if (!note.trim()) {
@@ -878,8 +907,9 @@ const handleDragChange = async (evt: any, newStatus: ApplicationStatus) => {
           retry.note = note.trim()
         }
         try {
-          await statusTrackingStore.updateApplicationStatus(app.id, retry)
-          message.success(`已更新状态为: ${newStatus}`)
+          await statusTrackingStore.updateApplicationStatus(app.id, retry, {
+            onUndo: fetchData
+          })
         } catch (e: any) {
           message.error((e?.message as string) || '状态更新失败')
         } finally {
@@ -978,6 +1008,10 @@ const handleStatusUpdated = (newStatus: AppStatus) => {
   showQuickUpdateModal.value = false
   selectedApplication.value = null
   fetchData() // 刷新数据以反映状态变更
+}
+
+const handleFormCancel = () => {
+  editingApplication.value = null
 }
 
 // 表单成功回调

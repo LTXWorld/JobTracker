@@ -18,6 +18,7 @@ import (
 type StatusTrackingRepository interface {
 	GetStatusHistory(ctx context.Context, userID uint, jobApplicationID, page, pageSize int) (int, []model.StatusHistoryEntry, error)
 	GetStatusTimeline(ctx context.Context, userID uint, jobApplicationID int) ([]model.StatusHistoryEntry, error)
+	GetInterviewExperiences(ctx context.Context, userID uint, jobApplicationID int) ([]model.InterviewExperience, error)
 	BeginTx(ctx context.Context) (StatusTrackingTx, error)
 	GetStatusAnalytics(ctx context.Context, userID uint) (*model.StatusAnalyticsResponse, error)
 	GetStatusTrends(ctx context.Context, userID uint, days int) ([]model.StatusTrend, error)
@@ -27,8 +28,11 @@ type StatusTrackingTx interface {
 	GetJobApplicationForUpdate(userID uint, jobApplicationID int) (*JobStatusSnapshot, error)
 	SetLocalFlag(flag string, enabled bool) error
 	InsertStatusHistory(entry StatusHistoryInsert) (int64, error)
+	InsertInterviewExperience(entry InterviewExperienceInsert) (int64, error)
 	UpdateJobApplication(params UpdateJobApplicationParams) (*model.JobApplication, error)
 	GetCurrentStatus(userID uint, jobApplicationID int) (model.ApplicationStatus, *time.Time, error)
+	GetLatestHistoryEntry(userID uint, jobApplicationID int) (*model.StatusHistoryEntry, error)
+	UpdateHistoryMetadata(historyID int64, metadata []byte) error
 	Commit() error
 	Rollback() error
 }
@@ -49,6 +53,18 @@ type StatusHistoryInsert struct {
 	ChangedAt        time.Time
 	DurationMinutes  *int
 	Metadata         []byte
+}
+
+type InterviewExperienceInsert struct {
+	ApplicationID int
+	UserID        uint
+	FromStatus    model.ApplicationStatus
+	ToStatus      model.ApplicationStatus
+	Rating        *string
+	Note          *string
+	Skip          bool
+	SkipReason    *string
+	RecordedAt    time.Time
 }
 
 type UpdateJobApplicationParams struct {
@@ -201,6 +217,74 @@ func (r *statusTrackingRepo) GetStatusTimeline(ctx context.Context, userID uint,
 		timeline = append(timeline, entry)
 	}
 	return timeline, nil
+}
+
+func (r *statusTrackingRepo) GetInterviewExperiences(ctx context.Context, userID uint, jobApplicationID int) ([]model.InterviewExperience, error) {
+	orm, err := r.ormWithContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var exists bool
+	if err := orm.
+		Raw("SELECT EXISTS(SELECT 1 FROM job_applications WHERE id = $1 AND user_id = $2)", jobApplicationID, userID).
+		Row().
+		Scan(&exists); err != nil {
+		return nil, fmt.Errorf("failed to verify job application access: %w", err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("job application not found or access denied")
+	}
+
+	query := `SELECT id, application_id, from_status, to_status, rating, note, skip, skip_reason, recorded_by, recorded_at, created_at
+	          FROM interview_experiences
+	          WHERE application_id = $1
+	          ORDER BY recorded_at DESC, id DESC`
+	rows, err := orm.Raw(query, jobApplicationID).Rows()
+	if err != nil {
+		return nil, fmt.Errorf("failed to query interview experiences: %w", err)
+	}
+	defer rows.Close()
+
+	var experiences []model.InterviewExperience
+	for rows.Next() {
+		var (
+			experience model.InterviewExperience
+			rating     sql.NullString
+			note       sql.NullString
+			skipReason sql.NullString
+		)
+		if err := rows.Scan(
+			&experience.ID,
+			&experience.ApplicationID,
+			&experience.FromStatus,
+			&experience.ToStatus,
+			&rating,
+			&note,
+			&experience.Skip,
+			&skipReason,
+			&experience.RecordedBy,
+			&experience.RecordedAt,
+			&experience.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan interview experience: %w", err)
+		}
+		if rating.Valid {
+			r := rating.String
+			experience.Rating = &r
+		}
+		if note.Valid {
+			n := note.String
+			experience.Note = &n
+		}
+		if skipReason.Valid {
+			reason := skipReason.String
+			experience.SkipReason = &reason
+		}
+		experiences = append(experiences, experience)
+	}
+
+	return experiences, nil
 }
 
 func (r *statusTrackingRepo) BeginTx(ctx context.Context) (StatusTrackingTx, error) {
@@ -580,16 +664,64 @@ func (t *statusTrackingTx) InsertStatusHistory(entry StatusHistoryInsert) (int64
 	return id, nil
 }
 
+func (t *statusTrackingTx) InsertInterviewExperience(entry InterviewExperienceInsert) (int64, error) {
+	query := `INSERT INTO interview_experiences (
+	              application_id,
+	              from_status,
+	              to_status,
+	              rating,
+	              note,
+	              skip,
+	              skip_reason,
+	              recorded_by,
+	              recorded_at
+	          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+	          RETURNING id`
+
+	var (
+		ratingVal     interface{}
+		noteVal       interface{}
+		skipReasonVal interface{}
+	)
+	if entry.Rating != nil {
+		ratingVal = *entry.Rating
+	}
+	if entry.Note != nil {
+		noteVal = *entry.Note
+	}
+	if entry.SkipReason != nil {
+		skipReasonVal = *entry.SkipReason
+	}
+
+	var id int64
+	if err := t.tx.Raw(
+		query,
+		entry.ApplicationID,
+		entry.FromStatus,
+		entry.ToStatus,
+		ratingVal,
+		noteVal,
+		entry.Skip,
+		skipReasonVal,
+		int(entry.UserID),
+		entry.RecordedAt,
+	).Row().Scan(&id); err != nil {
+		return 0, fmt.Errorf("failed to insert interview experience: %w", err)
+	}
+	return id, nil
+}
+
 func (t *statusTrackingTx) UpdateJobApplication(params UpdateJobApplicationParams) (*model.JobApplication, error) {
 	if params.SuppressHistory || params.UseTrigger {
 		query := `UPDATE job_applications SET status = $1, updated_at = $2 WHERE id = $3 AND user_id = $4
-                  RETURNING id, user_id, company_name, position_title, application_date, status,
-                            job_description, salary_range, work_location, contact_info, notes,
-                            interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
-                            hr_name, hr_phone, hr_email, interview_location, interview_type,
-                            created_at, updated_at`
+		          RETURNING id, user_id, company_name, position_title, application_date, status,
+		                    job_description, salary_range, work_location, contact_info, notes,
+		                    interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
+		                    hr_name, hr_phone, hr_email, interview_location, interview_type,
+		                    created_at, updated_at, status_version`
 		var job model.JobApplication
 		var reminderCategory sql.NullString
+		var statusVersion sql.NullInt32
 		if err := t.tx.Raw(query, params.NewStatus, params.Now, params.JobApplicationID, params.UserID).Row().Scan(
 			&job.ID,
 			&job.UserID,
@@ -614,6 +746,7 @@ func (t *statusTrackingTx) UpdateJobApplication(params UpdateJobApplicationParam
 			&job.InterviewType,
 			&job.CreatedAt,
 			&job.UpdatedAt,
+			&statusVersion,
 		); err != nil {
 			return nil, fmt.Errorf("failed to update job application: %w", err)
 		}
@@ -622,6 +755,10 @@ func (t *statusTrackingTx) UpdateJobApplication(params UpdateJobApplicationParam
 			job.ReminderCategory = &rc
 		} else {
 			job.ReminderCategory = nil
+		}
+		if statusVersion.Valid {
+			v := int(statusVersion.Int32)
+			job.StatusVersion = &v
 		}
 		return &job, nil
 	}
@@ -661,13 +798,14 @@ func (t *statusTrackingTx) UpdateJobApplication(params UpdateJobApplicationParam
 	args = append(args, params.JobApplicationID, params.UserID)
 
 	query += `id, user_id, company_name, position_title, application_date, status,
-              job_description, salary_range, work_location, contact_info, notes,
-              interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
-              hr_name, hr_phone, hr_email, interview_location, interview_type,
-              created_at, updated_at`
+	          job_description, salary_range, work_location, contact_info, notes,
+	          interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
+	          hr_name, hr_phone, hr_email, interview_location, interview_type,
+	          created_at, updated_at, status_version`
 
 	var job model.JobApplication
 	var reminderCategory sql.NullString
+	var statusVersion sql.NullInt32
 	if err := t.tx.Raw(query, args...).Row().Scan(
 		&job.ID,
 		&job.UserID,
@@ -692,6 +830,7 @@ func (t *statusTrackingTx) UpdateJobApplication(params UpdateJobApplicationParam
 		&job.InterviewType,
 		&job.CreatedAt,
 		&job.UpdatedAt,
+		&statusVersion,
 	); err != nil {
 		return nil, fmt.Errorf("failed to update job application: %w", err)
 	}
@@ -700,6 +839,12 @@ func (t *statusTrackingTx) UpdateJobApplication(params UpdateJobApplicationParam
 		job.ReminderCategory = &rc
 	} else {
 		job.ReminderCategory = nil
+	}
+	if statusVersion.Valid {
+		v := int(statusVersion.Int32)
+		job.StatusVersion = &v
+	} else {
+		job.StatusVersion = nil
 	}
 	return &job, nil
 }
@@ -720,6 +865,60 @@ func (t *statusTrackingTx) GetCurrentStatus(userID uint, jobApplicationID int) (
 		ts = &tm
 	}
 	return status, ts, nil
+}
+
+func (t *statusTrackingTx) GetLatestHistoryEntry(userID uint, jobApplicationID int) (*model.StatusHistoryEntry, error) {
+	query := `SELECT id, job_application_id, user_id, old_status, new_status, status_changed_at, duration_minutes, metadata, created_at
+              FROM job_status_history
+              WHERE job_application_id = $1 AND user_id = $2
+              ORDER BY status_changed_at DESC, id DESC
+              LIMIT 1
+              FOR UPDATE`
+	row := t.tx.Raw(query, jobApplicationID, userID).Row()
+	var entry model.StatusHistoryEntry
+	var oldStatus sql.NullString
+	var duration sql.NullInt32
+	var metadataBytes []byte
+	if err := row.Scan(
+		&entry.ID,
+		&entry.JobApplicationID,
+		&entry.UserID,
+		&oldStatus,
+		&entry.NewStatus,
+		&entry.StatusChangedAt,
+		&duration,
+		&metadataBytes,
+		&entry.CreatedAt,
+	); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, err
+		}
+		return nil, fmt.Errorf("failed to get latest history entry: %w", err)
+	}
+	if oldStatus.Valid {
+		value := model.ApplicationStatus(oldStatus.String)
+		entry.OldStatus = &value
+	}
+	if duration.Valid {
+		val := int(duration.Int32)
+		entry.DurationMinutes = &val
+	}
+	if len(metadataBytes) > 0 {
+		if err := json.Unmarshal(metadataBytes, &entry.Metadata); err != nil {
+			return nil, fmt.Errorf("failed to decode history metadata: %w", err)
+		}
+	}
+	return &entry, nil
+}
+
+func (t *statusTrackingTx) UpdateHistoryMetadata(historyID int64, metadata []byte) error {
+	if len(metadata) == 0 {
+		metadata = []byte("{}")
+	}
+	if err := t.tx.Exec("UPDATE job_status_history SET metadata = $1 WHERE id = $2", metadata, historyID).Error; err != nil {
+		return fmt.Errorf("failed to update history metadata: %w", err)
+	}
+	return nil
 }
 
 func (t *statusTrackingTx) Commit() error {

@@ -233,6 +233,7 @@ interface Props {
 interface Emits {
   (e: 'update:visible', value: boolean): void
   (e: 'success'): void
+  (e: 'cancel'): void
 }
 
 const props = defineProps<Props>()
@@ -408,6 +409,7 @@ const handleSubmit = async () => {
 // 取消
 const handleCancel = () => {
   emit('update:visible', false)
+  emit('cancel')
   resetForm()
 }
 

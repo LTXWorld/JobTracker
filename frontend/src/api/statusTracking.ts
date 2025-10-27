@@ -7,7 +7,10 @@ import type {
   UpdateStatusRequest,
   BatchStatusUpdateRequest,
   StatusTransitionRule,
-  ApplicationStatus
+  ApplicationStatus,
+  StatusUpdateResult,
+  StatusUndoRequest,
+  StatusUndoResult
 } from '../types'
 import { StatusHelper } from '../types'
 
@@ -96,11 +99,23 @@ export class StatusTrackingAPI {
    * @param applicationId 岗位ID
    * @param data 状态更新数据
    */
-  static async updateStatus(applicationId: number, data: UpdateStatusRequest): Promise<void> {
+  static async updateStatus(applicationId: number, data: UpdateStatusRequest): Promise<StatusUpdateResult> {
     const response = await request.post(`/v1/job-applications/${applicationId}/status`, data)
-    if (!response.data?.success) {
+    if (!response.data?.success || !response.data?.data) {
       throw new Error(response.data?.message || '状态更新失败')
     }
+    return response.data.data as StatusUpdateResult
+  }
+
+  /**
+   * 撤销最近一次岗位状态更新
+   */
+  static async undoStatus(applicationId: number, data: StatusUndoRequest): Promise<StatusUndoResult> {
+    const response = await request.post(`/v1/job-applications/${applicationId}/status/undo`, data)
+    if (!response.data?.success || !response.data?.data) {
+      throw new Error(response.data?.message || '撤销状态失败')
+    }
+    return response.data.data as StatusUndoResult
   }
 
   /**
