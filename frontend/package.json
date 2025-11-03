@@ -18,6 +18,7 @@
     "@types/papaparse": "^5.3.16",
     "ant-design-vue": "^4.2.6",
     "axios": "^1.11.0",
+    "canvas-confetti": "^1.9.3",
     "dayjs": "^1.11.18",
     "echarts": "^5.6.0",
     "papaparse": "^5.5.3",

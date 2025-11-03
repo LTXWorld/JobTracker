@@ -100,6 +100,7 @@ import {
   SoundOutlined,
   CloseOutlined
 } from '@ant-design/icons-vue'
+import { OFFER_CELEBRATION_EVENT } from '../utils/offerCelebration'
 
 // 音乐数据结构
 interface Song {
@@ -118,6 +119,12 @@ const duration = ref(0)
 const volume = ref(70)
 const currentIndex = ref(0)
 const audioRef = ref<HTMLAudioElement>()
+const isCelebrationMode = ref(false)
+const celebrationRestoreState = ref<{ index: number; time: number; wasPlaying: boolean } | null>(null)
+const pendingCelebration = ref<{ songId?: number; songTitle?: string } | null>(null)
+const pendingRestoreTime = ref<number | null>(null)
+const CELEBRATION_SONG_ID = 1
+const celebrationExpandState = ref<boolean | null>(null)
 
 // 示例歌曲列表（使用实际的音乐文件）
 const playlist = reactive<Song[]>([
@@ -153,9 +160,69 @@ const playlist = reactive<Song[]>([
   }
 ])
 
+const findSongIndexById = (id: number) => playlist.findIndex(song => song.id === id)
+
 // 错误处理状态
 const hasError = ref(false)
 const errorMessage = ref('')
+
+const playCelebrationSong = (options?: { songId?: number; songTitle?: string }) => {
+  if (celebrationExpandState.value === null) {
+    celebrationExpandState.value = isExpanded.value
+  }
+  isExpanded.value = true
+
+  const audio = audioRef.value
+  if (!audio) {
+    pendingCelebration.value = options ?? {}
+    return
+  }
+
+  pendingCelebration.value = null
+
+  const desiredSongId = options?.songId ?? CELEBRATION_SONG_ID
+  let celebrationIndex = findSongIndexById(desiredSongId)
+  if (celebrationIndex === -1 && options?.songTitle) {
+    celebrationIndex = playlist.findIndex(song => song.title === options.songTitle)
+  }
+  if (celebrationIndex === -1) {
+    celebrationIndex = findSongIndexById(CELEBRATION_SONG_ID)
+  }
+  if (celebrationIndex === -1) return
+
+  if (isCelebrationMode.value) {
+    audio.currentTime = 0
+    audio
+      .play()
+      .then(() => {
+        isPlaying.value = true
+        hasError.value = false
+        errorMessage.value = ''
+      })
+      .catch((error) => {
+        console.error('音频播放失败:', error)
+        isPlaying.value = false
+      })
+    return
+  }
+
+  if (!celebrationRestoreState.value) {
+    celebrationRestoreState.value = {
+      index: currentIndex.value,
+      time: currentTime.value,
+      wasPlaying: isPlaying.value
+    }
+  }
+
+  pendingRestoreTime.value = null
+  isCelebrationMode.value = true
+
+  audio.pause()
+  currentIndex.value = celebrationIndex
+  currentTime.value = 0
+  isPlaying.value = true
+  loadCurrentSong()
+}
 
 // 计算属性
 const currentSong = computed(() => playlist[currentIndex.value] || playlist[0])
@@ -193,12 +260,20 @@ const togglePlay = async () => {
 
 // 上一首
 const previousSong = () => {
+  isCelebrationMode.value = false
+  celebrationRestoreState.value = null
+  pendingRestoreTime.value = null
+  celebrationExpandState.value = null
   currentIndex.value = currentIndex.value > 0 ? currentIndex.value - 1 : playlist.length - 1
   loadCurrentSong()
 }
 
 // 下一首
 const nextSong = () => {
+  isCelebrationMode.value = false
+  celebrationRestoreState.value = null
+  pendingRestoreTime.value = null
+  celebrationExpandState.value = null
   currentIndex.value = (currentIndex.value + 1) % playlist.length
   loadCurrentSong()
 }
@@ -265,6 +340,26 @@ const onTimeUpdate = () => {
 }
 
 const onSongEnded = () => {
+  if (isCelebrationMode.value) {
+    const restoreState = celebrationRestoreState.value
+    isCelebrationMode.value = false
+    celebrationRestoreState.value = null
+    isPlaying.value = false
+    if (audioRef.value) {
+      audioRef.value.pause()
+    }
+    if (restoreState) {
+      currentIndex.value = restoreState.index
+      pendingRestoreTime.value = restoreState.time
+      currentTime.value = restoreState.time
+      loadCurrentSong()
+    }
+    if (celebrationExpandState.value === false) {
+      isExpanded.value = false
+    }
+    celebrationExpandState.value = null
+    return
+  }
   nextSong()
 }
 
@@ -280,18 +375,35 @@ const onAudioError = (event: Event) => {
 const onCanPlay = () => {
   hasError.value = false
   errorMessage.value = ''
+  if (!isCelebrationMode.value && pendingRestoreTime.value !== null && audioRef.value) {
+    const durationSafe = Number.isFinite(audioRef.value.duration) ? audioRef.value.duration : pendingRestoreTime.value
+    const targetTime = Math.min(pendingRestoreTime.value, durationSafe || pendingRestoreTime.value)
+    audioRef.value.currentTime = targetTime
+    currentTime.value = targetTime
+    pendingRestoreTime.value = null
+  }
 }
 
 // 组件挂载
+const handleCelebrationTrigger = (event: Event) => {
+  const detail = (event as CustomEvent<{ songId?: number; songTitle?: string }>).detail
+  playCelebrationSong(detail)
+}
+
 onMounted(() => {
+  window.addEventListener(OFFER_CELEBRATION_EVENT, handleCelebrationTrigger)
   if (audioRef.value) {
     audioRef.value.volume = volume.value / 100
     loadCurrentSong()
+  }
+  if (pendingCelebration.value) {
+    playCelebrationSong(pendingCelebration.value)
   }
 })
 
 // 组件卸载时清理
 onUnmounted(() => {
+  window.removeEventListener(OFFER_CELEBRATION_EVENT, handleCelebrationTrigger)
   if (audioRef.value) {
     audioRef.value.pause()
   }

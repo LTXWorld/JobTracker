@@ -76,6 +76,7 @@
           :available-statuses="availableStatuses"
           :loading="loading"
           :show-current="true"
+          :show-actions="false"
           @update="handleQuickUpdate"
           @cancel="handleModalCancel"
         />
