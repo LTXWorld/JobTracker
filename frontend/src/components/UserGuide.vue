@@ -27,25 +27,25 @@
             <div class="welcome-icon">🎉</div>
             <h2>欢迎使用 JobView!</h2>
             <p class="description">
-              JobView 是一个现代化的求职投递记录管理系统，<br>
-              帮助您高效管理求职过程中的每一个环节。
+              JobView 覆盖投递记录、流程推进、提醒复盘与数据洞察，<br>
+              帮助你用一套工具掌控整个求职旅程。
             </p>
             <div class="features-preview">
               <div class="feature-item">
-                <span class="feature-icon">📊</span>
-                <span>智能统计分析</span>
+                <span class="feature-icon">📋</span>
+                <span>看板流转</span>
               </div>
               <div class="feature-item">
-                <span class="feature-icon">🎯</span>
-                <span>拖拽式管理</span>
-              </div>
-              <div class="feature-item">
-                <span class="feature-icon">⚡</span>
-                <span>快速投递记录</span>
+                <span class="feature-icon">📅</span>
+                <span>时间线追踪</span>
               </div>
               <div class="feature-item">
                 <span class="feature-icon">🔔</span>
                 <span>智能提醒</span>
+              </div>
+              <div class="feature-item">
+                <span class="feature-icon">📊</span>
+                <span>数据洞察</span>
               </div>
             </div>
           </div>
@@ -57,7 +57,7 @@
             <div class="feature-icon-large">📋</div>
             <h2>看板管理 - 拖拽式状态更新</h2>
             <p class="description">
-              最直观的求职进度管理方式，通过拖拽卡片即可快速更新投递状态
+              将所有岗位集中在看板上，拖拽即可推进状态，随时掌握当前进展
             </p>
 
             <div class="demo-kanban">
@@ -87,52 +87,57 @@
             </div>
 
             <div class="key-features">
-              <div class="feature">✨ 拖拽即可更新状态</div>
-              <div class="feature">🔍 智能搜索定位</div>
-              <div class="feature">📱 响应式布局</div>
+              <div class="feature">✨ 拖拽流转配合进度条展示</div>
+              <div class="feature">🔍 智能搜索定位并高亮结果</div>
+              <div class="feature">📦 批量导入、导出与状态概览</div>
             </div>
           </div>
         </div>
 
-        <!-- 插件功能介绍 -->
-        <div v-if="currentSlide === 2" class="slide plugin-slide">
+        <!-- 时间线功能介绍 -->
+        <div v-if="currentSlide === 2" class="slide timeline-slide">
           <div class="slide-content">
-            <div class="feature-icon-large">🔌</div>
-            <h2>浏览器插件 - 一键添加投递记录</h2>
+            <div class="feature-icon-large">📅</div>
+            <h2>时间线视图 - 全流程追踪</h2>
             <p class="description">
-              在招聘网站上直接添加投递信息到系统，无需重复输入
+              将投递记录按时间顺序展开，结合筛选条件快速回顾每一步进展
             </p>
 
-            <div class="plugin-demo">
-              <div class="browser-mockup">
-                <div class="browser-bar">
-                  <div class="browser-controls">
-                    <span class="control red"></span>
-                    <span class="control yellow"></span>
-                    <span class="control green"></span>
+            <div class="timeline-demo">
+              <div class="timeline-column">
+                <div class="timeline-item-card">
+                  <div class="timeline-item-header">
+                    <span class="timeline-company">阿里巴巴 · 前端工程师</span>
+                    <span class="timeline-status in-progress">一面中</span>
                   </div>
-                  <div class="address-bar">https://www.zhipin.com/job_detail/...</div>
+                  <div class="timeline-meta">
+                    <span>投递：4 月 8 日</span>
+                    <span>最新更新：4 月 16 日</span>
+                  </div>
+                  <p class="timeline-note">与面试官交流前端工程化经验，等待反馈</p>
                 </div>
-                <div class="page-content">
-                  <div class="job-info">
-                    <h3>前端开发工程师</h3>
-                    <p>腾讯 • 20-40K</p>
+                <div class="timeline-item-card">
+                  <div class="timeline-item-header">
+                    <span class="timeline-company">字节跳动 · 客户端</span>
+                    <span class="timeline-status waiting">笔试中</span>
                   </div>
-                  <div class="plugin-button">
-                    <button class="add-to-jobview">📋 添加到 JobView</button>
+                  <div class="timeline-meta">
+                    <span>投递：4 月 3 日</span>
+                    <span>笔试：4 月 12 日</span>
                   </div>
+                  <p class="timeline-note">系统提醒我笔试前 30 分钟准备</p>
                 </div>
               </div>
             </div>
 
             <div class="key-features">
-              <div class="feature">⚡ 一键快速添加</div>
-              <div class="feature">📄 自动提取信息</div>
-              <div class="feature">🔗 支持主流招聘网站</div>
+              <div class="feature">🎯 多条件筛选与关键字高亮</div>
+              <div class="feature">📄 批量导入与 Excel 导出</div>
+              <div class="feature">🧭 快速跳转编辑投递信息</div>
             </div>
 
             <div class="note">
-              <strong>提示：</strong> 插件功能即将上线，敬请期待！
+              <strong>技巧：</strong> 筛选条件会联动顶部统计卡片，帮你即时聚焦当前关注的岗位集合。
             </div>
           </div>
         </div>
@@ -143,7 +148,7 @@
             <div class="feature-icon-large">📊</div>
             <h2>数据统计 - 多维度投递分析</h2>
             <p class="description">
-              全面了解您的求职进展，用数据指导求职策略
+              自动汇总状态分布、趋势与转化率，快速洞察求职策略的有效性
             </p>
 
             <div class="stats-demo">
@@ -182,9 +187,9 @@
             </div>
 
             <div class="key-features">
-              <div class="feature">📈 投递趋势分析</div>
-              <div class="feature">🎯 状态分布统计</div>
-              <div class="feature">💡 成功率洞察</div>
+              <div class="feature">📈 趋势曲线与状态分布一目了然</div>
+              <div class="feature">🎯 各阶段通过率智能计算</div>
+              <div class="feature">📤 一键导出统计报告与历史版本</div>
             </div>
           </div>
         </div>
@@ -195,7 +200,7 @@
             <div class="feature-icon-large">🔔</div>
             <h2>提醒中心 - 智能跟进提醒</h2>
             <p class="description">
-              永远不错过重要的面试和跟进时机
+              将提醒统一管理，结合邮箱授权与自动策略，确保不遗漏每一次面试
             </p>
 
             <div class="reminders-demo">
@@ -203,34 +208,34 @@
                 <div class="reminder-icon">⚠️</div>
                 <div class="reminder-content">
                   <div class="reminder-title">面试提醒</div>
-                  <div class="reminder-text">明天下午 2:00 腾讯一面</div>
+                  <div class="reminder-text">明天 14:00 腾讯终面，请提前准备</div>
                 </div>
-                <div class="reminder-time">1小时后</div>
+                <div class="reminder-time">1 小时后提醒</div>
               </div>
 
               <div class="reminder-card normal">
                 <div class="reminder-icon">📞</div>
                 <div class="reminder-content">
                   <div class="reminder-title">跟进提醒</div>
-                  <div class="reminder-text">阿里巴巴投递已超过7天，建议主动跟进</div>
+                  <div class="reminder-text">阿里内推 7 天未反馈，建议主动联系</div>
                 </div>
-                <div class="reminder-time">2天前</div>
+                <div class="reminder-time">2 天前创建</div>
               </div>
 
               <div class="reminder-card info">
                 <div class="reminder-icon">📋</div>
                 <div class="reminder-content">
                   <div class="reminder-title">状态更新</div>
-                  <div class="reminder-text">字节跳动简历筛选中，请关注进度</div>
+                  <div class="reminder-text">状态流转到二面，系统自动同步提醒</div>
                 </div>
-                <div class="reminder-time">3天前</div>
+                <div class="reminder-time">系统生成</div>
               </div>
             </div>
 
             <div class="key-features">
-              <div class="feature">⏰ 智能时间提醒</div>
-              <div class="feature">🎯 个性化设置</div>
-              <div class="feature">📱 多渠道通知</div>
+              <div class="feature">⏰ 默认提前提醒时间可配置</div>
+              <div class="feature">📬 支持 IMAP 邮箱授权同步</div>
+              <div class="feature">🤖 面试状态触发自动提醒</div>
             </div>
           </div>
         </div>
@@ -238,47 +243,47 @@
         <!-- 其他亮眼功能 -->
         <div v-if="currentSlide === 5" class="slide features-slide">
           <div class="slide-content">
-            <div class="feature-icon-large">✨</div>
-            <h2>更多亮眼功能</h2>
+            <div class="feature-icon-large">🧰</div>
+            <h2>更多实用模块</h2>
             <p class="description">
-              JobView 为您提供全方位的求职管理体验
+              除核心流程外，JobView 还提供多个辅助模块，帮助你形成完整的求职档案
             </p>
 
             <div class="features-grid">
               <div class="feature-card">
-                <div class="card-icon">🚀</div>
-                <h3>高性能体验</h3>
-                <p>查询响应提升89%，支持200+并发用户</p>
+                <div class="card-icon">🗂️</div>
+                <h3>投递详情页</h3>
+                <p>随时查看岗位字段、更新时间并支持快速编辑</p>
+              </div>
+
+              <div class="feature-card">
+                <div class="card-icon">🧠</div>
+                <h3>面试体验记录</h3>
+                <p>状态推进时记录面试反馈，沉淀复盘素材</p>
               </div>
 
               <div class="feature-card">
                 <div class="card-icon">📝</div>
                 <h3>简历管理</h3>
-                <p>集中管理个人简历，匹配不同职位需求</p>
+                <p>分块维护简历信息，支持上传 PDF 附件</p>
               </div>
 
               <div class="feature-card">
-                <div class="card-icon">🔍</div>
-                <h3>全文搜索</h3>
-                <p>快速搜索公司、职位信息，精确定位</p>
+                <div class="card-icon">📦</div>
+                <h3>批量工具</h3>
+                <p>看板与时间线共享导入、导出能力，便于备份</p>
               </div>
 
               <div class="feature-card">
-                <div class="card-icon">🎨</div>
-                <h3>现代UI设计</h3>
-                <p>基于 Ant Design 的现代化界面设计</p>
+                <div class="card-icon">📬</div>
+                <h3>邮箱授权</h3>
+                <p>配置 IMAP 授权码后，可同步邮件提醒</p>
               </div>
 
               <div class="feature-card">
-                <div class="card-icon">🔐</div>
-                <h3>安全可靠</h3>
-                <p>JWT认证体系，数据安全有保障</p>
-              </div>
-
-              <div class="feature-card">
-                <div class="card-icon">📱</div>
-                <h3>响应式设计</h3>
-                <p>完美适配桌面端和移动端设备</p>
+                <div class="card-icon">🔄</div>
+                <h3>统一数据</h3>
+                <p>看板、时间线、提醒中心共享同一份投递数据</p>
               </div>
             </div>
           </div>
@@ -288,9 +293,9 @@
         <div v-if="currentSlide === 6" class="slide start-slide">
           <div class="slide-content">
             <div class="feature-icon-large">🎯</div>
-            <h2>准备好开始您的求职之旅了吗？</h2>
+            <h2>准备好开始新的求职节奏了吗？</h2>
             <p class="description">
-              现在就开始使用 JobView，让数据驱动您的求职成功！
+              选择一个入口开始操作，系统会在后台同步所有信息
             </p>
 
             <div class="start-actions">
@@ -302,19 +307,19 @@
 
               <div class="action-card" @click="goToTimeline">
                 <div class="action-icon">📅</div>
-                <h3>记录投递信息</h3>
-                <p>在时间线中添加新的投递记录</p>
+                <h3>回顾历史</h3>
+                <p>结合筛选条件复盘过往投递</p>
               </div>
 
               <div class="action-card" @click="goToStats">
                 <div class="action-icon">📊</div>
                 <h3>查看数据分析</h3>
-                <p>了解您的求职数据洞察</p>
+                <p>用实时统计检验求职策略</p>
               </div>
             </div>
 
             <div class="start-tip">
-              <p>💡 小贴士：您可以随时通过右上角的帮助按钮重新查看此指导</p>
+              <p>💡 小贴士：在首页或设置入口可以重新唤起本指南，随时复习关键功能。</p>
             </div>
           </div>
         </div>
@@ -565,8 +570,7 @@ onUnmounted(() => {
 /* 内容样式 */
 .guide-content {
   flex: 1;
-  padding: 40px;
-  padding-right: 52px; /* 增加右侧内边距为滚动条腾出空间 */
+  padding: 40px 48px 40px 40px;
   overflow-y: auto;
   display: flex;
   align-items: center;
@@ -583,12 +587,10 @@ onUnmounted(() => {
 }
 
 .slide-content {
-  text-align: center;
+  width: 100%;
   max-width: 600px;
-  overflow-y: auto;
-  max-height: 100%;
+  text-align: center;
   padding: 20px 0;
-  padding-right: 12px; /* 增加右侧内边距为滚动条腾出空间 */
 }
 
 /* 通用样式 */
@@ -695,80 +697,72 @@ onUnmounted(() => {
 }
 
 /* 插件演示样式 */
-.plugin-demo {
+.timeline-demo {
   margin: 32px 0;
-}
-
-.browser-mockup {
-  background: #f5f5f5;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  max-width: 400px;
-  margin: 0 auto;
-}
-
-.browser-bar {
-  background: #e0e0e0;
-  padding: 12px 16px;
   display: flex;
+  justify-content: center;
+}
+
+.timeline-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 420px;
+}
+
+.timeline-item-card {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  text-align: left;
+}
+
+.timeline-item-header {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
+  margin-bottom: 12px;
   gap: 12px;
 }
 
-.browser-controls {
-  display: flex;
-  gap: 6px;
-}
-
-.control {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-
-.control.red { background: #ff5f57; }
-.control.yellow { background: #ffbd2e; }
-.control.green { background: #28ca42; }
-
-.address-bar {
-  background: white;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 12px;
-  color: #666;
-  flex: 1;
-}
-
-.page-content {
-  background: white;
-  padding: 24px;
-}
-
-.job-info h3 {
-  margin: 0 0 8px 0;
+.timeline-company {
+  font-weight: 600;
   color: #2c3e50;
 }
 
-.job-info p {
-  margin: 0 0 16px 0;
-  color: #7f8c8d;
-}
-
-.add-to-jobview {
-  background: #667eea;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 6px;
-  cursor: pointer;
+.timeline-status {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
   font-weight: 500;
-  transition: all 0.3s ease;
 }
 
-.add-to-jobview:hover {
-  background: #5a67d8;
-  transform: translateY(-1px);
+.timeline-status.in-progress {
+  background: rgba(102, 126, 234, 0.15);
+  color: #4c51bf;
+}
+
+.timeline-status.waiting {
+  background: rgba(250, 173, 20, 0.18);
+  color: #d48806;
+}
+
+.timeline-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 13px;
+  color: #718096;
+  margin-bottom: 8px;
+}
+
+.timeline-note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #4a5568;
 }
 
 /* 统计演示样式 */
@@ -1162,6 +1156,14 @@ onUnmounted(() => {
     flex-direction: column;
     gap: 8px;
   }
+  
+  .timeline-demo {
+    margin: 24px 0;
+  }
+
+  .timeline-column {
+    max-width: 100%;
+  }
 
   .drag-arrow {
     transform: rotate(90deg);
@@ -1191,32 +1193,27 @@ onUnmounted(() => {
 }
 
 /* 自定义滚动条样式 - 让滚动条更靠右边 */
-.guide-content::-webkit-scrollbar,
-.slide-content::-webkit-scrollbar {
+.guide-content::-webkit-scrollbar {
   width: 8px;
 }
 
-.guide-content::-webkit-scrollbar-track,
-.slide-content::-webkit-scrollbar-track {
+.guide-content::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.05);
   border-radius: 4px;
   margin: 4px;
 }
 
-.guide-content::-webkit-scrollbar-thumb,
-.slide-content::-webkit-scrollbar-thumb {
+.guide-content::-webkit-scrollbar-thumb {
   background: rgba(102, 126, 234, 0.3);
   border-radius: 4px;
   transition: all 0.3s ease;
 }
 
-.guide-content::-webkit-scrollbar-thumb:hover,
-.slide-content::-webkit-scrollbar-thumb:hover {
+.guide-content::-webkit-scrollbar-thumb:hover {
   background: rgba(102, 126, 234, 0.5);
 }
 
-.guide-content::-webkit-scrollbar-corner,
-.slide-content::-webkit-scrollbar-corner {
+.guide-content::-webkit-scrollbar-corner {
   background: transparent;
 }
 </style>

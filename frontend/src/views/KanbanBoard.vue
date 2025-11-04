@@ -168,104 +168,22 @@
           <span class="section-subtitle">HR 面通过后进入最终选择</span>
         </div>
         <div class="passed-flow">
-          <div class="passed-main">
-            <div class="kanban-column">
-              <div class="column-header" :style="{ borderTop: `3px solid ${passedMainColumn.color}` }">
-                <h3 :style="{ color: passedMainColumn.color }">{{ passedMainColumn.title }}</h3>
-                <a-badge :count="passedMainColumn.items.length" :color="passedMainColumn.color" />
-              </div>
-              <draggable
-                v-model="passedMainColumn.items"
-                group="applications"
-                item-key="id"
-                class="column-content"
-                :animation="200"
-                ghost-class="ghost-card"
-                @change="handleDragChange($event, passedMainColumn.status)"
-              >
-                <template #item="{ element }">
-                  <div 
-                    class="job-card"
-                    :class="{ 'bounce': highlightedId === element.id }"
-                    :tabindex="0"
-                    :data-id="element.id"
-                    :ref="(el) => registerCardRef(element.id, el as HTMLElement | null)"
-                    @animationend="onBounceEnd(element.id)"
-                    @click="openStatusDetail(element)"
-                  >
-                    <div class="card-header">
-                      <h4 v-html="highlightText(element.company_name)"></h4>
-                      <a-dropdown @click.stop>
-                        <template #overlay>
-                          <a-menu @click="handleCardAction($event, element)">
-                            <a-menu-item key="status-detail">
-                              <HistoryOutlined /> 状态详情
-                            </a-menu-item>
-                            <a-menu-item key="quick-update">
-                              <EditOutlined /> 快速更新
-                            </a-menu-item>
-                            <a-menu-divider />
-                            <a-menu-item key="edit">
-                              <SettingOutlined /> 编辑
-                            </a-menu-item>
-                            <a-menu-item key="delete">
-                              <DeleteOutlined /> 删除
-                            </a-menu-item>
-                          </a-menu>
-                        </template>
-                        <a-button type="text" size="small">
-                          <MoreOutlined />
-                        </a-button>
-                      </a-dropdown>
-                    </div>
-                    
-                    <div class="card-body">
-                      <p class="position" v-html="highlightText(element.position_title)"></p>
-                      
-                      <div class="status-duration" v-if="getStatusDuration(element)">
-                        <ClockCircleOutlined />
-                        <span>{{ getStatusDuration(element) }}</span>
-                      </div>
-                      
-                      <div class="card-date">
-                        <CalendarOutlined /> {{ formatDate(element.application_date) }}
-                      </div>
-                      
-                      <div class="progress-indicator">
-                        <a-progress 
-                          :percent="getProgressPercent(element.status)" 
-                          size="small" 
-                          :show-info="false"
-                          :stroke-color="getProgressColor(element.status)"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </template>
-              </draggable>
-              <div v-if="passedMainColumn.items.length === 0" class="empty-column">
-                <a-empty description="等待最终选择" />
-              </div>
-            </div>
-          </div>
-          <div class="passed-branches">
-            <div class="branch-connector">
-              <span class="connector-label">决策分支</span>
-            </div>
-            <div class="passed-branch" v-for="column in passedBranchColumns" :key="column.status">
+          <div class="passed-main-wrapper">
+            <!-- 左侧：通过阶段 -->
+            <div class="passed-main">
               <div class="kanban-column">
-                <div class="column-header" :style="{ borderTop: `3px solid ${column.color}` }">
-                  <h3 :style="{ color: column.color }">{{ column.title }}</h3>
-                  <a-badge :count="column.items.length" :color="column.color" />
+                <div class="column-header" :style="{ borderTop: `3px solid ${passedMainColumn.color}` }">
+                  <h3 :style="{ color: passedMainColumn.color }">{{ passedMainColumn.title }}</h3>
+                  <a-badge :count="passedMainColumn.items.length" :color="passedMainColumn.color" />
                 </div>
                 <draggable
-                  v-model="column.items"
+                  v-model="passedMainColumn.items"
                   group="applications"
                   item-key="id"
                   class="column-content"
                   :animation="200"
                   ghost-class="ghost-card"
-                  @change="handleDragChange($event, column.status)"
+                  @change="handleDragChange($event, passedMainColumn.status)"
                 >
                   <template #item="{ element }">
                     <div 
@@ -327,8 +245,175 @@
                     </div>
                   </template>
                 </draggable>
-                <div v-if="column.items.length === 0" class="empty-column">
-                  <a-empty :description="`尚无${column.title}`" />
+                <div v-if="passedMainColumn.items.length === 0" class="empty-column">
+                  <a-empty description="等待最终选择" />
+                </div>
+              </div>
+              <!-- 决策分支：位于HR面通过下方 -->
+              <div class="passed-branches">
+                <div class="branch-connector">
+                  <span class="connector-label">决策分支</span>
+                </div>
+                <div class="passed-branch" v-for="column in passedBranchColumns" :key="column.status">
+                  <div class="kanban-column">
+                    <div class="column-header" :style="{ borderTop: `3px solid ${column.color}` }">
+                      <h3 :style="{ color: column.color }">{{ column.title }}</h3>
+                      <a-badge :count="column.items.length" :color="column.color" />
+                    </div>
+                    <draggable
+                      v-model="column.items"
+                      group="applications"
+                      item-key="id"
+                      class="column-content"
+                      :animation="200"
+                      ghost-class="ghost-card"
+                      @change="handleDragChange($event, column.status)"
+                    >
+                      <template #item="{ element }">
+                        <div 
+                          class="job-card"
+                          :class="{ 'bounce': highlightedId === element.id }"
+                          :tabindex="0"
+                          :data-id="element.id"
+                          :ref="(el) => registerCardRef(element.id, el as HTMLElement | null)"
+                          @animationend="onBounceEnd(element.id)"
+                          @click="openStatusDetail(element)"
+                        >
+                          <div class="card-header">
+                            <h4 v-html="highlightText(element.company_name)"></h4>
+                            <a-dropdown @click.stop>
+                              <template #overlay>
+                                <a-menu @click="handleCardAction($event, element)">
+                                  <a-menu-item key="status-detail">
+                                    <HistoryOutlined /> 状态详情
+                                  </a-menu-item>
+                                  <a-menu-item key="quick-update">
+                                    <EditOutlined /> 快速更新
+                                  </a-menu-item>
+                                  <a-menu-divider />
+                                  <a-menu-item key="edit">
+                                    <SettingOutlined /> 编辑
+                                  </a-menu-item>
+                                  <a-menu-item key="delete">
+                                    <DeleteOutlined /> 删除
+                                  </a-menu-item>
+                                </a-menu>
+                              </template>
+                              <a-button type="text" size="small">
+                                <MoreOutlined />
+                              </a-button>
+                            </a-dropdown>
+                          </div>
+                          
+                          <div class="card-body">
+                            <p class="position" v-html="highlightText(element.position_title)"></p>
+                            
+                            <div class="status-duration" v-if="getStatusDuration(element)">
+                              <ClockCircleOutlined />
+                              <span>{{ getStatusDuration(element) }}</span>
+                            </div>
+                            
+                            <div class="card-date">
+                              <CalendarOutlined /> {{ formatDate(element.application_date) }}
+                            </div>
+                            
+                            <div class="progress-indicator">
+                              <a-progress 
+                                :percent="getProgressPercent(element.status)" 
+                                size="small" 
+                                :show-info="false"
+                                :stroke-color="getProgressColor(element.status)"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </template>
+                    </draggable>
+                    <div v-if="column.items.length === 0" class="empty-column">
+                      <a-empty :description="`尚无${column.title}`" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- 右侧：主动终止流程 -->
+            <div class="user-rejected-main">
+              <div class="kanban-column">
+                <div class="column-header" :style="{ borderTop: `3px solid ${userRejectedGroup.color}` }">
+                  <h3 :style="{ color: userRejectedGroup.color }">{{ userRejectedGroup.title }}</h3>
+                  <a-badge :count="userRejectedGroup.items.length" :color="userRejectedGroup.color" />
+                </div>
+                <draggable
+                  v-model="userRejectedGroup.items"
+                  group="applications"
+                  item-key="id"
+                  class="column-content"
+                  :animation="200"
+                  ghost-class="ghost-card"
+                  @change="handleDragChange($event, userRejectedGroup.status)"
+                >
+                  <template #item="{ element }">
+                    <div 
+                      class="job-card"
+                      :class="{ 'bounce': highlightedId === element.id }"
+                      :tabindex="0"
+                      :data-id="element.id"
+                      :ref="(el) => registerCardRef(element.id, el as HTMLElement | null)"
+                      @animationend="onBounceEnd(element.id)"
+                      @click="openStatusDetail(element)"
+                    >
+                      <div class="card-header">
+                        <h4 v-html="highlightText(element.company_name)"></h4>
+                        <a-dropdown @click.stop>
+                          <template #overlay>
+                            <a-menu @click="handleCardAction($event, element)">
+                              <a-menu-item key="status-detail">
+                                <HistoryOutlined /> 状态详情
+                              </a-menu-item>
+                              <a-menu-item key="quick-update">
+                                <EditOutlined /> 快速更新
+                              </a-menu-item>
+                              <a-menu-divider />
+                              <a-menu-item key="edit">
+                                <SettingOutlined /> 编辑
+                              </a-menu-item>
+                              <a-menu-item key="delete">
+                                <DeleteOutlined /> 删除
+                              </a-menu-item>
+                            </a-menu>
+                          </template>
+                          <a-button type="text" size="small">
+                            <MoreOutlined />
+                          </a-button>
+                        </a-dropdown>
+                      </div>
+                      
+                      <div class="card-body">
+                        <p class="position" v-html="highlightText(element.position_title)"></p>
+                        
+                        <div class="status-duration" v-if="getStatusDuration(element)">
+                          <ClockCircleOutlined />
+                          <span>{{ getStatusDuration(element) }}</span>
+                        </div>
+                        
+                        <div class="card-date">
+                          <CalendarOutlined /> {{ formatDate(element.application_date) }}
+                        </div>
+                        
+                        <div class="progress-indicator">
+                          <a-progress 
+                            :percent="getProgressPercent(element.status)" 
+                            size="small" 
+                            :show-info="false"
+                            :stroke-color="getProgressColor(element.status)"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                </draggable>
+                <div v-if="userRejectedGroup.items.length === 0" class="empty-column">
+                  <a-empty description="主动终止流程的岗位" />
                 </div>
               </div>
             </div>
@@ -671,6 +756,9 @@ const passedColumns = [
   { status: ApplicationStatus.REJECTED, title: '已拒绝offer', color: '#f97316' }
 ]
 
+// 定义用户主动拒绝状态列
+const userRejectedColumn = { status: ApplicationStatus.USER_REJECTED, title: '主动终止流程', color: '#ef4444' }
+
 // 切换标签页
 const setActiveTab = (tab: 'in-progress' | 'failed') => {
   activeTab.value = tab
@@ -706,7 +794,13 @@ const passedMainColumn = computed(() => passedGroups.value.find(col => col.statu
   items: [] as JobApplication[],
 })
 
-const passedBranchColumns = computed(() => passedGroups.value.filter(col => col.status !== ApplicationStatus.HR_PASS))
+const passedBranchColumns = computed(() => passedGroups.value.filter(col => col.status !== ApplicationStatus.HR_PASS && col.status !== ApplicationStatus.USER_REJECTED))
+
+// 用户主动拒绝列
+const userRejectedGroup = computed((): KanbanColumn => ({
+  ...userRejectedColumn,
+  items: projectApplications.value.filter(app => app.status === userRejectedColumn.status)
+}))
 
 const inProgressCount = computed(() =>
   inProgressGroups.value.reduce((total, col) => total + col.items.length, 0)
@@ -758,12 +852,13 @@ const stageRank = (status: ApplicationStatus): number => {
     case 'HR面通过':
     case 'HR面未通过': return 60
     case '已接受offer':
-    case '已拒绝offer': return 70
+    case '已拒绝offer':
+    case '已拒绝': return 70
     default: return 0
   }
 }
 const isBackward = (from: ApplicationStatus, to: ApplicationStatus) => stageRank(to) < stageRank(from)
-const isTerminal = (status: ApplicationStatus) => ['已接受offer','已拒绝offer','简历筛选未通过','笔试未通过','一面未通过','二面未通过','三面未通过','HR面未通过'].includes(status)
+const isTerminal = (status: ApplicationStatus) => ['已接受offer','已拒绝offer','已拒绝','简历筛选未通过','笔试未通过','一面未通过','二面未通过','三面未通过','HR面未通过'].includes(status)
 
 // 与后端一致的隐式直通规则：允许面试阶段的直接推进
 const isImplicitDirectTransitionAllowed = (from: ApplicationStatus, to: ApplicationStatus): boolean => {
@@ -792,6 +887,11 @@ const isImplicitFailTransitionAllowed = (from: ApplicationStatus, to: Applicatio
   }
 }
 
+// 允许从任何状态转换到用户主动拒绝状态
+const isUserRejectedTransitionAllowed = (from: ApplicationStatus, to: ApplicationStatus): boolean => {
+  return to === ApplicationStatus.USER_REJECTED
+}
+
 const handleDragChange = async (evt: any, newStatus: ApplicationStatus) => {
   if (!evt.added) return
   const app = evt.added.element as JobApplication
@@ -810,7 +910,8 @@ const handleDragChange = async (evt: any, newStatus: ApplicationStatus) => {
     // 若服务端返回缺少直通/失败项，按与后端一致的隐式规则放行
     if (!allowed) {
       const fallbackAllowed = isImplicitDirectTransitionAllowed(app.status as ApplicationStatus, newStatus) ||
-                              isImplicitFailTransitionAllowed(app.status as ApplicationStatus, newStatus)
+                              isImplicitFailTransitionAllowed(app.status as ApplicationStatus, newStatus) ||
+                              isUserRejectedTransitionAllowed(app.status as ApplicationStatus, newStatus)
       allowed = fallbackAllowed
     }
     if (!allowed) {
@@ -1172,7 +1273,23 @@ onMounted(() => {
   gap: 20px;
 }
 
+.passed-main-wrapper {
+  display: flex;
+  gap: 20px;
+  width: 100%;
+  align-items: flex-start;
+}
+
 .passed-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: center;
+}
+
+.user-rejected-main {
+  flex: 1;
   display: flex;
   justify-content: center;
 }
@@ -1182,12 +1299,16 @@ onMounted(() => {
   gap: 24px;
   justify-content: center;
   flex-wrap: wrap;
+  width: 100%;
+  margin-top: 20px;
 }
 
 .branch-connector {
+  width: 100%;
   text-align: center;
   font-size: 12px;
   color: #9ca3af;
+  margin-bottom: 8px;
 }
 
 .passed-branch {
@@ -1197,8 +1318,10 @@ onMounted(() => {
 }
 
 .passed-branch .kanban-column,
-.passed-main .kanban-column {
+.passed-main .kanban-column,
+.user-rejected-main .kanban-column {
   flex: 1;
+  width: 100%;
 }
 
 .kanban-columns {

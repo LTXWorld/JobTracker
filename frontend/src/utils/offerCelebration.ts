@@ -8,6 +8,13 @@ type CelebrationInstance = {
   container: HTMLElement
 }
 
+type CelebrationOptions = {
+  title?: string
+  subtitle?: string
+  withConfetti?: boolean
+  tone?: 'success' | 'info'
+}
+
 let currentInstance: CelebrationInstance | null = null
 
 const cleanUp = () => {
@@ -19,10 +26,9 @@ const cleanUp = () => {
   currentInstance = null
 }
 
-export const triggerOfferCelebration = () => {
+const mountCelebration = (options: CelebrationOptions, hooks?: { onClosed?: () => void }) => {
   if (typeof window === 'undefined' || typeof document === 'undefined') return
 
-  // 若正在展示中，先清理，避免多个实例叠加
   cleanUp()
 
   const container = document.createElement('div')
@@ -30,17 +36,39 @@ export const triggerOfferCelebration = () => {
   document.body.appendChild(container)
 
   const app = createApp(OfferCelebration, {
-    onClosed: () => cleanUp()
+    ...options,
+    onClosed: () => {
+      cleanUp()
+      hooks?.onClosed?.()
+    }
   })
 
   currentInstance = { app, container }
   app.mount(container)
+}
+
+export const triggerOfferCelebration = () => {
+  mountCelebration({
+    title: '恭喜拿下 offer！',
+    subtitle: '这段时间辛苦啦',
+    withConfetti: true,
+    tone: 'success'
+  })
 
   window.dispatchEvent(new CustomEvent(OFFER_CELEBRATION_EVENT, {
     detail: {
       songTitle: '你离开了南京 从此没有人和我说话'
     }
   }))
+}
+
+export const triggerEncouragement = () => {
+  mountCelebration({
+    title: '别灰心，这是一场持久战！',
+    subtitle: '相信自己，坚持就是胜利！',
+    withConfetti: false,
+    tone: 'info'
+  })
 }
 
 export const destroyOfferCelebration = () => {

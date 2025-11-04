@@ -46,6 +46,9 @@ const (
 
 	// 新增的失败状态
 	StatusResumeScreeningFail ApplicationStatus = "简历筛选未通过"
+
+	// 用户主动拒绝状态（可从任何状态转换）
+	StatusUserRejected ApplicationStatus = "已拒绝"
 )
 
 // Value 实现 driver.Valuer 接口，用于数据库写入
@@ -106,6 +109,9 @@ func (s ApplicationStatus) IsValid() bool {
 		// 最终状态
 		StatusRejected,
 		StatusOfferAccepted,
+
+		// 用户主动拒绝状态
+		StatusUserRejected,
 	}
 
 	for _, validStatus := range validStatuses {
@@ -173,6 +179,11 @@ func (s ApplicationStatus) IsPassedStatus() bool {
 		}
 	}
 	return false
+}
+
+// IsUserRejectedStatus 检查是否为用户主动拒绝状态
+func (s ApplicationStatus) IsUserRejectedStatus() bool {
+	return s == StatusUserRejected
 }
 
 // JobApplication 投递记录模型

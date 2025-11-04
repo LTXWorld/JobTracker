@@ -189,11 +189,12 @@ func (s *JobApplicationService) getStatusesByStage(stage string) []string {
 			"HR面中", "HR面通过", "HR面未通过",
 		},
 		"final": {
-			"HR面通过", "已接受offer", "已拒绝offer",
+			"HR面通过", "已接受offer", "已拒绝offer", "已拒绝",
 		},
 		"in_progress": {"已投递", "简历筛选中", "笔试中", "一面中", "二面中", "三面中", "HR面中"},
 		"passed":      {"笔试通过", "一面通过", "二面通过", "三面通过", "HR面通过", "已接受offer", "已拒绝offer"},
 		"failed":      {"简历筛选未通过", "笔试未通过", "一面未通过", "二面未通过", "三面未通过", "HR面未通过"},
+		"user_rejected": {"已拒绝"},
 	}
 
 	if statuses, exists := stageMap[stage]; exists {

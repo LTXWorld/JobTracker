@@ -124,7 +124,7 @@ import {
 } from '@ant-design/icons-vue'
 import { useStatusTrackingStore } from '../stores/statusTracking'
 import { useInterviewExperienceCapture } from '../composables/useInterviewExperienceCapture'
-import { StatusHelper, type ApplicationStatus, type UpdateStatusRequest } from '../types'
+import { StatusHelper, ApplicationStatus, type UpdateStatusRequest } from '../types'
 import StatusTimeline from './StatusTimeline.vue'
 import StatusUpdateContent from './StatusUpdateContent.vue'
 import { message, Modal } from 'ant-design-vue'
@@ -189,19 +189,37 @@ const fetchAvailableStatuses = async () => {
   
   try {
     const transitions: any = await statusTrackingStore.getAvailableTransitions(props.currentStatus)
+    console.log('API返回的数据:', transitions)
     let forward: ApplicationStatus[] = []
+    
+    // 解析不同格式的返回数据
     if (Array.isArray(transitions)) {
       if (transitions.length > 0 && typeof transitions[0] === 'string') {
         forward = transitions as ApplicationStatus[]
       } else {
         forward = (transitions as any[]).flatMap(r => (r?.to ?? [])) as ApplicationStatus[]
       }
-    } else if (transitions && Array.isArray((transitions as any).transitions)) {
-      forward = (transitions as any).transitions as ApplicationStatus[]
+    } else if (transitions && typeof transitions === 'object') {
+      // 尝试从对象中提取数组
+      if (Array.isArray((transitions as any).transitions)) {
+        forward = (transitions as any).transitions as ApplicationStatus[]
+      } else if (Array.isArray((transitions as any).available_transitions)) {
+        forward = (transitions as any).available_transitions as ApplicationStatus[]
+      } else if (Array.isArray((transitions as any).data)) {
+        forward = (transitions as any).data as ApplicationStatus[]
+      }
+    }
+
+    console.log('解析后的forward:', forward)
+
+    // 如果没有获取到数据，使用降级逻辑
+    if (forward.length === 0) {
+      console.warn('后端未返回可用状态，使用默认状态列表')
+      forward = getDefaultNextStatuses(props.currentStatus)
     }
 
     if (props.smartChoices) {
-      // 仅保留“当前阶段失败 + 下一主阶段”
+      // 仅保留"当前阶段失败 + 下一主阶段"
       const pair = getSmartPair(props.currentStatus)
       // 与服务端允许列表取交集，避免提交失败
       const allowedSet = new Set<ApplicationStatus>(forward)
@@ -209,11 +227,26 @@ const fetchAvailableStatuses = async () => {
       // 如果后端暂未返回（或规则缺失）导致交集为空，则降级为展示pair本身
       if (compact.length === 0) compact = pair
       availableStatuses.value = compact
+      console.log('smartChoices模式，最终状态列表:', availableStatuses.value)
     } else {
       const backward = getBackwardStatuses(props.currentStatus)
       const set = new Set<ApplicationStatus>([...forward, ...backward])
       set.delete(props.currentStatus)
       availableStatuses.value = Array.from(set)
+      
+      console.log('非smartChoices模式，forward:', forward)
+      console.log('非smartChoices模式，backward:', backward)
+      console.log('非smartChoices模式，最终状态列表:', availableStatuses.value)
+      
+      // 确保至少有默认状态列表
+      if (availableStatuses.value.length === 0) {
+        console.warn('状态列表为空，使用默认状态列表')
+        const defaultForward = getDefaultNextStatuses(props.currentStatus)
+        const defaultBackward = getBackwardStatuses(props.currentStatus)
+        const defaultSet = new Set<ApplicationStatus>([...defaultForward, ...defaultBackward])
+        defaultSet.delete(props.currentStatus)
+        availableStatuses.value = Array.from(defaultSet)
+      }
     }
   } catch (error) {
     console.error('获取可用状态失败:', error)
@@ -247,6 +280,7 @@ const getDefaultNextStatuses = (currentStatus: ApplicationStatus): ApplicationSt
     'HR面通过': ['已接受offer', '已拒绝offer'],
     '已接受offer': [],
     '已拒绝offer': [],
+    '已拒绝': [], // 用户主动拒绝状态，可以从任何状态转换，但不在默认流程中
     '简历筛选未通过': [],
     '笔试未通过': [],
     '一面未通过': [],
@@ -255,10 +289,16 @@ const getDefaultNextStatuses = (currentStatus: ApplicationStatus): ApplicationSt
     'HR面未通过': []
   }
   
-  return statusFlow[currentStatus] || []
+  // 对于所有状态，都允许转换到"已拒绝"（除了已经是"已拒绝"的状态）
+  const nextStatuses = statusFlow[currentStatus] || []
+  if (currentStatus !== ApplicationStatus.USER_REJECTED) {
+    nextStatuses.push(ApplicationStatus.USER_REJECTED)
+  }
+  
+  return Array.from(new Set(nextStatuses))
 }
 
-// 智能精简选项：当前阶段的“未通过” + 下一主阶段
+// 智能精简选项：当前阶段的"未通过" + 下一主阶段 + 主动终止流程（如果当前状态是进行中）
 const getSmartPair = (currentStatus: ApplicationStatus): ApplicationStatus[] => {
   const failMap: Record<string, ApplicationStatus> = {
     '简历筛选中': '简历筛选未通过',
@@ -288,6 +328,10 @@ const getSmartPair = (currentStatus: ApplicationStatus): ApplicationStatus[] => 
     } else {
       pair.push(nextEntry)
     }
+  }
+  // 如果当前状态是进行中状态，添加"主动终止流程"选项
+  if (StatusHelper.isInProgressStatus(currentStatus)) {
+    pair.push(ApplicationStatus.USER_REJECTED)
   }
   return Array.from(new Set(pair))
 }
@@ -322,7 +366,7 @@ const stageRank = (status: ApplicationStatus): number => {
       return 60
     case '已接受offer':
     case '已拒绝offer':
-      return 70
+    case '已拒绝': return 70
     default:
       return 0
   }
@@ -334,6 +378,7 @@ const isTerminal = (status: ApplicationStatus) => {
   return [
     '已接受offer',
     '已拒绝offer',
+    '已拒绝', // 用户主动拒绝状态也是终态
     '简历筛选未通过',
     '笔试未通过',
     '一面未通过',
@@ -353,7 +398,7 @@ const getBackwardStatuses = (currentStatus: ApplicationStatus): ApplicationStatu
     '二面中', '二面通过', '二面未通过',
     '三面中', '三面通过', '三面未通过',
     'HR面中', 'HR面通过', 'HR面未通过',
-    '已接受offer', '已拒绝offer'
+    '已接受offer', '已拒绝offer', '已拒绝'
   ]
   const currRank = stageRank(currentStatus)
   return all.filter(st => stageRank(st) < currRank)

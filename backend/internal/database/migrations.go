@@ -306,7 +306,9 @@ func (db *DB) ensureApplicationStatusEnumValues() error {
 		return nil
 	}
 
-	// 统一“已拒绝”与“已拒绝offer”的枚举值，兼容旧库与新库
+	// 检查并确保"已拒绝"和"已拒绝offer"两个枚举值都存在
+	// "已拒绝" = 用户主动拒绝/终止流程（可从任何状态转换）
+	// "已拒绝offer" = 公司拒绝offer（HR面通过后的状态）
 	labelExistsSQL := `
         SELECT EXISTS (
             SELECT 1
@@ -316,23 +318,35 @@ func (db *DB) ensureApplicationStatusEnumValues() error {
               AND e.enumlabel = $1
         )
     `
-	var hasRejected, hasRejectedOffer bool
-	if err := db.QueryRow(labelExistsSQL, "已拒绝").Scan(&hasRejected); err != nil {
+	var hasUserRejected, hasRejectedOffer bool
+	if err := db.QueryRow(labelExistsSQL, "已拒绝").Scan(&hasUserRejected); err != nil {
 		return err
 	}
 	if err := db.QueryRow(labelExistsSQL, "已拒绝offer").Scan(&hasRejectedOffer); err != nil {
 		return err
 	}
 
-	if hasRejected && !hasRejectedOffer {
-		if _, err := db.Exec("ALTER TYPE application_status RENAME VALUE '已拒绝' TO '已拒绝offer'"); err != nil {
-			log.Printf("Warning: failed to rename enum value '已拒绝' to '已拒绝offer' (will fallback to coexist): %v", err)
-		} else {
-			hasRejected = false
-			hasRejectedOffer = true
+	// 确保"已拒绝"枚举值存在（用户主动拒绝状态）
+	if !hasUserRejected {
+		addUserRejected := `
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_type t
+        JOIN pg_enum e ON t.oid = e.enumtypid
+        WHERE t.typname = 'application_status'
+          AND e.enumlabel = '已拒绝'
+    ) THEN
+        ALTER TYPE application_status ADD VALUE '已拒绝';
+    END IF;
+END $$;`
+		if _, err := db.Exec(addUserRejected); err != nil {
+			log.Printf("Warning: failed to add enum value '已拒绝': %v", err)
 		}
 	}
 
+	// 确保"已拒绝offer"枚举值存在（公司拒绝offer状态）
 	if !hasRejectedOffer {
 		addRejectedOffer := `
 DO $$
@@ -349,32 +363,6 @@ BEGIN
 END $$;`
 		if _, err := db.Exec(addRejectedOffer); err != nil {
 			log.Printf("Warning: failed to add enum value '已拒绝offer': %v", err)
-		} else {
-			hasRejectedOffer = true
-		}
-	}
-
-	if hasRejected && hasRejectedOffer {
-		if hasHistory, err := db.checkTableExists("job_status_history"); err == nil && hasHistory {
-			updateStatements := []string{
-				"UPDATE job_status_history SET new_status = '已拒绝offer' WHERE new_status = '已拒绝';",
-				"UPDATE job_status_history SET old_status = '已拒绝offer' WHERE old_status = '已拒绝';",
-			}
-			for _, stmt := range updateStatements {
-				if _, err := db.Exec(stmt); err != nil {
-					log.Printf("Warning: failed to translate job_status_history legacy status with statement [%s]: %v", stmt, err)
-				}
-			}
-		} else if err != nil {
-			log.Printf("Warning: failed to check job_status_history existence while normalizing status labels: %v", err)
-		}
-
-		if hasApplications, err := db.checkTableExists("job_applications"); err == nil && hasApplications {
-			if _, err := db.Exec("UPDATE job_applications SET status = '已拒绝offer' WHERE status = '已拒绝';"); err != nil {
-				log.Printf("Warning: failed to translate job_applications legacy status: %v", err)
-			}
-		} else if err != nil {
-			log.Printf("Warning: failed to check job_applications existence while normalizing status labels: %v", err)
 		}
 	}
 
@@ -449,6 +437,11 @@ BEGIN
     -- 相同状态不允许
     IF p_old_status = p_new_status THEN
         RETURN FALSE;
+    END IF;
+
+    -- 允许从任何状态转换到用户主动拒绝状态（已拒绝）
+    IF p_new_status = '已拒绝' THEN
+        RETURN TRUE;
     END IF;
 
     -- 读取默认模板
@@ -541,6 +534,11 @@ BEGIN
 
     IF p_old_status = p_new_status THEN
         RETURN FALSE;
+    END IF;
+
+    -- 允许从任何状态转换到用户主动拒绝状态（已拒绝）
+    IF p_new_status::text = '已拒绝' THEN
+        RETURN TRUE;
     END IF;
 
     SELECT flow_config::jsonb INTO v_flow_config

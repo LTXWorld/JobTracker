@@ -32,7 +32,10 @@ export const ApplicationStatus = {
   
   // 最终状态
   REJECTED: '已拒绝offer',
-  OFFER_ACCEPTED: '已接受offer'
+  OFFER_ACCEPTED: '已接受offer',
+  
+  // 用户主动拒绝状态（可从任何状态转换）
+  USER_REJECTED: '已拒绝'
 } as const
 
 export type ApplicationStatus = typeof ApplicationStatus[keyof typeof ApplicationStatus]
@@ -80,6 +83,11 @@ export const StatusHelper = {
     return passedStatuses.includes(status)
   },
 
+  // 用户主动拒绝状态
+  isUserRejectedStatus: (status: ApplicationStatus): boolean => {
+    return status === ApplicationStatus.USER_REJECTED
+  },
+
   // 获取状态颜色
   getStatusColor: (status: ApplicationStatus): string => {
     const failedStatuses: ApplicationStatus[] = [
@@ -114,14 +122,16 @@ export const StatusHelper = {
     if (failedStatuses.includes(status)) return 'red'
     if (inProgressStatuses.includes(status)) return 'blue'
     if (status === ApplicationStatus.REJECTED) return '#f97316'
+    if (status === ApplicationStatus.USER_REJECTED) return '#ef4444' // 红色，表示用户主动拒绝
     if (passedStatuses.includes(status)) return 'green'
     return 'default'
   },
 
   // 获取状态类别标签
-  getStatusCategory: (status: ApplicationStatus): '进行中' | '已通过' | '已失败' => {
+  getStatusCategory: (status: ApplicationStatus): '进行中' | '已通过' | '已失败' | '已拒绝' => {
     if (StatusHelper.isFailedStatus(status)) return '已失败'
     if (StatusHelper.isInProgressStatus(status)) return '进行中'
+    if (StatusHelper.isUserRejectedStatus(status)) return '已拒绝'
     return '已通过'
   },
 
@@ -134,6 +144,35 @@ export const StatusHelper = {
       ApplicationStatus.HR_INTERVIEW
     ]
     return interviewStatuses.includes(status)
+  },
+
+  // 获取状态的显示名称（用于UI显示，可能与实际状态值不同）
+  getStatusDisplayName: (status: ApplicationStatus): string => {
+    const displayNameMap: Record<ApplicationStatus, string> = {
+      [ApplicationStatus.USER_REJECTED]: '主动终止流程',
+      // 其他状态保持原样
+      [ApplicationStatus.APPLIED]: ApplicationStatus.APPLIED,
+      [ApplicationStatus.RESUME_SCREENING]: ApplicationStatus.RESUME_SCREENING,
+      [ApplicationStatus.RESUME_SCREENING_FAIL]: ApplicationStatus.RESUME_SCREENING_FAIL,
+      [ApplicationStatus.WRITTEN_TEST]: ApplicationStatus.WRITTEN_TEST,
+      [ApplicationStatus.WRITTEN_TEST_PASS]: ApplicationStatus.WRITTEN_TEST_PASS,
+      [ApplicationStatus.WRITTEN_TEST_FAIL]: ApplicationStatus.WRITTEN_TEST_FAIL,
+      [ApplicationStatus.FIRST_INTERVIEW]: ApplicationStatus.FIRST_INTERVIEW,
+      [ApplicationStatus.FIRST_PASS]: ApplicationStatus.FIRST_PASS,
+      [ApplicationStatus.FIRST_FAIL]: ApplicationStatus.FIRST_FAIL,
+      [ApplicationStatus.SECOND_INTERVIEW]: ApplicationStatus.SECOND_INTERVIEW,
+      [ApplicationStatus.SECOND_PASS]: ApplicationStatus.SECOND_PASS,
+      [ApplicationStatus.SECOND_FAIL]: ApplicationStatus.SECOND_FAIL,
+      [ApplicationStatus.THIRD_INTERVIEW]: ApplicationStatus.THIRD_INTERVIEW,
+      [ApplicationStatus.THIRD_PASS]: ApplicationStatus.THIRD_PASS,
+      [ApplicationStatus.THIRD_FAIL]: ApplicationStatus.THIRD_FAIL,
+      [ApplicationStatus.HR_INTERVIEW]: ApplicationStatus.HR_INTERVIEW,
+      [ApplicationStatus.HR_PASS]: ApplicationStatus.HR_PASS,
+      [ApplicationStatus.HR_FAIL]: ApplicationStatus.HR_FAIL,
+      [ApplicationStatus.REJECTED]: ApplicationStatus.REJECTED,
+      [ApplicationStatus.OFFER_ACCEPTED]: ApplicationStatus.OFFER_ACCEPTED
+    }
+    return displayNameMap[status] || status
   }
 }
 

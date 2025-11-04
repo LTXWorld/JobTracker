@@ -615,6 +615,12 @@ func (s *StatusTrackingService) validateStatusTransition(userID uint, oldStatus,
 	if s.configRepo == nil {
 		return nil
 	}
+	
+	// 允许从任何状态转换到用户主动拒绝状态
+	if newStatus == model.StatusUserRejected {
+		return nil
+	}
+	
 	_, flowConfig, err := s.configRepo.GetDefaultFlowTemplate()
 	if err != nil && err != sql.ErrNoRows {
 		return fmt.Errorf("failed to get flow template: %w", err)
@@ -723,7 +729,7 @@ func (s *StatusTrackingService) isBackwardTransition(oldStatus, newStatus model.
 			return 50
 		case model.StatusHRInterview, model.StatusHRPass, model.StatusHRFail:
 			return 60
-		case model.StatusOfferAccepted, model.StatusRejected:
+		case model.StatusOfferAccepted, model.StatusRejected, model.StatusUserRejected:
 			return 70
 		default:
 			return 0
@@ -732,10 +738,10 @@ func (s *StatusTrackingService) isBackwardTransition(oldStatus, newStatus model.
 	return rank(newStatus) < rank(oldStatus)
 }
 
-// isTerminalStatus 判断是否为“终态”以用于回退必填备注
-// 这里限定为：已接受offer、已拒绝offer、各阶段未通过
+// isTerminalStatus 判断是否为"终态"以用于回退必填备注
+// 这里限定为：已接受offer、已拒绝offer、已拒绝、各阶段未通过
 func (s *StatusTrackingService) isTerminalStatus(st model.ApplicationStatus) bool {
-	if st == model.StatusOfferAccepted || st == model.StatusRejected {
+	if st == model.StatusOfferAccepted || st == model.StatusRejected || st == model.StatusUserRejected {
 		return true
 	}
 	return st == model.StatusResumeScreeningFail || st == model.StatusWrittenTestFail ||

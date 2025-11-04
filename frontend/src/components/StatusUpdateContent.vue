@@ -23,6 +23,7 @@
         show-search
         :filter-option="(input: string, option: any) => 
           option.label.toLowerCase().includes(input.toLowerCase())"
+        not-found-content="暂无数据"
       >
         <a-select-option
           v-for="option in statusOptions"
@@ -37,6 +38,10 @@
           </div>
         </a-select-option>
       </a-select>
+      <!-- 调试信息 -->
+      <div v-if="statusOptions.length === 0" style="color: red; font-size: 12px; margin-top: 4px;">
+        调试：availableStatuses.length = {{ availableStatuses.length }}, statusOptions.length = {{ statusOptions.length }}
+      </div>
     </div>
 
     <!-- 面试时间（条件显示） -->
@@ -118,12 +123,15 @@ defineEmits<{
 
 // 状态选项
 const statusOptions = computed(() => {
-  return props.availableStatuses.map(status => ({
+  console.log('StatusUpdateContent - availableStatuses:', props.availableStatuses)
+  const options = props.availableStatuses.map(status => ({
     value: status,
-    label: status,
+    label: StatusHelper.getStatusDisplayName(status),
     color: StatusHelper.getStatusColor(status),
     category: StatusHelper.getStatusCategory(status)
   }))
+  console.log('StatusUpdateContent - statusOptions:', options)
+  return options
 })
 
 // 是否需要面试时间

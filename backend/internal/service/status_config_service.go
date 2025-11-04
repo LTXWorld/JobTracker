@@ -338,6 +338,7 @@ func (s *StatusConfigService) GetAvailableStatusTransitions(userID uint, current
 			model.StatusHRFail,
 			model.StatusRejected,
 			model.StatusOfferAccepted,
+			model.StatusUserRejected, // 添加用户主动拒绝状态
 		}
 		for _, st := range all {
 			if st != currentStatus {
@@ -403,6 +404,12 @@ func (s *StatusConfigService) addImplicitDirectTransitions(currentStatus model.A
 		for _, next := range nextStates {
 			set[next] = true
 		}
+	}
+	
+	// 为所有进行中状态添加转换到"主动终止流程"（已拒绝）的选项
+	// 这样用户可以从任何进行中的状态主动终止流程
+	if currentStatus.IsInProgressStatus() && currentStatus != model.StatusUserRejected {
+		set[model.StatusUserRejected] = true
 	}
 }
 

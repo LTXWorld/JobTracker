@@ -249,6 +249,11 @@ BEGIN
         RETURN FALSE;
     END IF;
     
+    -- 允许从任何状态转换到用户主动拒绝状态（已拒绝）
+    IF p_new_status::text = '已拒绝' THEN
+        RETURN TRUE;
+    END IF;
+    
     -- 获取流转配置
     SELECT flow_config INTO v_flow_config
     FROM status_flow_templates 

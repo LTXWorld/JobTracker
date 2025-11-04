@@ -23,7 +23,7 @@ import type {
 import { message, notification, Button } from 'ant-design-vue'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useJobApplicationStore } from './jobApplication'
-import { triggerOfferCelebration } from '../utils/offerCelebration'
+import { triggerOfferCelebration, triggerEncouragement } from '../utils/offerCelebration'
 
 /**
  * 状态跟踪功能的Pinia Store
@@ -316,7 +316,7 @@ export const useStatusTrackingStore = defineStore('statusTracking', () => {
         message.success('恭喜拿下offer，这段时间辛苦啦！')
         triggerOfferCelebration()
       } else if (nextStatus && StatusHelper.isFailedStatus(nextStatus)) {
-        message.warning('别灰心，这是一场持久战，相信自己！')
+        triggerEncouragement()
       }
       
       // 清除缓存，强制刷新
