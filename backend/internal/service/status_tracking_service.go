@@ -582,29 +582,37 @@ func (s *StatusTrackingService) BatchUpdateStatus(userID uint, updates []model.B
 	return nil
 }
 
-func (s *StatusTrackingService) GetStatusAnalytics(userID uint) (*model.StatusAnalyticsResponse, error) {
+func (s *StatusTrackingService) GetStatusAnalytics(userID uint, processType model.ApplicationProcessType) (*model.StatusAnalyticsResponse, error) {
 	if err := s.ensureRepo(); err != nil {
 		return nil, err
 	}
+	if !processType.IsValid() {
+		processType = model.ProcessTypeAutumn
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	analytics, err := s.repo.GetStatusAnalytics(ctx, userID)
+	pt := processType
+	analytics, err := s.repo.GetStatusAnalytics(ctx, userID, &pt)
 	if err != nil {
 		return nil, err
 	}
 	return analytics, nil
 }
 
-func (s *StatusTrackingService) GetStatusTrends(userID uint, days int) ([]model.StatusTrend, error) {
+func (s *StatusTrackingService) GetStatusTrends(userID uint, days int, processType model.ApplicationProcessType) ([]model.StatusTrend, error) {
 	if err := s.ensureRepo(); err != nil {
 		return nil, err
 	}
 	if days <= 0 || days > 365 {
 		days = 30
 	}
+	if !processType.IsValid() {
+		processType = model.ProcessTypeAutumn
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	trends, err := s.repo.GetStatusTrends(ctx, userID, days)
+	pt := processType
+	trends, err := s.repo.GetStatusTrends(ctx, userID, days, &pt)
 	if err != nil {
 		return nil, err
 	}
@@ -615,12 +623,12 @@ func (s *StatusTrackingService) validateStatusTransition(userID uint, oldStatus,
 	if s.configRepo == nil {
 		return nil
 	}
-	
+
 	// 允许从任何状态转换到用户主动拒绝状态
 	if newStatus == model.StatusUserRejected {
 		return nil
 	}
-	
+
 	_, flowConfig, err := s.configRepo.GetDefaultFlowTemplate()
 	if err != nil && err != sql.ErrNoRows {
 		return fmt.Errorf("failed to get flow template: %w", err)

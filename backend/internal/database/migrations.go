@@ -41,6 +41,7 @@ func (db *DB) RunMigrations() error {
 				position_title VARCHAR(255) NOT NULL,
 				application_date VARCHAR(10) NOT NULL,
 				status VARCHAR(50) NOT NULL DEFAULT '已投递',
+				process_type VARCHAR(16) NOT NULL DEFAULT '秋招',
 				job_description TEXT,
 				salary_range VARCHAR(100),
 				work_location VARCHAR(255),
@@ -92,6 +93,7 @@ func (db *DB) RunMigrations() error {
 			"ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS interview_location VARCHAR(255);",
 			"ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS interview_type VARCHAR(255);",
 			"ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS company_attribute VARCHAR(10);",
+			"ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS process_type VARCHAR(16) NOT NULL DEFAULT '秋招';",
 		}
 
 		for _, alterSQL := range alterTableSQL {
@@ -112,6 +114,20 @@ BEGIN
         ALTER TABLE job_applications
         ADD CONSTRAINT chk_company_attribute_valid
         CHECK (company_attribute IS NULL OR company_attribute IN ('央国企', '私企'));
+    END IF;
+END $$;`)
+
+	// 确保求职周期检查约束存在
+	_, _ = db.Exec(`
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE table_name = 'job_applications' AND constraint_name = 'chk_job_applications_process_type'
+    ) THEN
+        ALTER TABLE job_applications
+        ADD CONSTRAINT chk_job_applications_process_type
+        CHECK (process_type IN ('秋招', '春招', '社招'));
     END IF;
 END $$;`)
 
@@ -218,6 +234,7 @@ END $$;`)
 		"CREATE INDEX IF NOT EXISTS idx_job_applications_user_id ON job_applications(user_id);",
 		"CREATE INDEX IF NOT EXISTS idx_job_applications_application_date ON job_applications(application_date);",
 		"CREATE INDEX IF NOT EXISTS idx_job_applications_status ON job_applications(status);",
+		"CREATE INDEX IF NOT EXISTS idx_job_applications_user_process_type ON job_applications(user_id, process_type);",
 		"CREATE INDEX IF NOT EXISTS idx_job_applications_company_name ON job_applications(company_name);",
 		"CREATE INDEX IF NOT EXISTS idx_job_applications_user_status ON job_applications(user_id, status);",
 		"CREATE INDEX IF NOT EXISTS idx_job_applications_reminder_time ON job_applications(reminder_time) WHERE reminder_enabled = TRUE;",

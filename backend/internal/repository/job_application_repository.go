@@ -18,17 +18,17 @@ type JobApplicationRepository interface {
 	GetAll(userID uint) ([]model.JobApplication, error)
 	Update(userID uint, id int, req *model.UpdateJobApplicationRequest) (*model.JobApplication, error)
 	Delete(userID uint, id int) error
-	GetStatusStatistics(userID uint) (map[string]int, error)
-	GetHRPassCount(userID uint) (int, error)
+	GetStatusStatistics(userID uint, processType *model.ApplicationProcessType) (map[string]int, error)
+	GetHRPassCount(userID uint, processType *model.ApplicationProcessType) (int, error)
 	BatchCreate(userID uint, applications []model.CreateJobApplicationRequest) ([]model.JobApplication, error)
 	BatchUpdateStatus(userID uint, updates []model.BatchStatusUpdate) error
 	BatchDelete(userID uint, ids []int) error
 	Search(userID uint, searchQuery string, req model.PaginationRequest) (*model.PaginationResponse, error)
 	ListByDateRange(userID uint, startDate, endDate string, req model.PaginationRequest) (*model.PaginationResponse, error)
 	ListWithStatusFilters(userID uint, status *model.ApplicationStatus, stageStatuses []string, req model.PaginationRequest) (*model.PaginationResponse, error)
-	ListRecentApplications(userID uint, limit int) ([]map[string]interface{}, error)
-	ListUpcomingInterviews(userID uint, limit int) ([]map[string]interface{}, error)
-	ListDailyStats(userID uint, days int) ([]map[string]interface{}, error)
+	ListRecentApplications(userID uint, limit int, processType *model.ApplicationProcessType) ([]map[string]interface{}, error)
+	ListUpcomingInterviews(userID uint, limit int, processType *model.ApplicationProcessType) ([]map[string]interface{}, error)
+	ListDailyStats(userID uint, days int, processType *model.ApplicationProcessType) ([]map[string]interface{}, error)
 }
 
 type jobAppRepo struct{ db *database.DB }
@@ -76,6 +76,10 @@ func (r *jobAppRepo) Create(userID uint, req *model.CreateJobApplicationRequest)
 	if status == "" {
 		status = model.StatusApplied
 	}
+	processType := req.ProcessType
+	if !processType.IsValid() {
+		processType = model.ProcessTypeAutumn
+	}
 	reminderEnabled := false
 	if req.ReminderEnabled != nil {
 		reminderEnabled = *req.ReminderEnabled
@@ -89,12 +93,12 @@ func (r *jobAppRepo) Create(userID uint, req *model.CreateJobApplicationRequest)
 	}
 
 	query := `INSERT INTO job_applications (
-        user_id, company_name, position_title, application_date, status,
+        user_id, company_name, position_title, application_date, status, process_type,
         job_description, salary_range, work_location, contact_info, notes,
         interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
         hr_name, hr_phone, hr_email, interview_location, interview_type,
         company_attribute
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
     RETURNING id, created_at, updated_at`
 
 	var job model.JobApplication
@@ -104,6 +108,7 @@ func (r *jobAppRepo) Create(userID uint, req *model.CreateJobApplicationRequest)
 		req.PositionTitle,
 		applicationDate,
 		status,
+		processType,
 		req.JobDescription,
 		req.SalaryRange,
 		req.WorkLocation,
@@ -135,6 +140,7 @@ func (r *jobAppRepo) Create(userID uint, req *model.CreateJobApplicationRequest)
 	job.PositionTitle = req.PositionTitle
 	job.ApplicationDate = applicationDate
 	job.Status = status
+	job.ProcessType = processType
 	job.JobDescription = req.JobDescription
 	job.SalaryRange = req.SalaryRange
 	job.WorkLocation = req.WorkLocation
@@ -166,7 +172,7 @@ func (r *jobAppRepo) GetByID(userID uint, id int) (*model.JobApplication, error)
 	if r.db.ORM == nil {
 		return nil, fmt.Errorf("gorm not initialized")
 	}
-	query := `SELECT id, user_id, company_name, position_title, application_date, status,
+	query := `SELECT id, user_id, company_name, position_title, application_date, status, process_type,
         job_description, salary_range, work_location, contact_info, notes,
         interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
         hr_name, hr_phone, hr_email, interview_location, interview_type,
@@ -176,7 +182,7 @@ func (r *jobAppRepo) GetByID(userID uint, id int) (*model.JobApplication, error)
 	var reminderCategory sql.NullString
 	row := r.db.ORM.Raw(query, id, userID).Row()
 	if err := row.Scan(
-		&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status,
+		&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status, &job.ProcessType,
 		&job.JobDescription, &job.SalaryRange, &job.WorkLocation, &job.ContactInfo, &job.Notes,
 		&job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &reminderCategory, &job.FollowUpDate,
 		&job.HRName, &job.HRPhone, &job.HREmail, &job.InterviewLocation, &job.InterviewType,
@@ -199,7 +205,7 @@ func (r *jobAppRepo) GetAll(userID uint) ([]model.JobApplication, error) {
 	if r.db.ORM == nil {
 		return nil, fmt.Errorf("gorm not initialized")
 	}
-	query := `SELECT id, user_id, company_name, position_title, application_date, status,
+	query := `SELECT id, user_id, company_name, position_title, application_date, status, process_type,
     job_description, salary_range, work_location, contact_info, notes,
         interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
         hr_name, hr_phone, hr_email, interview_location, interview_type,
@@ -215,7 +221,7 @@ func (r *jobAppRepo) GetAll(userID uint) ([]model.JobApplication, error) {
 	for rows.Next() {
 		var job model.JobApplication
 		var reminderCategory sql.NullString
-		if err := rows.Scan(&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status,
+		if err := rows.Scan(&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status, &job.ProcessType,
 			&job.JobDescription, &job.SalaryRange, &job.WorkLocation, &job.ContactInfo, &job.Notes,
 			&job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &reminderCategory, &job.FollowUpDate,
 			&job.HRName, &job.HRPhone, &job.HREmail, &job.InterviewLocation, &job.InterviewType,
@@ -245,6 +251,11 @@ func (r *jobAppRepo) GetAllPaginated(userID uint, req model.PaginationRequest) (
 		args = append(args, *req.Status)
 		idx++
 	}
+	if req.ProcessType != nil && req.ProcessType.IsValid() {
+		where += fmt.Sprintf(" AND process_type = $%d", idx)
+		args = append(args, *req.ProcessType)
+		idx++
+	}
 
 	var total int64
 	countSQL := fmt.Sprintf("SELECT COUNT(*) FROM job_applications %s", where)
@@ -259,7 +270,7 @@ func (r *jobAppRepo) GetAllPaginated(userID uint, req model.PaginationRequest) (
 	if !allowed[req.SortBy] {
 		req.SortBy = "application_date"
 	}
-	dataSQL := fmt.Sprintf(`SELECT id, user_id, company_name, position_title, application_date, status,
+	dataSQL := fmt.Sprintf(`SELECT id, user_id, company_name, position_title, application_date, status, process_type,
         job_description, salary_range, work_location, contact_info, notes,
         interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
         hr_name, hr_phone, hr_email, interview_location, interview_type,
@@ -276,7 +287,7 @@ func (r *jobAppRepo) GetAllPaginated(userID uint, req model.PaginationRequest) (
 	for rows.Next() {
 		var job model.JobApplication
 		var reminderCategory sql.NullString
-		if err := rows.Scan(&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status,
+		if err := rows.Scan(&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status, &job.ProcessType,
 			&job.JobDescription, &job.SalaryRange, &job.WorkLocation, &job.ContactInfo, &job.Notes,
 			&job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &reminderCategory, &job.FollowUpDate,
 			&job.HRName, &job.HRPhone, &job.HREmail, &job.InterviewLocation, &job.InterviewType,
@@ -319,6 +330,11 @@ func (r *jobAppRepo) Update(userID uint, id int, req *model.UpdateJobApplication
 	if req.Status != nil {
 		setParts = append(setParts, fmt.Sprintf("status=$%d", idx))
 		args = append(args, *req.Status)
+		idx++
+	}
+	if req.ProcessType != nil && req.ProcessType.IsValid() {
+		setParts = append(setParts, fmt.Sprintf("process_type=$%d", idx))
+		args = append(args, *req.ProcessType)
 		idx++
 	}
 	if req.JobDescription != nil {
@@ -416,7 +432,7 @@ func (r *jobAppRepo) Update(userID uint, id int, req *model.UpdateJobApplication
 	args = append(args, time.Now())
 	idx++
 	args = append(args, id, userID)
-	query := fmt.Sprintf(`UPDATE job_applications SET %s WHERE id=$%d AND user_id=$%d RETURNING id, user_id, company_name, position_title, application_date, status,
+	query := fmt.Sprintf(`UPDATE job_applications SET %s WHERE id=$%d AND user_id=$%d RETURNING id, user_id, company_name, position_title, application_date, status, process_type,
         job_description, salary_range, work_location, contact_info, notes,
         interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
         hr_name, hr_phone, hr_email, interview_location, interview_type,
@@ -425,7 +441,7 @@ func (r *jobAppRepo) Update(userID uint, id int, req *model.UpdateJobApplication
 	var job model.JobApplication
 	row := r.db.ORM.Raw(query, args...).Row()
 	var reminderCategory sql.NullString
-	if err := row.Scan(&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status, &job.JobDescription, &job.SalaryRange, &job.WorkLocation, &job.ContactInfo, &job.Notes, &job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &reminderCategory, &job.FollowUpDate, &job.HRName, &job.HRPhone, &job.HREmail, &job.InterviewLocation, &job.InterviewType, &job.CompanyAttribute, &job.CreatedAt, &job.UpdatedAt); err != nil {
+	if err := row.Scan(&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status, &job.ProcessType, &job.JobDescription, &job.SalaryRange, &job.WorkLocation, &job.ContactInfo, &job.Notes, &job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &reminderCategory, &job.FollowUpDate, &job.HRName, &job.HRPhone, &job.HREmail, &job.InterviewLocation, &job.InterviewType, &job.CompanyAttribute, &job.CreatedAt, &job.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("job application not found")
 		}
@@ -454,8 +470,16 @@ func (r *jobAppRepo) Delete(userID uint, id int) error {
 	return nil
 }
 
-func (r *jobAppRepo) GetStatusStatistics(userID uint) (map[string]int, error) {
-	rows, err := r.queryRows("SELECT status, COUNT(*) FROM job_applications WHERE user_id = $1 GROUP BY status", userID)
+func (r *jobAppRepo) GetStatusStatistics(userID uint, processType *model.ApplicationProcessType) (map[string]int, error) {
+	query := "SELECT status, COUNT(*) FROM job_applications WHERE user_id = $1"
+	args := []interface{}{userID}
+	if processType != nil && processType.IsValid() {
+		query += fmt.Sprintf(" AND process_type = $%d", len(args)+1)
+		args = append(args, *processType)
+	}
+	query += " GROUP BY status"
+
+	rows, err := r.queryRows(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get status statistics: %w", err)
 	}
@@ -476,15 +500,21 @@ func (r *jobAppRepo) GetStatusStatistics(userID uint) (map[string]int, error) {
 	return result, nil
 }
 
-func (r *jobAppRepo) GetHRPassCount(userID uint) (int, error) {
+func (r *jobAppRepo) GetHRPassCount(userID uint, processType *model.ApplicationProcessType) (int, error) {
 	if r.db.ORM == nil {
 		return 0, fmt.Errorf("gorm not initialized")
 	}
-	query := `SELECT COUNT(DISTINCT job_application_id)
-		FROM job_status_history
-		WHERE user_id = $1 AND new_status = $2`
+	query := `SELECT COUNT(DISTINCT h.job_application_id)
+		FROM job_status_history h
+		JOIN job_applications ja ON ja.id = h.job_application_id
+		WHERE h.user_id = $1 AND h.new_status = $2`
+	args := []interface{}{userID, model.StatusHRPass}
+	if processType != nil && processType.IsValid() {
+		query += fmt.Sprintf(" AND ja.process_type = $%d", len(args)+1)
+		args = append(args, *processType)
+	}
 	var count int
-	if err := r.db.ORM.Raw(query, userID, model.StatusHRPass).Row().Scan(&count); err != nil {
+	if err := r.db.ORM.Raw(query, args...).Row().Scan(&count); err != nil {
 		return 0, fmt.Errorf("failed to count HR pass records: %w", err)
 	}
 	return count, nil
@@ -527,8 +557,12 @@ func (r *jobAppRepo) BatchCreate(userID uint, applications []model.CreateJobAppl
 				reminderCategory = trimmed
 			}
 		}
+		processType := req.ProcessType
+		if !processType.IsValid() {
+			processType = model.ProcessTypeAutumn
+		}
 
-		placeholders := make([]string, 21)
+		placeholders := make([]string, 22)
 		for i := range placeholders {
 			placeholders[i] = fmt.Sprintf("$%d", argIndex+i)
 		}
@@ -539,6 +573,7 @@ func (r *jobAppRepo) BatchCreate(userID uint, applications []model.CreateJobAppl
 			req.PositionTitle,
 			applicationDate,
 			status,
+			processType,
 			req.JobDescription,
 			req.SalaryRange,
 			req.WorkLocation,
@@ -561,19 +596,19 @@ func (r *jobAppRepo) BatchCreate(userID uint, applications []model.CreateJobAppl
 				return req.CompanyAttribute
 			}(),
 		)
-		argIndex += 21
+		argIndex += 22
 
 	}
 
 	query := fmt.Sprintf(`
         INSERT INTO job_applications (
-            user_id, company_name, position_title, application_date, status,
+            user_id, company_name, position_title, application_date, status, process_type,
             job_description, salary_range, work_location, contact_info, notes,
             interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
             hr_name, hr_phone, hr_email, interview_location, interview_type,
             company_attribute
         ) VALUES %s
-        RETURNING id, user_id, company_name, position_title, application_date, status,
+        RETURNING id, user_id, company_name, position_title, application_date, status, process_type,
             job_description, salary_range, work_location, contact_info, notes,
             interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
             hr_name, hr_phone, hr_email, interview_location, interview_type,
@@ -604,6 +639,7 @@ func (r *jobAppRepo) BatchCreate(userID uint, applications []model.CreateJobAppl
 			&job.PositionTitle,
 			&job.ApplicationDate,
 			&job.Status,
+			&job.ProcessType,
 			&job.JobDescription,
 			&job.SalaryRange,
 			&job.WorkLocation,
@@ -750,8 +786,16 @@ func (r *jobAppRepo) Search(userID uint, searchQuery string, req model.Paginatio
 	req.ValidateAndSetDefaults()
 	keyword := "%" + strings.TrimSpace(searchQuery) + "%"
 
-	countQuery := `SELECT COUNT(*) FROM job_applications WHERE user_id = $1 AND (company_name ILIKE $2 OR position_title ILIKE $2 OR notes ILIKE $2)`
-	row, err := r.queryRow(countQuery, userID, keyword)
+	whereParts := []string{"user_id = $1", "(company_name ILIKE $2 OR position_title ILIKE $2 OR notes ILIKE $2)"}
+	args := []interface{}{userID, keyword}
+	if req.ProcessType != nil && req.ProcessType.IsValid() {
+		whereParts = append(whereParts, fmt.Sprintf("process_type = $%d", len(args)+1))
+		args = append(args, *req.ProcessType)
+	}
+	whereClause := strings.Join(whereParts, " AND ")
+
+	countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM job_applications WHERE %s`, whereClause)
+	row, err := r.queryRow(countQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count search results: %w", err)
 	}
@@ -768,20 +812,25 @@ func (r *jobAppRepo) Search(userID uint, searchQuery string, req model.Paginatio
 		req.SortBy = "application_date"
 	}
 
+	limitPos := len(args) + 1
+	offsetPos := len(args) + 2
 	dataQuery := fmt.Sprintf(`
-        SELECT id, user_id, company_name, position_title, application_date, status,
+        SELECT id, user_id, company_name, position_title, application_date, status, process_type,
                job_description, salary_range, work_location, contact_info, notes,
                interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
                hr_name, hr_phone, hr_email, interview_location, interview_type,
                company_attribute,
                created_at, updated_at
         FROM job_applications
-        WHERE user_id = $1 AND (company_name ILIKE $2 OR position_title ILIKE $2 OR notes ILIKE $2)
+        WHERE %s
         ORDER BY %s %s, created_at DESC
-        LIMIT $3 OFFSET $4
-    `, req.SortBy, req.SortDir)
+        LIMIT $%d OFFSET $%d
+    `, whereClause, req.SortBy, req.SortDir, limitPos, offsetPos)
 
-	rows, err := r.queryRows(dataQuery, userID, keyword, req.PageSize, req.GetOffset())
+	dataArgs := append([]interface{}{}, args...)
+	dataArgs = append(dataArgs, req.PageSize, req.GetOffset())
+
+	rows, err := r.queryRows(dataQuery, dataArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search job applications: %w", err)
 	}
@@ -792,7 +841,7 @@ func (r *jobAppRepo) Search(userID uint, searchQuery string, req model.Paginatio
 		var job model.JobApplication
 		var reminderCategory sql.NullString
 		if err := rows.Scan(
-			&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status,
+			&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status, &job.ProcessType,
 			&job.JobDescription, &job.SalaryRange, &job.WorkLocation, &job.ContactInfo, &job.Notes,
 			&job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &reminderCategory, &job.FollowUpDate,
 			&job.HRName, &job.HRPhone, &job.HREmail, &job.InterviewLocation, &job.InterviewType,
@@ -828,9 +877,17 @@ func (r *jobAppRepo) ListByDateRange(userID uint, startDate, endDate string, req
 		return nil, err
 	}
 	req.ValidateAndSetDefaults()
+	where := "user_id = $1 AND application_date BETWEEN $2 AND $3"
+	args := []interface{}{userID, startDate, endDate}
+	nextIdx := 4
+	if req.ProcessType != nil && req.ProcessType.IsValid() {
+		where += fmt.Sprintf(" AND process_type = $%d", nextIdx)
+		args = append(args, *req.ProcessType)
+		nextIdx++
+	}
 
-	countQuery := `SELECT COUNT(*) FROM job_applications WHERE user_id = $1 AND application_date BETWEEN $2 AND $3`
-	row, err := r.queryRow(countQuery, userID, startDate, endDate)
+	countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM job_applications WHERE %s`, where)
+	row, err := r.queryRow(countQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count job applications: %w", err)
 	}
@@ -847,20 +904,25 @@ func (r *jobAppRepo) ListByDateRange(userID uint, startDate, endDate string, req
 		req.SortBy = "application_date"
 	}
 
+	limitPos := nextIdx
+	offsetPos := nextIdx + 1
 	dataQuery := fmt.Sprintf(`
-        SELECT id, user_id, company_name, position_title, application_date, status,
+        SELECT id, user_id, company_name, position_title, application_date, status, process_type,
                job_description, salary_range, work_location, contact_info, notes,
                interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
                hr_name, hr_phone, hr_email, interview_location, interview_type,
                company_attribute,
                created_at, updated_at
         FROM job_applications
-        WHERE user_id = $1 AND application_date BETWEEN $2 AND $3
+        WHERE %s
         ORDER BY %s %s, created_at DESC
-        LIMIT $4 OFFSET $5
-    `, req.SortBy, req.SortDir)
+        LIMIT $%d OFFSET $%d
+    `, where, req.SortBy, req.SortDir, limitPos, offsetPos)
 
-	rows, err := r.queryRows(dataQuery, userID, startDate, endDate, req.PageSize, req.GetOffset())
+	dataArgs := append([]interface{}{}, args...)
+	dataArgs = append(dataArgs, req.PageSize, req.GetOffset())
+
+	rows, err := r.queryRows(dataQuery, dataArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list job applications: %w", err)
 	}
@@ -871,7 +933,7 @@ func (r *jobAppRepo) ListByDateRange(userID uint, startDate, endDate string, req
 		var job model.JobApplication
 		var reminderCategory sql.NullString
 		if err := rows.Scan(
-			&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status,
+			&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status, &job.ProcessType,
 			&job.JobDescription, &job.SalaryRange, &job.WorkLocation, &job.ContactInfo, &job.Notes,
 			&job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &reminderCategory, &job.FollowUpDate,
 			&job.HRName, &job.HRPhone, &job.HREmail, &job.InterviewLocation, &job.InterviewType,
@@ -926,6 +988,11 @@ func (r *jobAppRepo) ListWithStatusFilters(userID uint, status *model.Applicatio
 		}
 		where += " AND status IN (" + strings.Join(placeholders, ",") + ")"
 	}
+	if req.ProcessType != nil && req.ProcessType.IsValid() {
+		where += fmt.Sprintf(" AND process_type = $%d", idx)
+		args = append(args, *req.ProcessType)
+		idx++
+	}
 
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM job_applications %s", where)
 	row, err := r.queryRow(countQuery, args...)
@@ -945,7 +1012,7 @@ func (r *jobAppRepo) ListWithStatusFilters(userID uint, status *model.Applicatio
 		req.SortBy = "application_date"
 	}
 
-	dataQuery := fmt.Sprintf(`SELECT id, user_id, company_name, position_title, application_date, status,
+	dataQuery := fmt.Sprintf(`SELECT id, user_id, company_name, position_title, application_date, status, process_type,
             job_description, salary_range, work_location, contact_info, notes,
             interview_time, reminder_time, reminder_enabled, reminder_category, follow_up_date,
             hr_name, hr_phone, hr_email, interview_location, interview_type,
@@ -967,7 +1034,7 @@ func (r *jobAppRepo) ListWithStatusFilters(userID uint, status *model.Applicatio
 		var job model.JobApplication
 		var reminderCategory sql.NullString
 		if err := rows.Scan(
-			&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status,
+			&job.ID, &job.UserID, &job.CompanyName, &job.PositionTitle, &job.ApplicationDate, &job.Status, &job.ProcessType,
 			&job.JobDescription, &job.SalaryRange, &job.WorkLocation, &job.ContactInfo, &job.Notes,
 			&job.InterviewTime, &job.ReminderTime, &job.ReminderEnabled, &reminderCategory, &job.FollowUpDate,
 			&job.HRName, &job.HRPhone, &job.HREmail, &job.InterviewLocation, &job.InterviewType,
@@ -998,7 +1065,7 @@ func (r *jobAppRepo) ListWithStatusFilters(userID uint, status *model.Applicatio
 	}, nil
 }
 
-func (r *jobAppRepo) ListRecentApplications(userID uint, limit int) ([]map[string]interface{}, error) {
+func (r *jobAppRepo) ListRecentApplications(userID uint, limit int, processType *model.ApplicationProcessType) ([]map[string]interface{}, error) {
 	if err := r.ensureDB(); err != nil {
 		return nil, err
 	}
@@ -1007,13 +1074,18 @@ func (r *jobAppRepo) ListRecentApplications(userID uint, limit int) ([]map[strin
 	}
 
 	query := `
-        SELECT id, company_name, position_title, status, updated_at
+        SELECT id, company_name, position_title, status, process_type, updated_at
         FROM job_applications
-        WHERE user_id = $1
-        ORDER BY updated_at DESC
-        LIMIT $2`
+        WHERE user_id = $1`
+	args := []interface{}{userID}
+	if processType != nil && processType.IsValid() {
+		query += fmt.Sprintf(" AND process_type = $%d", len(args)+1)
+		args = append(args, *processType)
+	}
+	query += fmt.Sprintf(" ORDER BY updated_at DESC LIMIT $%d", len(args)+1)
+	args = append(args, limit)
 
-	rows, err := r.queryRows(query, userID, limit)
+	rows, err := r.queryRows(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get recent applications: %w", err)
 	}
@@ -1026,9 +1098,10 @@ func (r *jobAppRepo) ListRecentApplications(userID uint, limit int) ([]map[strin
 			companyName   string
 			positionTitle string
 			status        string
+			process       string
 			updatedAt     time.Time
 		)
-		if err := rows.Scan(&id, &companyName, &positionTitle, &status, &updatedAt); err != nil {
+		if err := rows.Scan(&id, &companyName, &positionTitle, &status, &process, &updatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan recent application: %w", err)
 		}
 		result = append(result, map[string]interface{}{
@@ -1036,6 +1109,7 @@ func (r *jobAppRepo) ListRecentApplications(userID uint, limit int) ([]map[strin
 			"company_name":   companyName,
 			"position_title": positionTitle,
 			"status":         status,
+			"process_type":   process,
 			"updated_at":     updatedAt,
 		})
 	}
@@ -1045,7 +1119,7 @@ func (r *jobAppRepo) ListRecentApplications(userID uint, limit int) ([]map[strin
 	return result, nil
 }
 
-func (r *jobAppRepo) ListUpcomingInterviews(userID uint, limit int) ([]map[string]interface{}, error) {
+func (r *jobAppRepo) ListUpcomingInterviews(userID uint, limit int, processType *model.ApplicationProcessType) ([]map[string]interface{}, error) {
 	if err := r.ensureDB(); err != nil {
 		return nil, err
 	}
@@ -1056,11 +1130,16 @@ func (r *jobAppRepo) ListUpcomingInterviews(userID uint, limit int) ([]map[strin
 	query := `
         SELECT id, company_name, position_title, interview_time, interview_type
         FROM job_applications
-        WHERE user_id = $1 AND interview_time IS NOT NULL AND interview_time > NOW()
-        ORDER BY interview_time ASC
-        LIMIT $2`
+        WHERE user_id = $1 AND interview_time IS NOT NULL AND interview_time > NOW()`
+	args := []interface{}{userID}
+	if processType != nil && processType.IsValid() {
+		query += fmt.Sprintf(" AND process_type = $%d", len(args)+1)
+		args = append(args, *processType)
+	}
+	query += fmt.Sprintf(" ORDER BY interview_time ASC LIMIT $%d", len(args)+1)
+	args = append(args, limit)
 
-	rows, err := r.queryRows(query, userID, limit)
+	rows, err := r.queryRows(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get upcoming interviews: %w", err)
 	}
@@ -1095,7 +1174,7 @@ func (r *jobAppRepo) ListUpcomingInterviews(userID uint, limit int) ([]map[strin
 	return result, nil
 }
 
-func (r *jobAppRepo) ListDailyStats(userID uint, days int) ([]map[string]interface{}, error) {
+func (r *jobAppRepo) ListDailyStats(userID uint, days int, processType *model.ApplicationProcessType) ([]map[string]interface{}, error) {
 	if err := r.ensureDB(); err != nil {
 		return nil, err
 	}
@@ -1106,12 +1185,17 @@ func (r *jobAppRepo) ListDailyStats(userID uint, days int) ([]map[string]interfa
 	query := `
         SELECT DATE(created_at) AS date, COUNT(*) AS count
         FROM job_applications
-        WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL $2
+        WHERE user_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '1 day' * $2`
+	args := []interface{}{userID, days}
+	if processType != nil && processType.IsValid() {
+		query += fmt.Sprintf(" AND process_type = $%d", len(args)+1)
+		args = append(args, *processType)
+	}
+	query += `
         GROUP BY DATE(created_at)
         ORDER BY date DESC`
 
-	interval := fmt.Sprintf("'%d days'", days)
-	rows, err := r.queryRows(query, userID, interval)
+	rows, err := r.queryRows(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get daily stats: %w", err)
 	}

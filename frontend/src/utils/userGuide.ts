@@ -7,18 +7,7 @@ export interface UserGuideState {
 
 export class UserGuideManager {
   private static readonly STORAGE_KEY = 'jobview_user_guide'
-
-  // 获取用户指导状态
-  static getGuideState(): UserGuideState {
-    try {
-      const stored = localStorage.getItem(this.STORAGE_KEY)
-      if (stored) {
-        return JSON.parse(stored)
-      }
-    } catch (error) {
-      console.warn('获取用户指导状态失败:', error)
-    }
-
+  private static createDefaultState(): UserGuideState {
     return {
       hasSeenGuide: false,
       guideCompletedAt: null,
@@ -26,10 +15,46 @@ export class UserGuideManager {
     }
   }
 
+  private static getStorage(): Storage | null {
+    try {
+      if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+        return null
+      }
+      return window.localStorage
+    } catch (error) {
+      console.warn('检测本地存储能力失败:', error)
+      return null
+    }
+  }
+
+  // 获取用户指导状态
+  static getGuideState(): UserGuideState {
+    const storage = this.getStorage()
+    if (!storage) {
+      return this.createDefaultState()
+    }
+
+    try {
+      const stored = storage.getItem(this.STORAGE_KEY)
+      if (stored) {
+        return JSON.parse(stored)
+      }
+    } catch (error) {
+      console.warn('获取用户指导状态失败:', error)
+    }
+
+    return this.createDefaultState()
+  }
+
   // 保存用户指导状态
   static saveGuideState(state: UserGuideState): void {
+    const storage = this.getStorage()
+    if (!storage) {
+      return
+    }
+
     try {
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(state))
+      storage.setItem(this.STORAGE_KEY, JSON.stringify(state))
     } catch (error) {
       console.error('保存用户指导状态失败:', error)
     }
@@ -69,7 +94,13 @@ export class UserGuideManager {
 
   // 重置指导状态（用于开发测试）
   static resetGuideState(): void {
-    localStorage.removeItem(this.STORAGE_KEY)
+    const storage = this.getStorage()
+    if (!storage) {
+      console.warn('当前环境不支持 localStorage，无法重置用户指导状态')
+      return
+    }
+
+    storage.removeItem(this.STORAGE_KEY)
     console.log('✅ 用户指导状态已重置')
   }
 
@@ -80,8 +111,13 @@ export class UserGuideManager {
 }
 
 // 在开发模式下将重置方法暴露到全局
-if (typeof window !== 'undefined') {
-  // 使用绑定函数确保 this 上下文正确
-  (window as any).resetUserGuide = () => UserGuideManager.resetGuideState()
-  (window as any).checkGuideState = () => UserGuideManager.getGuideState()
+try {
+  if (typeof window !== 'undefined' && typeof window === 'object') {
+    // 使用绑定函数确保 this 上下文正确
+    const globalWindow = window as typeof window & Record<string, unknown>
+    globalWindow.resetUserGuide = UserGuideManager.resetGuideState.bind(UserGuideManager)
+    globalWindow.checkGuideState = UserGuideManager.getGuideState.bind(UserGuideManager)
+  }
+} catch (error) {
+  console.warn('注册用户指导调试方法失败:', error)
 }

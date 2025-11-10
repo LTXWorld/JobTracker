@@ -152,7 +152,7 @@ func BenchmarkGetStatusStatistics(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		_, err := service.GetStatusStatistics(userID)
+		_, err := service.GetStatusStatistics(userID, model.ProcessTypeAutumn)
 		if err != nil {
 			b.Fatalf("GetStatusStatistics failed: %v", err)
 		}
@@ -324,7 +324,7 @@ func BenchmarkConcurrentOperations(b *testing.B) {
 				service.GetAllPaginated(userID, req)
 			case 1:
 				// 统计操作
-				service.GetStatusStatistics(userID)
+				service.GetStatusStatistics(userID, model.ProcessTypeAutumn)
 			case 2:
 				// 搜索操作
 				service.SearchApplications(userID, "腾讯", req)
@@ -351,7 +351,7 @@ func BenchmarkConnectionPool(b *testing.B) {
 	// 测试连接池在高并发下的表现
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, err := service.GetStatusStatistics(userID)
+			_, err := service.GetStatusStatistics(userID, model.ProcessTypeAutumn)
 			if err != nil {
 				b.Errorf("GetStatusStatistics failed: %v", err)
 			}
@@ -415,7 +415,7 @@ func BenchmarkPerformanceComparison(b *testing.B) {
 	b.Run("StatusStatistics_WithCoveringIndex", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := service.GetStatusStatistics(userID)
+			_, err := service.GetStatusStatistics(userID, model.ProcessTypeAutumn)
 			if err != nil {
 				b.Fatalf("GetStatusStatistics failed: %v", err)
 			}

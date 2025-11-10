@@ -7,8 +7,9 @@ import type {
   UpdateJobApplicationRequest, 
   FilterOptions, 
   ApplicationStatus,
-  JobApplicationStatistics 
+  JobApplicationStatistics
 } from '../types'
+import { JobProcessType } from '../types'
 import { message } from 'ant-design-vue'
 
 export const useJobApplicationStore = defineStore('jobApplication', () => {
@@ -20,6 +21,17 @@ export const useJobApplicationStore = defineStore('jobApplication', () => {
   const statisticsLoading = ref(false)
   const rateLimited = ref(false)
   const rateLimitResetAt = ref<number | null>(null)
+  const storedProcessType = (localStorage.getItem('job_process_type') as JobProcessType) || JobProcessType.AUTUMN
+  const currentProcessType = ref<JobProcessType>(
+    storedProcessType === JobProcessType.SPRING || storedProcessType === JobProcessType.SOCIAL
+      ? storedProcessType
+      : JobProcessType.AUTUMN
+  )
+  const processTypeOptions = [
+    { label: '秋招', value: JobProcessType.AUTUMN },
+    { label: '春招', value: JobProcessType.SPRING },
+    { label: '社招', value: JobProcessType.SOCIAL }
+  ]
 
   let rateLimitTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -62,7 +74,7 @@ export const useJobApplicationStore = defineStore('jobApplication', () => {
   const fetchApplications = async () => {
     loading.value = true
     try {
-      const data = await JobApplicationAPI.getAll()
+      const data = await JobApplicationAPI.getAll(currentProcessType.value)
       clearRateLimitCooldown()
       if (Array.isArray(data)) {
         applications.value = data.map(app => {
@@ -116,7 +128,11 @@ export const useJobApplicationStore = defineStore('jobApplication', () => {
   const createApplication = async (data: CreateJobApplicationRequest) => {
     loading.value = true
     try {
-      const newApp = await JobApplicationAPI.create(data)
+      const payload: CreateJobApplicationRequest = {
+        ...data,
+        process_type: data.process_type || currentProcessType.value
+      }
+      const newApp = await JobApplicationAPI.create(payload)
       // 确保applications是数组
       if (!Array.isArray(applications.value)) {
         applications.value = []
@@ -146,7 +162,12 @@ export const useJobApplicationStore = defineStore('jobApplication', () => {
   const updateApplication = async (id: number, data: UpdateJobApplicationRequest) => {
     loading.value = true
     try {
-      const updatedApp = await JobApplicationAPI.update(id, data)
+      const existing = applications.value.find(app => app.id === id)
+      const payload: UpdateJobApplicationRequest = {
+        ...data,
+        process_type: data.process_type || existing?.process_type || currentProcessType.value
+      }
+      const updatedApp = await JobApplicationAPI.update(id, payload)
       if (updatedApp.reminder_enabled) {
         if (!updatedApp.interview_time && updatedApp.interview_type === '笔试') {
           ;(updatedApp as any).reminder_category = 'written'
@@ -216,12 +237,20 @@ export const useJobApplicationStore = defineStore('jobApplication', () => {
   const fetchStatistics = async () => {
     statisticsLoading.value = true
     try {
-      statistics.value = await JobApplicationAPI.getStatistics()
+      statistics.value = await JobApplicationAPI.getStatistics(currentProcessType.value)
     } catch (error) {
       message.error('获取统计数据失败: ' + (error as Error).message)
     } finally {
       statisticsLoading.value = false
     }
+  }
+
+  const setProcessType = async (type: JobProcessType) => {
+    if (currentProcessType.value === type) return
+    currentProcessType.value = type
+    await fetchApplications()
+    fetchStatistics()
+    localStorage.setItem('job_process_type', type)
   }
 
   return {
@@ -233,6 +262,8 @@ export const useJobApplicationStore = defineStore('jobApplication', () => {
     statisticsLoading,
     rateLimited,
     rateLimitResetAt,
+    currentProcessType,
+    processTypeOptions,
 
     // 计算属性
     totalCount,
@@ -245,6 +276,7 @@ export const useJobApplicationStore = defineStore('jobApplication', () => {
     updateApplication,
     deleteApplication,
     getFilteredApplications,
-    fetchStatistics
+    fetchStatistics,
+    setProcessType
   }
 })

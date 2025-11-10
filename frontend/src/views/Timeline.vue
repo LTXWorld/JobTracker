@@ -146,6 +146,7 @@ import BatchImport from '../components/BatchImport.vue'
 import ExportDialog from '../components/ExportDialog.vue'
 import FilterBar from '../components/FilterBar.vue'
 import dayjs from 'dayjs'
+import { createSearchTokens } from '../utils/pinyinSearch'
 
 const jobStore = useJobApplicationStore()
 const { applications, loading } = storeToRefs(jobStore)
@@ -170,11 +171,12 @@ const filteredApplications = computed(() => {
   
   // 关键词搜索
   if (currentFilters.value.keyword) {
-    const keyword = currentFilters.value.keyword.toLowerCase()
-    result = result.filter(app => 
-      app.company_name.toLowerCase().includes(keyword) ||
-      app.position_title.toLowerCase().includes(keyword)
-    )
+    const keywordRaw = currentFilters.value.keyword.trim().toLowerCase()
+    if (keywordRaw) {
+      result = result.filter(app =>
+        createSearchTokens(app.company_name).includes(keywordRaw)
+      )
+    }
   }
   
   // 状态筛选
@@ -193,7 +195,7 @@ const filteredApplications = computed(() => {
   
   // 薪资范围筛选
   if (currentFilters.value.salaryRange) {
-    const [min, max] = currentFilters.value.salaryRange.split('-').map((v: string) => 
+    const [min, max] = currentFilters.value.salaryRange.split('-').map((v: string) =>
       v === '+' ? Infinity : parseInt(v)
     )
     result = result.filter(app => {
@@ -207,10 +209,17 @@ const filteredApplications = computed(() => {
       return false
     })
   }
-  
+
+  // 企业类型筛选
+  if (currentFilters.value.companyType) {
+    result = result.filter(app =>
+      app.company_attribute === currentFilters.value.companyType
+    )
+  }
+
   // 地点筛选
   if (currentFilters.value.location) {
-    result = result.filter(app => 
+    result = result.filter(app =>
       app.work_location?.includes(currentFilters.value.location)
     )
   }
@@ -252,6 +261,7 @@ const hasFilters = computed(() => {
     currentFilters.value.keyword ||
     currentFilters.value.status ||
     currentFilters.value.dateRange ||
+    currentFilters.value.companyType ||
     currentFilters.value.salaryRange ||
     currentFilters.value.location
   )
@@ -368,11 +378,20 @@ const getStatusIcon = (status: ApplicationStatus) => {
 }
 
 // 高亮关键词
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 const highlightKeyword = (text: string) => {
-  if (!currentFilters.value.keyword) return text
-  const keyword = currentFilters.value.keyword
-  const regex = new RegExp(`(${keyword})`, 'gi')
-  return text.replace(regex, '<mark>$1</mark>')
+  const keywordRaw = currentFilters.value.keyword?.trim()
+  if (!keywordRaw) return text
+  const keyword = keywordRaw.toLowerCase()
+  if (text.toLowerCase().includes(keyword)) {
+    const regex = new RegExp(`(${escapeRegExp(keywordRaw)})`, 'gi')
+    return text.replace(regex, '<mark>$1</mark>')
+  }
+  if (createSearchTokens(text).includes(keyword)) {
+    return `<mark>${text}</mark>`
+  }
+  return text
 }
 
 // 处理筛选变化

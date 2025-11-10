@@ -327,7 +327,7 @@ const conversionRate = computed(() => {
   if (total === 0) return 0
 
   // 统计真正进入面试的申请（一面、二面、三面、HR面及其通过/未通过状态）
-  const interviewStatuses = [
+  const interviewStatuses: ApplicationStatus[] = [
     ApplicationStatus.FIRST_INTERVIEW, ApplicationStatus.FIRST_PASS, ApplicationStatus.FIRST_FAIL,
     ApplicationStatus.SECOND_INTERVIEW, ApplicationStatus.SECOND_PASS, ApplicationStatus.SECOND_FAIL,
     ApplicationStatus.THIRD_INTERVIEW, ApplicationStatus.THIRD_PASS, ApplicationStatus.THIRD_FAIL,
@@ -345,7 +345,7 @@ const conversionRate = computed(() => {
 // 进入面试次数（用于tooltip显示）
 const interviewCount = computed(() => {
   // 统计真正进入面试的申请（一面、二面、三面、HR面及其通过/未通过状态）
-  const interviewStatuses = [
+  const interviewStatuses: ApplicationStatus[] = [
     ApplicationStatus.FIRST_INTERVIEW, ApplicationStatus.FIRST_PASS, ApplicationStatus.FIRST_FAIL,
     ApplicationStatus.SECOND_INTERVIEW, ApplicationStatus.SECOND_PASS, ApplicationStatus.SECOND_FAIL,
     ApplicationStatus.THIRD_INTERVIEW, ApplicationStatus.THIRD_PASS, ApplicationStatus.THIRD_FAIL,
@@ -742,9 +742,10 @@ const tableData = computed(() => {
       ApplicationStatus.HR_INTERVIEW
     ]
     
+    const offerStatuses: ApplicationStatus[] = [ApplicationStatus.HR_PASS, ApplicationStatus.OFFER_ACCEPTED]
     if (interviewStatuses.includes(app.status)) {
       data.interviewing++
-    } else if ([ApplicationStatus.HR_PASS, ApplicationStatus.OFFER_ACCEPTED].includes(app.status)) {
+    } else if (offerStatuses.includes(app.status)) {
       data.offer++
     } else if (app.status === ApplicationStatus.REJECTED) {
       data.rejected++

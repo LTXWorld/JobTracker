@@ -314,7 +314,7 @@ dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
 
 const props = defineProps<{ application?: JobApplication }>()
-const emit = defineEmits<{ update: (data: any) => void }>()
+const emit = defineEmits<{ (e: 'update', data: JobApplication): void }>()
 
 const router = useRouter()
 const jobStore = useJobApplicationStore()
@@ -486,9 +486,14 @@ const viewApplication = (applicationId: number) => {
 
 const dismissReminder = async (reminder: any) => {
   try {
-    reminder.is_sent = true
-    message.success('已忽略该提醒')
+    await jobStore.updateApplication(reminder.application_id, {
+      reminder_enabled: false,
+      reminder_time: undefined,
+      reminder_category: undefined,
+      follow_up_date: undefined
+    })
     reminders.value = reminders.value.filter(r => r.id !== reminder.id)
+    message.success('提醒已归档')
   } catch (error) {
     message.error('操作失败')
   }

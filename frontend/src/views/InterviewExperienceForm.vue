@@ -142,15 +142,20 @@ const toStatus = computed(() => currentRequest.value?.context.toStatus ?? '')
 const resetForm = (preset?: InterviewExperienceSubmission | null) => {
   if (preset) {
     mode.value = preset.skip ? 'skip' : 'record'
-    rating.value = !preset.skip && preset.rating ? preset.rating : ''
     note.value = preset.note ?? ''
-    skipReason.value = preset.skip_reason ?? ''
-  } else {
-    mode.value = 'record'
-    rating.value = ''
-    note.value = ''
-    skipReason.value = ''
+    if ('rating' in preset) {
+      rating.value = preset.rating
+      skipReason.value = ''
+    } else {
+      rating.value = ''
+      skipReason.value = preset.skip_reason ?? ''
+    }
+    return
   }
+  mode.value = 'record'
+  rating.value = ''
+  note.value = ''
+  skipReason.value = ''
 }
 
 watch(currentRequest, (req) => {

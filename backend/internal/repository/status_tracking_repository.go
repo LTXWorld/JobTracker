@@ -20,8 +20,8 @@ type StatusTrackingRepository interface {
 	GetStatusTimeline(ctx context.Context, userID uint, jobApplicationID int) ([]model.StatusHistoryEntry, error)
 	GetInterviewExperiences(ctx context.Context, userID uint, jobApplicationID int) ([]model.InterviewExperience, error)
 	BeginTx(ctx context.Context) (StatusTrackingTx, error)
-	GetStatusAnalytics(ctx context.Context, userID uint) (*model.StatusAnalyticsResponse, error)
-	GetStatusTrends(ctx context.Context, userID uint, days int) ([]model.StatusTrend, error)
+	GetStatusAnalytics(ctx context.Context, userID uint, processType *model.ApplicationProcessType) (*model.StatusAnalyticsResponse, error)
+	GetStatusTrends(ctx context.Context, userID uint, days int, processType *model.ApplicationProcessType) ([]model.StatusTrend, error)
 }
 
 type StatusTrackingTx interface {
@@ -299,7 +299,7 @@ func (r *statusTrackingRepo) BeginTx(ctx context.Context) (StatusTrackingTx, err
 	return &statusTrackingTx{tx: tx}, nil
 }
 
-func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint) (*model.StatusAnalyticsResponse, error) {
+func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint, processType *model.ApplicationProcessType) (*model.StatusAnalyticsResponse, error) {
 	orm, err := r.ormWithContext(ctx)
 	if err != nil {
 		return nil, err
@@ -356,7 +356,15 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 		StageAnalysis:      make(map[string]model.StageStatistics),
 	}
 
-	rows, err := orm.Raw("SELECT status, COUNT(*) FROM job_applications WHERE user_id = $1 GROUP BY status", userID).Rows()
+	query := "SELECT status, COUNT(*) FROM job_applications WHERE user_id = $1"
+	args := []interface{}{userID}
+	if processType != nil && processType.IsValid() {
+		query += fmt.Sprintf(" AND process_type = $%d", len(args)+1)
+		args = append(args, *processType)
+	}
+	query += " GROUP BY status"
+
+	rows, err := orm.Raw(query, args...).Rows()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get status distribution: %w", err)
 	}
@@ -381,7 +389,18 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 		analytics.SuccessRate = float64(success) / float64(total) * 100
 	}
 
-	durationRows, err := orm.Raw("SELECT old_status, AVG(duration_minutes) FROM job_status_history WHERE user_id = $1 AND old_status IS NOT NULL AND duration_minutes IS NOT NULL GROUP BY old_status", userID).Rows()
+	durationQuery := `SELECT h.old_status, AVG(h.duration_minutes)
+		FROM job_status_history h
+		JOIN job_applications ja ON ja.id = h.job_application_id
+		WHERE h.user_id = $1 AND h.old_status IS NOT NULL AND h.duration_minutes IS NOT NULL`
+	durationArgs := []interface{}{userID}
+	if processType != nil && processType.IsValid() {
+		durationQuery += fmt.Sprintf(" AND ja.process_type = $%d", len(durationArgs)+1)
+		durationArgs = append(durationArgs, *processType)
+	}
+	durationQuery += " GROUP BY h.old_status"
+
+	durationRows, err := orm.Raw(durationQuery, durationArgs...).Rows()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get average durations: %w", err)
 	}
@@ -476,11 +495,20 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 			conditions = append(conditions, fmt.Sprintf("new_status::text = ANY($%d)", placeholder))
 		}
 
+		joinClause := ""
+		processFilter := ""
+		if processType != nil && processType.IsValid() {
+			args = append(args, *processType)
+			processFilter = fmt.Sprintf(" AND ja.process_type = $%d", len(args))
+			joinClause = "JOIN job_applications ja ON ja.id = h.job_application_id"
+		}
+
 		query := fmt.Sprintf(`
-			SELECT DISTINCT job_application_id
-			FROM job_status_history
-			WHERE user_id = $1 AND (%s)
-		`, strings.Join(conditions, " OR "))
+			SELECT DISTINCT h.job_application_id
+			FROM job_status_history h
+			%s
+			WHERE h.user_id = $1 AND (%s)%s
+		`, joinClause, strings.Join(conditions, " OR "), processFilter)
 
 		rows, err := orm.Raw(query, args...).Rows()
 		if err != nil {
@@ -532,12 +560,23 @@ func (r *statusTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint
 	return analytics, nil
 }
 
-func (r *statusTrackingRepo) GetStatusTrends(ctx context.Context, userID uint, days int) ([]model.StatusTrend, error) {
+func (r *statusTrackingRepo) GetStatusTrends(ctx context.Context, userID uint, days int, processType *model.ApplicationProcessType) ([]model.StatusTrend, error) {
 	orm, err := r.ormWithContext(ctx)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := orm.Raw("SELECT DATE(status_changed_at) as date, new_status, COUNT(*) FROM job_status_history WHERE user_id = $1 AND status_changed_at >= $2 GROUP BY DATE(status_changed_at), new_status ORDER BY date DESC, count DESC", userID, time.Now().AddDate(0, 0, -days)).Rows()
+	query := `SELECT DATE(h.status_changed_at) as date, h.new_status, COUNT(*)
+		FROM job_status_history h
+		JOIN job_applications ja ON ja.id = h.job_application_id
+		WHERE h.user_id = $1 AND h.status_changed_at >= $2`
+	args := []interface{}{userID, time.Now().AddDate(0, 0, -days)}
+	if processType != nil && processType.IsValid() {
+		query += fmt.Sprintf(" AND ja.process_type = $%d", len(args)+1)
+		args = append(args, *processType)
+	}
+	query += " GROUP BY DATE(h.status_changed_at), h.new_status ORDER BY date DESC, count DESC"
+
+	rows, err := orm.Raw(query, args...).Rows()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get status trends: %w", err)
 	}

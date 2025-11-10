@@ -186,32 +186,74 @@ func (s ApplicationStatus) IsUserRejectedStatus() bool {
 	return s == StatusUserRejected
 }
 
+// ApplicationProcessType 求职周期类型
+type ApplicationProcessType string
+
+const (
+	ProcessTypeAutumn ApplicationProcessType = "秋招"
+	ProcessTypeSpring ApplicationProcessType = "春招"
+	ProcessTypeSocial ApplicationProcessType = "社招"
+)
+
+// IsValid 检查求职周期是否有效
+func (pt ApplicationProcessType) IsValid() bool {
+	switch pt {
+	case ProcessTypeAutumn, ProcessTypeSpring, ProcessTypeSocial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Value 实现 driver.Valuer 接口
+func (pt ApplicationProcessType) Value() (driver.Value, error) {
+	return string(pt), nil
+}
+
+// Scan 实现 sql.Scanner 接口
+func (pt *ApplicationProcessType) Scan(value interface{}) error {
+	if value == nil {
+		*pt = ProcessTypeAutumn
+		return nil
+	}
+	switch v := value.(type) {
+	case string:
+		*pt = ApplicationProcessType(v)
+	case []byte:
+		*pt = ApplicationProcessType(string(v))
+	default:
+		return fmt.Errorf("cannot scan %T into ApplicationProcessType", value)
+	}
+	return nil
+}
+
 // JobApplication 投递记录模型
 type JobApplication struct {
-	ID                int               `json:"id" db:"id"`
-	UserID            uint              `json:"user_id" db:"user_id"`
-	CompanyName       string            `json:"company_name" db:"company_name"`
-	PositionTitle     string            `json:"position_title" db:"position_title"`
-	ApplicationDate   string            `json:"application_date" db:"application_date"`
-	Status            ApplicationStatus `json:"status" db:"status"`
-	JobDescription    *string           `json:"job_description" db:"job_description"`
-	SalaryRange       *string           `json:"salary_range" db:"salary_range"`
-	WorkLocation      *string           `json:"work_location" db:"work_location"`
-	ContactInfo       *string           `json:"contact_info" db:"contact_info"`
-	Notes             *string           `json:"notes" db:"notes"`
-	InterviewTime     *time.Time        `json:"interview_time" db:"interview_time"`
-	ReminderTime      *time.Time        `json:"reminder_time" db:"reminder_time"`
-	ReminderEnabled   bool              `json:"reminder_enabled" db:"reminder_enabled"`
-	ReminderCategory  *string           `json:"reminder_category,omitempty" db:"reminder_category"`
-	FollowUpDate      *string           `json:"follow_up_date" db:"follow_up_date"`
-	HRName            *string           `json:"hr_name" db:"hr_name"`
-	HRPhone           *string           `json:"hr_phone" db:"hr_phone"`
-	HREmail           *string           `json:"hr_email" db:"hr_email"`
-	InterviewLocation *string           `json:"interview_location" db:"interview_location"`
-	InterviewType     *string           `json:"interview_type" db:"interview_type"`
-	CompanyAttribute  *string           `json:"company_attribute,omitempty" db:"company_attribute"`
-	CreatedAt         time.Time         `json:"created_at" db:"created_at"`
-	UpdatedAt         time.Time         `json:"updated_at" db:"updated_at"`
+	ID                int                    `json:"id" db:"id"`
+	UserID            uint                   `json:"user_id" db:"user_id"`
+	CompanyName       string                 `json:"company_name" db:"company_name"`
+	PositionTitle     string                 `json:"position_title" db:"position_title"`
+	ApplicationDate   string                 `json:"application_date" db:"application_date"`
+	ProcessType       ApplicationProcessType `json:"process_type" db:"process_type"`
+	Status            ApplicationStatus      `json:"status" db:"status"`
+	JobDescription    *string                `json:"job_description" db:"job_description"`
+	SalaryRange       *string                `json:"salary_range" db:"salary_range"`
+	WorkLocation      *string                `json:"work_location" db:"work_location"`
+	ContactInfo       *string                `json:"contact_info" db:"contact_info"`
+	Notes             *string                `json:"notes" db:"notes"`
+	InterviewTime     *time.Time             `json:"interview_time" db:"interview_time"`
+	ReminderTime      *time.Time             `json:"reminder_time" db:"reminder_time"`
+	ReminderEnabled   bool                   `json:"reminder_enabled" db:"reminder_enabled"`
+	ReminderCategory  *string                `json:"reminder_category,omitempty" db:"reminder_category"`
+	FollowUpDate      *string                `json:"follow_up_date" db:"follow_up_date"`
+	HRName            *string                `json:"hr_name" db:"hr_name"`
+	HRPhone           *string                `json:"hr_phone" db:"hr_phone"`
+	HREmail           *string                `json:"hr_email" db:"hr_email"`
+	InterviewLocation *string                `json:"interview_location" db:"interview_location"`
+	InterviewType     *string                `json:"interview_type" db:"interview_type"`
+	CompanyAttribute  *string                `json:"company_attribute,omitempty" db:"company_attribute"`
+	CreatedAt         time.Time              `json:"created_at" db:"created_at"`
+	UpdatedAt         time.Time              `json:"updated_at" db:"updated_at"`
 
 	// 新增状态跟踪字段
 	StatusHistory       *StatusHistory `json:"status_history,omitempty" db:"status_history"`
@@ -222,50 +264,52 @@ type JobApplication struct {
 
 // CreateJobApplicationRequest 创建投递记录请求
 type CreateJobApplicationRequest struct {
-	CompanyName       string            `json:"company_name" binding:"required"`
-	PositionTitle     string            `json:"position_title" binding:"required"`
-	ApplicationDate   string            `json:"application_date"`
-	Status            ApplicationStatus `json:"status"`
-	CompanyAttribute  string            `json:"company_attribute"` // 企业属性：央国企/私企（新建必填，由handler校验）
-	JobDescription    *string           `json:"job_description"`
-	SalaryRange       *string           `json:"salary_range"`
-	WorkLocation      *string           `json:"work_location"`
-	ContactInfo       *string           `json:"contact_info"`
-	Notes             *string           `json:"notes"`
-	InterviewTime     *time.Time        `json:"interview_time"`
-	ReminderTime      *time.Time        `json:"reminder_time"`
-	ReminderEnabled   *bool             `json:"reminder_enabled"`
-	ReminderCategory  *string           `json:"reminder_category"`
-	FollowUpDate      *string           `json:"follow_up_date"`
-	HRName            *string           `json:"hr_name"`
-	HRPhone           *string           `json:"hr_phone"`
-	HREmail           *string           `json:"hr_email"`
-	InterviewLocation *string           `json:"interview_location"`
-	InterviewType     *string           `json:"interview_type"`
+	CompanyName       string                 `json:"company_name" binding:"required"`
+	PositionTitle     string                 `json:"position_title" binding:"required"`
+	ApplicationDate   string                 `json:"application_date"`
+	ProcessType       ApplicationProcessType `json:"process_type"`
+	Status            ApplicationStatus      `json:"status"`
+	CompanyAttribute  string                 `json:"company_attribute"` // 企业属性：央国企/私企（新建必填，由handler校验）
+	JobDescription    *string                `json:"job_description"`
+	SalaryRange       *string                `json:"salary_range"`
+	WorkLocation      *string                `json:"work_location"`
+	ContactInfo       *string                `json:"contact_info"`
+	Notes             *string                `json:"notes"`
+	InterviewTime     *time.Time             `json:"interview_time"`
+	ReminderTime      *time.Time             `json:"reminder_time"`
+	ReminderEnabled   *bool                  `json:"reminder_enabled"`
+	ReminderCategory  *string                `json:"reminder_category"`
+	FollowUpDate      *string                `json:"follow_up_date"`
+	HRName            *string                `json:"hr_name"`
+	HRPhone           *string                `json:"hr_phone"`
+	HREmail           *string                `json:"hr_email"`
+	InterviewLocation *string                `json:"interview_location"`
+	InterviewType     *string                `json:"interview_type"`
 }
 
 // UpdateJobApplicationRequest 更新投递记录请求
 type UpdateJobApplicationRequest struct {
-	CompanyName       *string            `json:"company_name"`
-	PositionTitle     *string            `json:"position_title"`
-	ApplicationDate   *string            `json:"application_date"`
-	Status            *ApplicationStatus `json:"status"`
-	CompanyAttribute  *string            `json:"company_attribute"`
-	JobDescription    *string            `json:"job_description"`
-	SalaryRange       *string            `json:"salary_range"`
-	WorkLocation      *string            `json:"work_location"`
-	ContactInfo       *string            `json:"contact_info"`
-	Notes             *string            `json:"notes"`
-	InterviewTime     *time.Time         `json:"interview_time"`
-	ReminderTime      *time.Time         `json:"reminder_time"`
-	ReminderEnabled   *bool              `json:"reminder_enabled"`
-	ReminderCategory  *string            `json:"reminder_category"`
-	FollowUpDate      *string            `json:"follow_up_date"`
-	HRName            *string            `json:"hr_name"`
-	HRPhone           *string            `json:"hr_phone"`
-	HREmail           *string            `json:"hr_email"`
-	InterviewLocation *string            `json:"interview_location"`
-	InterviewType     *string            `json:"interview_type"`
+	CompanyName       *string                 `json:"company_name"`
+	PositionTitle     *string                 `json:"position_title"`
+	ApplicationDate   *string                 `json:"application_date"`
+	ProcessType       *ApplicationProcessType `json:"process_type"`
+	Status            *ApplicationStatus      `json:"status"`
+	CompanyAttribute  *string                 `json:"company_attribute"`
+	JobDescription    *string                 `json:"job_description"`
+	SalaryRange       *string                 `json:"salary_range"`
+	WorkLocation      *string                 `json:"work_location"`
+	ContactInfo       *string                 `json:"contact_info"`
+	Notes             *string                 `json:"notes"`
+	InterviewTime     *time.Time              `json:"interview_time"`
+	ReminderTime      *time.Time              `json:"reminder_time"`
+	ReminderEnabled   *bool                   `json:"reminder_enabled"`
+	ReminderCategory  *string                 `json:"reminder_category"`
+	FollowUpDate      *string                 `json:"follow_up_date"`
+	HRName            *string                 `json:"hr_name"`
+	HRPhone           *string                 `json:"hr_phone"`
+	HREmail           *string                 `json:"hr_email"`
+	InterviewLocation *string                 `json:"interview_location"`
+	InterviewType     *string                 `json:"interview_type"`
 }
 
 // APIResponse 通用API响应格式
@@ -277,11 +321,12 @@ type APIResponse struct {
 
 // PaginationRequest 分页请求参数
 type PaginationRequest struct {
-	Page     int                `json:"page" form:"page"`           // 页码，从1开始
-	PageSize int                `json:"page_size" form:"page_size"` // 每页条数，默认20，最大100
-	SortBy   string             `json:"sort_by" form:"sort_by"`     // 排序字段，默认application_date
-	SortDir  string             `json:"sort_dir" form:"sort_dir"`   // 排序方向，ASC或DESC，默认DESC
-	Status   *ApplicationStatus `json:"status" form:"status"`       // 状态筛选，可选
+	Page        int                     `json:"page" form:"page"`                 // 页码，从1开始
+	PageSize    int                     `json:"page_size" form:"page_size"`       // 每页条数，默认20，最大100
+	SortBy      string                  `json:"sort_by" form:"sort_by"`           // 排序字段，默认application_date
+	SortDir     string                  `json:"sort_dir" form:"sort_dir"`         // 排序方向，ASC或DESC，默认DESC
+	Status      *ApplicationStatus      `json:"status" form:"status"`             // 状态筛选，可选
+	ProcessType *ApplicationProcessType `json:"process_type" form:"process_type"` // 求职周期筛选
 }
 
 // PaginationResponse 分页响应结构

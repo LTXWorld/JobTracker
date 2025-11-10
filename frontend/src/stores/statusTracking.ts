@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed, h } from 'vue'
+import { ref, computed, h, watch } from 'vue'
 import { StatusTrackingAPI } from '../api/statusTracking'
 import { StatusHelper, ApplicationStatus as ApplicationStatusEnum } from '../types'
 import type { 
@@ -370,6 +370,10 @@ export const useStatusTrackingStore = defineStore('statusTracking', () => {
   }
 
   const interviewExperienceRatings = new Set<InterviewExperienceRating>(['good', 'average', 'bad'])
+  type RatedInterviewExperienceSubmission = Extract<InterviewExperienceSubmission, { skip: false }>
+  const isRatedInterviewExperienceSubmission = (
+    payload: InterviewExperienceSubmission
+  ): payload is RatedInterviewExperienceSubmission => payload.skip === false
 
   const normalizeExperienceText = (value: unknown): string | undefined => {
     if (typeof value !== 'string') return undefined
@@ -402,7 +406,7 @@ export const useStatusTrackingStore = defineStore('statusTracking', () => {
 
     if (submission.skip) {
       metadata.skip_reason = normalizeExperienceText(submission.skip_reason) ?? null
-    } else {
+    } else if (isRatedInterviewExperienceSubmission(submission)) {
       metadata.rating = submission.rating
       metadata.skip_reason = null
     }
@@ -550,7 +554,10 @@ export const useStatusTrackingStore = defineStore('statusTracking', () => {
 
     analyticsLoading.value = true
     try {
-      const data = await StatusTrackingAPI.getStatusAnalytics(dateRange)
+      const data = await StatusTrackingAPI.getStatusAnalytics({
+        ...dateRange,
+        process_type: jobApplicationStore.currentProcessType
+      })
       analytics.value = data
       return data
     } catch (error) {
@@ -572,7 +579,10 @@ export const useStatusTrackingStore = defineStore('statusTracking', () => {
   }) => {
     loading.value = true
     try {
-      const trends = await StatusTrackingAPI.getStatusTrends(params)
+      const trends = await StatusTrackingAPI.getStatusTrends({
+        ...params,
+        process_type: jobApplicationStore.currentProcessType
+      })
       return trends
     } catch (error) {
       message.error('获取趋势数据失败: ' + (error as Error).message)
@@ -587,7 +597,7 @@ export const useStatusTrackingStore = defineStore('statusTracking', () => {
    */
   const fetchProcessInsights = async () => {
     try {
-      const insights = await StatusTrackingAPI.getProcessInsights()
+      const insights = await StatusTrackingAPI.getProcessInsights(jobApplicationStore.currentProcessType)
       return insights
     } catch (error) {
       message.error('获取流程洞察失败: ' + (error as Error).message)
@@ -681,7 +691,7 @@ export const useStatusTrackingStore = defineStore('statusTracking', () => {
 
     dashboardLoading.value = true
     try {
-      const data = await StatusTrackingAPI.getDashboardData()
+      const data = await StatusTrackingAPI.getDashboardData(jobApplicationStore.currentProcessType)
       dashboardData.value = data
       return data
     } catch (error) {
@@ -761,6 +771,13 @@ export const useStatusTrackingStore = defineStore('statusTracking', () => {
     userPreferences.value = null
     statusDefinitions.value = null
   }
+
+  watch(
+    () => jobApplicationStore.currentProcessType,
+    () => {
+      clearCache()
+    }
+  )
 
   return {
     // 状态

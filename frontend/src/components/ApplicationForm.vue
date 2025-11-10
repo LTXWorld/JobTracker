@@ -29,6 +29,18 @@
         </a-select>
       </a-form-item>
 
+      <a-form-item label="求职周期" name="process_type">
+        <a-radio-group v-model:value="formData.process_type" button-style="solid">
+          <a-radio-button
+            v-for="option in jobStore.processTypeOptions"
+            :key="option.value"
+            :value="option.value"
+          >
+            {{ option.label }}
+          </a-radio-button>
+        </a-radio-group>
+      </a-form-item>
+
       <a-form-item label="投递日期" name="application_date">
         <a-date-picker
           v-model:value="formData.application_date"
@@ -89,7 +101,7 @@
 import { ref, reactive, watch, computed } from 'vue'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useJobApplicationStore } from '../stores/jobApplication'
-import { ApplicationStatus, type JobApplication } from '../types'
+import { ApplicationStatus, type JobApplication, JobProcessType } from '../types'
 
 interface Props {
   visible: boolean
@@ -115,6 +127,7 @@ const formData = reactive({
   application_date: null as Dayjs | null,
   status: ApplicationStatus.APPLIED as ApplicationStatus,
   company_attribute: '' as '' | '央国企' | '私企',
+  process_type: JobProcessType.AUTUMN as JobProcessType,
   salary_range: '',
   work_location: '',
   contact_info: '',
@@ -171,6 +184,7 @@ watch(() => props.initialData, (app) => {
     formData.application_date = app.application_date ? dayjs(app.application_date) : null
     formData.status = app.status
     formData.company_attribute = (app.company_attribute as any) || ''
+    formData.process_type = (app.process_type as JobProcessType) || jobStore.currentProcessType
     formData.salary_range = app.salary_range || ''
     formData.work_location = app.work_location || ''
     formData.contact_info = app.contact_info || ''
@@ -181,6 +195,12 @@ watch(() => props.initialData, (app) => {
   }
 }, { immediate: true })
 
+watch(() => jobStore.currentProcessType, (type) => {
+  if (!isEdit.value) {
+    formData.process_type = type
+  }
+})
+
 // 重置表单
 const resetForm = () => {
   formData.company_name = ''
@@ -188,6 +208,7 @@ const resetForm = () => {
   formData.application_date = dayjs()
   formData.status = ApplicationStatus.APPLIED as ApplicationStatus
   formData.company_attribute = ''
+  formData.process_type = jobStore.currentProcessType
   formData.salary_range = ''
   formData.work_location = ''
   formData.contact_info = ''
@@ -207,6 +228,7 @@ const handleSubmit = async () => {
       position_title: formData.position_title,
       application_date: formData.application_date?.format('YYYY-MM-DD') || dayjs().format('YYYY-MM-DD'),
       status: formData.status,
+      process_type: formData.process_type,
       company_attribute: formData.company_attribute as '央国企' | '私企',
       salary_range: formData.salary_range || undefined,
       work_location: formData.work_location || undefined,

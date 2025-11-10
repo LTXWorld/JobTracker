@@ -40,6 +40,15 @@ export const ApplicationStatus = {
 
 export type ApplicationStatus = typeof ApplicationStatus[keyof typeof ApplicationStatus]
 
+// 求职周期类型
+export const JobProcessType = {
+  AUTUMN: '秋招',
+  SPRING: '春招',
+  SOCIAL: '社招'
+} as const
+
+export type JobProcessType = typeof JobProcessType[keyof typeof JobProcessType]
+
 // 状态分类辅助函数
 export const StatusHelper = {
   // 失败状态
@@ -185,6 +194,7 @@ export interface JobApplicationStatistics {
   failed: number
   pass_rate: string
   status_breakdown: Record<string, number>
+  process_type?: JobProcessType
 }
 
 // 投递记录接口
@@ -193,6 +203,7 @@ export interface JobApplication {
   company_name: string;
   position_title: string;
   application_date: string;
+  process_type: JobProcessType;
   status: ApplicationStatus;
   status_version?: number;
   company_attribute?: '央国企' | '私企' | null; // 企业属性
@@ -220,6 +231,7 @@ export interface CreateJobApplicationRequest {
   company_name: string;
   position_title: string;
   application_date?: string;
+  process_type?: JobProcessType;
   status?: ApplicationStatus;
   company_attribute: '央国企' | '私企';
   job_description?: string;
@@ -244,6 +256,7 @@ export interface UpdateJobApplicationRequest {
   company_name?: string;
   position_title?: string;
   application_date?: string;
+  process_type?: JobProcessType;
   status?: ApplicationStatus;
   company_attribute?: '央国企' | '私企' | '';
   job_description?: string;

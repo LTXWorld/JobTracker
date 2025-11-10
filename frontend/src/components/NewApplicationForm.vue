@@ -29,6 +29,18 @@
         </a-select>
       </a-form-item>
 
+      <a-form-item label="求职周期" name="process_type">
+        <a-radio-group v-model:value="formData.process_type" button-style="solid">
+          <a-radio-button
+            v-for="option in jobStore.processTypeOptions"
+            :key="option.value"
+            :value="option.value"
+          >
+            {{ option.label }}
+          </a-radio-button>
+        </a-radio-group>
+      </a-form-item>
+
       <a-form-item label="投递日期" name="application_date">
         <a-date-picker
           v-model:value="formData.application_date"
@@ -223,7 +235,7 @@ import { ref, reactive, watch, computed } from 'vue'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useJobApplicationStore } from '../stores/jobApplication'
 import type { JobApplication } from '../types'
-import { ApplicationStatus, StatusHelper } from '../types'
+import { ApplicationStatus, StatusHelper, JobProcessType } from '../types'
 
 interface Props {
   visible: boolean
@@ -250,6 +262,7 @@ const formData = reactive<{
   application_date: Dayjs | null
   status: ApplicationStatus
   company_attribute: '' | '央国企' | '私企'
+  process_type: JobProcessType
   salary_range: string
   work_location: string
   notes: string
@@ -259,12 +272,18 @@ const formData = reactive<{
   reminder_enabled: boolean
   reminder_category: 'interview' | 'written' | 'follow_up'
   follow_up_date: Dayjs | null
+  hr_name: string
+  hr_phone: string
+  hr_email: string
+  interview_location: string
+  interview_type: string
 }>({
   company_name: '',
   position_title: '',
   application_date: null,
   status: '已投递' as ApplicationStatus,
   company_attribute: '',
+  process_type: jobStore.currentProcessType,
   salary_range: '',
   work_location: '',
   notes: '',
@@ -273,7 +292,12 @@ const formData = reactive<{
   reminder_time: null,
   reminder_enabled: false,
   reminder_category: 'interview',
-  follow_up_date: null
+  follow_up_date: null,
+  hr_name: '',
+  hr_phone: '',
+  hr_email: '',
+  interview_location: '',
+  interview_type: ''
 })
 
 // 表单验证规则（编辑时企业属性可选）
@@ -314,6 +338,7 @@ const resetForm = () => {
   formData.application_date = dayjs()
   formData.status = '已投递' as ApplicationStatus
   formData.company_attribute = ''
+  formData.process_type = jobStore.currentProcessType
   formData.salary_range = ''
   formData.work_location = ''
   formData.notes = ''
@@ -323,6 +348,11 @@ const resetForm = () => {
   formData.reminder_enabled = false
   formData.reminder_category = 'interview'
   formData.follow_up_date = null
+  formData.hr_name = ''
+  formData.hr_phone = ''
+  formData.hr_email = ''
+  formData.interview_location = ''
+  formData.interview_type = ''
   formRef.value?.clearValidate()
 }
 
@@ -334,9 +364,15 @@ watch(() => props.initialData, (app) => {
     formData.application_date = app.application_date ? dayjs(app.application_date) : null
     formData.status = app.status
     formData.company_attribute = (app.company_attribute as any) || ''
+    formData.process_type = (app.process_type as JobProcessType) || jobStore.currentProcessType
     formData.salary_range = app.salary_range || ''
     formData.work_location = app.work_location || ''
     formData.notes = app.notes || ''
+    formData.hr_name = app.hr_name || ''
+    formData.hr_phone = app.hr_phone || ''
+    formData.hr_email = app.hr_email || ''
+    formData.interview_location = app.interview_location || ''
+    formData.interview_type = app.interview_type || ''
     formData.interview_time = app.interview_time && app.interview_type !== '笔试'
       ? dayjs(app.interview_time)
       : null
@@ -362,6 +398,12 @@ watch(() => props.initialData, (app) => {
   }
 }, { immediate: true })
 
+watch(() => jobStore.currentProcessType, (type) => {
+  if (!isEdit.value) {
+    formData.process_type = type
+  }
+})
+
 // 提交表单
 const handleSubmit = async () => {
   try {
@@ -373,6 +415,7 @@ const handleSubmit = async () => {
       position_title: formData.position_title,
       application_date: formData.application_date?.format('YYYY-MM-DD') || dayjs().format('YYYY-MM-DD'),
       status: formData.status as ApplicationStatus,
+      process_type: formData.process_type,
       company_attribute: formData.company_attribute as '央国企' | '私企',
       salary_range: formData.salary_range || undefined,
       work_location: formData.work_location || undefined,

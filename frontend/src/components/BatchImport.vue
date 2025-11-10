@@ -488,6 +488,7 @@ const handleImport = async () => {
         company_name: row.company_name,
         position_title: row.position_title,
         application_date: row.application_date,
+        process_type: row.process_type || jobStore.currentProcessType,
         status: row.status,
         company_attribute: '私企',
         salary_range: row.salary_range || '',

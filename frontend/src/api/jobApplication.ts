@@ -5,17 +5,18 @@ import type {
   UpdateJobApplicationRequest,
   JobApplicationStatistics
 } from '../types'
+import { JobProcessType } from '../types'
 
 export class JobApplicationAPI {
   // 获取所有投递记录
-  static async getAll(): Promise<JobApplication[]> {
+  static async getAll(processType: JobProcessType): Promise<JobApplication[]> {
     const pageSize = 100 // 与后端上限一致
     let page = 1
     const all: JobApplication[] = []
     let hasNext = true
 
     while (hasNext) {
-    const resp = await request.get(`/v1/applications?page=${page}&page_size=${pageSize}`)
+      const resp = await request.get(`/v1/applications?page=${page}&page_size=${pageSize}&process_type=${encodeURIComponent(processType)}`)
       const payload = resp.data?.data
       if (Array.isArray(payload)) {
         // 极端兼容：直接返回数组
@@ -67,8 +68,8 @@ export class JobApplicationAPI {
   }
 
   // 获取统计信息
-  static async getStatistics(): Promise<JobApplicationStatistics> {
-    const response = await request.get('/v1/applications/statistics')
+  static async getStatistics(processType: JobProcessType): Promise<JobApplicationStatistics> {
+    const response = await request.get(`/v1/applications/statistics?process_type=${encodeURIComponent(processType)}`)
     if (!response.data.data) {
       throw new Error('获取统计信息失败')
     }

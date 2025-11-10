@@ -10,6 +10,7 @@
         <a-descriptions-item label="职位标题">{{ app?.position_title }}</a-descriptions-item>
         <a-descriptions-item label="投递日期">{{ app?.application_date }}</a-descriptions-item>
         <a-descriptions-item label="当前状态">{{ app?.status }}</a-descriptions-item>
+        <a-descriptions-item label="求职周期">{{ app?.process_type || '-' }}</a-descriptions-item>
         <a-descriptions-item label="企业属性">
           <template v-if="app?.company_attribute">{{ app?.company_attribute }}</template>
           <template v-else>

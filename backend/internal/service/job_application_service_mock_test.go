@@ -14,24 +14,27 @@ import (
 // mockJobApplicationRepository 是轻量级的仓储假实现，用于验证 service 对接口的依赖行为
 // （避免引入额外的 mocking 框架，同时仍能检测调用频次与入参）
 type mockJobApplicationRepository struct {
-	createFunc                       func(uint, *model.CreateJobApplicationRequest) (*model.JobApplication, error)
-	getByIDFunc                      func(uint, int) (*model.JobApplication, error)
-	getAllFunc                       func(uint) ([]model.JobApplication, error)
-	getAllPaginatedFunc              func(uint, model.PaginationRequest) (*model.PaginationResponse, error)
-	updateFunc                       func(uint, int, *model.UpdateJobApplicationRequest) (*model.JobApplication, error)
-	deleteFunc                       func(uint, int) error
-	searchFunc                       func(uint, string, model.PaginationRequest) (*model.PaginationResponse, error)
-	batchUpdateStatusFunc            func(uint, []model.BatchStatusUpdate) error
-	batchDeleteFunc                  func(uint, []int) error
-	batchCreateFunc                  func(uint, []model.CreateJobApplicationRequest) ([]model.JobApplication, error)
-	getStatusStatisticsFunc          func(uint) (map[string]int, error)
-	getHRPassCountFunc               func(uint) (int, error)
-	listByDateRangeFunc              func(uint, string, string, model.PaginationRequest) (*model.PaginationResponse, error)
-	listWithStatusFiltersFunc        func(uint, *model.ApplicationStatus, []string, model.PaginationRequest) (*model.PaginationResponse, error)
-	listRecentApplicationsFunc       func(uint, int) ([]map[string]interface{}, error)
-	listUpcomingInterviewsFunc       func(uint, int) ([]map[string]interface{}, error)
-	listDailyStatsFunc               func(uint, int) ([]map[string]interface{}, error)
-	getStatusStatisticsCalledWithUID []uint
+	createFunc                 func(uint, *model.CreateJobApplicationRequest) (*model.JobApplication, error)
+	getByIDFunc                func(uint, int) (*model.JobApplication, error)
+	getAllFunc                 func(uint) ([]model.JobApplication, error)
+	getAllPaginatedFunc        func(uint, model.PaginationRequest) (*model.PaginationResponse, error)
+	updateFunc                 func(uint, int, *model.UpdateJobApplicationRequest) (*model.JobApplication, error)
+	deleteFunc                 func(uint, int) error
+	searchFunc                 func(uint, string, model.PaginationRequest) (*model.PaginationResponse, error)
+	batchUpdateStatusFunc      func(uint, []model.BatchStatusUpdate) error
+	batchDeleteFunc            func(uint, []int) error
+	batchCreateFunc            func(uint, []model.CreateJobApplicationRequest) ([]model.JobApplication, error)
+	getStatusStatisticsFunc    func(uint, *model.ApplicationProcessType) (map[string]int, error)
+	getHRPassCountFunc         func(uint, *model.ApplicationProcessType) (int, error)
+	listByDateRangeFunc        func(uint, string, string, model.PaginationRequest) (*model.PaginationResponse, error)
+	listWithStatusFiltersFunc  func(uint, *model.ApplicationStatus, []string, model.PaginationRequest) (*model.PaginationResponse, error)
+	listRecentApplicationsFunc func(uint, int, *model.ApplicationProcessType) ([]map[string]interface{}, error)
+	listUpcomingInterviewsFunc func(uint, int, *model.ApplicationProcessType) ([]map[string]interface{}, error)
+	listDailyStatsFunc         func(uint, int, *model.ApplicationProcessType) ([]map[string]interface{}, error)
+	getStatusStatisticsCalls   []struct {
+		userID      uint
+		processType *model.ApplicationProcessType
+	}
 }
 
 func (m *mockJobApplicationRepository) Create(userID uint, req *model.CreateJobApplicationRequest) (*model.JobApplication, error) {
@@ -104,19 +107,22 @@ func (m *mockJobApplicationRepository) BatchCreate(userID uint, applications []m
 	return m.batchCreateFunc(userID, applications)
 }
 
-func (m *mockJobApplicationRepository) GetStatusStatistics(userID uint) (map[string]int, error) {
+func (m *mockJobApplicationRepository) GetStatusStatistics(userID uint, processType *model.ApplicationProcessType) (map[string]int, error) {
 	if m.getStatusStatisticsFunc == nil {
 		return nil, errors.New("getStatusStatisticsFunc not implemented")
 	}
-	m.getStatusStatisticsCalledWithUID = append(m.getStatusStatisticsCalledWithUID, userID)
-	return m.getStatusStatisticsFunc(userID)
+	m.getStatusStatisticsCalls = append(m.getStatusStatisticsCalls, struct {
+		userID      uint
+		processType *model.ApplicationProcessType
+	}{userID: userID, processType: processType})
+	return m.getStatusStatisticsFunc(userID, processType)
 }
 
-func (m *mockJobApplicationRepository) GetHRPassCount(userID uint) (int, error) {
+func (m *mockJobApplicationRepository) GetHRPassCount(userID uint, processType *model.ApplicationProcessType) (int, error) {
 	if m.getHRPassCountFunc == nil {
 		return 0, errors.New("getHRPassCountFunc not implemented")
 	}
-	return m.getHRPassCountFunc(userID)
+	return m.getHRPassCountFunc(userID, processType)
 }
 
 func (m *mockJobApplicationRepository) ListByDateRange(userID uint, startDate, endDate string, req model.PaginationRequest) (*model.PaginationResponse, error) {
@@ -133,25 +139,25 @@ func (m *mockJobApplicationRepository) ListWithStatusFilters(userID uint, status
 	return m.listWithStatusFiltersFunc(userID, status, stageStatuses, req)
 }
 
-func (m *mockJobApplicationRepository) ListRecentApplications(userID uint, limit int) ([]map[string]interface{}, error) {
+func (m *mockJobApplicationRepository) ListRecentApplications(userID uint, limit int, processType *model.ApplicationProcessType) ([]map[string]interface{}, error) {
 	if m.listRecentApplicationsFunc == nil {
 		return nil, errors.New("listRecentApplicationsFunc not implemented")
 	}
-	return m.listRecentApplicationsFunc(userID, limit)
+	return m.listRecentApplicationsFunc(userID, limit, processType)
 }
 
-func (m *mockJobApplicationRepository) ListUpcomingInterviews(userID uint, limit int) ([]map[string]interface{}, error) {
+func (m *mockJobApplicationRepository) ListUpcomingInterviews(userID uint, limit int, processType *model.ApplicationProcessType) ([]map[string]interface{}, error) {
 	if m.listUpcomingInterviewsFunc == nil {
 		return nil, errors.New("listUpcomingInterviewsFunc not implemented")
 	}
-	return m.listUpcomingInterviewsFunc(userID, limit)
+	return m.listUpcomingInterviewsFunc(userID, limit, processType)
 }
 
-func (m *mockJobApplicationRepository) ListDailyStats(userID uint, days int) ([]map[string]interface{}, error) {
+func (m *mockJobApplicationRepository) ListDailyStats(userID uint, days int, processType *model.ApplicationProcessType) ([]map[string]interface{}, error) {
 	if m.listDailyStatsFunc == nil {
 		return nil, errors.New("listDailyStatsFunc not implemented")
 	}
-	return m.listDailyStatsFunc(userID, days)
+	return m.listDailyStatsFunc(userID, days, processType)
 }
 
 // --------- 单测 ---------
@@ -319,8 +325,10 @@ func TestJobApplicationService_BatchCreate_DelegatesToRepository(t *testing.T) {
 func TestJobApplicationService_GetStatusStatistics_AggregatesFromRepository(t *testing.T) {
 	expectedUserID := uint(99)
 	mockRepo := &mockJobApplicationRepository{}
-	mockRepo.getStatusStatisticsFunc = func(userID uint) (map[string]int, error) {
+	mockRepo.getStatusStatisticsFunc = func(userID uint, processType *model.ApplicationProcessType) (map[string]int, error) {
 		assert.Equal(t, expectedUserID, userID)
+		require.NotNil(t, processType)
+		assert.Equal(t, model.ProcessTypeAutumn, *processType)
 		return map[string]int{
 			string(model.StatusApplied):        3,
 			string(model.StatusFirstInterview): 2,
@@ -328,14 +336,16 @@ func TestJobApplicationService_GetStatusStatistics_AggregatesFromRepository(t *t
 			string(model.StatusRejected):       4,
 		}, nil
 	}
-	mockRepo.getHRPassCountFunc = func(userID uint) (int, error) {
+	mockRepo.getHRPassCountFunc = func(userID uint, processType *model.ApplicationProcessType) (int, error) {
 		assert.Equal(t, expectedUserID, userID)
+		require.NotNil(t, processType)
+		assert.Equal(t, model.ProcessTypeAutumn, *processType)
 		return 6, nil
 	}
 
 	svc := NewJobApplicationService(mockRepo)
 
-	stats, err := svc.GetStatusStatistics(expectedUserID)
+	stats, err := svc.GetStatusStatistics(expectedUserID, model.ProcessTypeAutumn)
 
 	require.NoError(t, err)
 	require.NotNil(t, stats)
@@ -434,33 +444,38 @@ func TestJobApplicationService_GetJobApplicationsWithStatusFilters_DelegatesToRe
 func TestJobApplicationService_GetDashboardData_DelegatesToRepository(t *testing.T) {
 	expectedUserID := uint(50)
 	mockRepo := &mockJobApplicationRepository{}
-	mockRepo.getStatusStatisticsFunc = func(userID uint) (map[string]int, error) {
+	mockRepo.getStatusStatisticsFunc = func(userID uint, processType *model.ApplicationProcessType) (map[string]int, error) {
 		assert.Equal(t, expectedUserID, userID)
+		require.NotNil(t, processType)
 		return map[string]int{string(model.StatusApplied): 2}, nil
 	}
-	mockRepo.getHRPassCountFunc = func(userID uint) (int, error) {
+	mockRepo.getHRPassCountFunc = func(userID uint, processType *model.ApplicationProcessType) (int, error) {
 		assert.Equal(t, expectedUserID, userID)
+		require.NotNil(t, processType)
 		return 1, nil
 	}
-	mockRepo.listRecentApplicationsFunc = func(userID uint, limit int) ([]map[string]interface{}, error) {
+	mockRepo.listRecentApplicationsFunc = func(userID uint, limit int, processType *model.ApplicationProcessType) ([]map[string]interface{}, error) {
 		assert.Equal(t, expectedUserID, userID)
 		assert.Equal(t, 10, limit)
+		require.NotNil(t, processType)
 		return []map[string]interface{}{{"id": 1}}, nil
 	}
-	mockRepo.listUpcomingInterviewsFunc = func(userID uint, limit int) ([]map[string]interface{}, error) {
+	mockRepo.listUpcomingInterviewsFunc = func(userID uint, limit int, processType *model.ApplicationProcessType) ([]map[string]interface{}, error) {
 		assert.Equal(t, expectedUserID, userID)
 		assert.Equal(t, 5, limit)
+		require.NotNil(t, processType)
 		return []map[string]interface{}{{"id": 2}}, nil
 	}
-	mockRepo.listDailyStatsFunc = func(userID uint, days int) ([]map[string]interface{}, error) {
+	mockRepo.listDailyStatsFunc = func(userID uint, days int, processType *model.ApplicationProcessType) ([]map[string]interface{}, error) {
 		assert.Equal(t, expectedUserID, userID)
 		assert.Equal(t, 30, days)
+		require.NotNil(t, processType)
 		return []map[string]interface{}{{"date": "2024-01-01", "count": 3}}, nil
 	}
 
 	svc := NewJobApplicationService(mockRepo)
 
-	dashboard, err := svc.GetDashboardData(expectedUserID)
+	dashboard, err := svc.GetDashboardData(expectedUserID, model.ProcessTypeAutumn)
 
 	require.NoError(t, err)
 	require.NotNil(t, dashboard)

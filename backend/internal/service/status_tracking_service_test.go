@@ -37,11 +37,11 @@ func (f *fakeTrackingRepo) BeginTx(ctx context.Context) (repository.StatusTracki
 	return f.tx, f.err
 }
 
-func (f *fakeTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint) (*model.StatusAnalyticsResponse, error) {
+func (f *fakeTrackingRepo) GetStatusAnalytics(ctx context.Context, userID uint, processType *model.ApplicationProcessType) (*model.StatusAnalyticsResponse, error) {
 	panic("not implemented")
 }
 
-func (f *fakeTrackingRepo) GetStatusTrends(ctx context.Context, userID uint, days int) ([]model.StatusTrend, error) {
+func (f *fakeTrackingRepo) GetStatusTrends(ctx context.Context, userID uint, days int, processType *model.ApplicationProcessType) ([]model.StatusTrend, error) {
 	panic("not implemented")
 }
 

@@ -42,11 +42,11 @@ func (s *stubInterviewRepo) BeginTx(ctx context.Context) (repository.StatusTrack
 	panic("not implemented")
 }
 
-func (s *stubInterviewRepo) GetStatusAnalytics(ctx context.Context, userID uint) (*model.StatusAnalyticsResponse, error) {
+func (s *stubInterviewRepo) GetStatusAnalytics(ctx context.Context, userID uint, processType *model.ApplicationProcessType) (*model.StatusAnalyticsResponse, error) {
 	panic("not implemented")
 }
 
-func (s *stubInterviewRepo) GetStatusTrends(ctx context.Context, userID uint, days int) ([]model.StatusTrend, error) {
+func (s *stubInterviewRepo) GetStatusTrends(ctx context.Context, userID uint, days int, processType *model.ApplicationProcessType) ([]model.StatusTrend, error) {
 	panic("not implemented")
 }
 
@@ -70,11 +70,11 @@ func (r *validationErrorRepo) BeginTx(ctx context.Context) (repository.StatusTra
 	return r.tx, nil
 }
 
-func (r *validationErrorRepo) GetStatusAnalytics(ctx context.Context, userID uint) (*model.StatusAnalyticsResponse, error) {
+func (r *validationErrorRepo) GetStatusAnalytics(ctx context.Context, userID uint, processType *model.ApplicationProcessType) (*model.StatusAnalyticsResponse, error) {
 	panic("not implemented")
 }
 
-func (r *validationErrorRepo) GetStatusTrends(ctx context.Context, userID uint, days int) ([]model.StatusTrend, error) {
+func (r *validationErrorRepo) GetStatusTrends(ctx context.Context, userID uint, days int, processType *model.ApplicationProcessType) ([]model.StatusTrend, error) {
 	panic("not implemented")
 }
 

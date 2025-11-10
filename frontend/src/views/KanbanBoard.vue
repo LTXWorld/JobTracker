@@ -14,7 +14,7 @@
             @select="onSearchSelect"
           >
             <a-input
-              :placeholder="'搜索公司/职位... (回车定位)'"
+              :placeholder="'搜索公司... (回车定位)'"
               allow-clear
               @pressEnter="onSearchEnter"
             >
@@ -583,6 +583,7 @@ import StatusDetailModal from '../components/StatusDetailModal.vue'
 import StatusQuickUpdate from '../components/StatusQuickUpdate.vue'
 import dayjs from 'dayjs'
 import { message, Modal } from 'ant-design-vue'
+import { createSearchTokens } from '../utils/pinyinSearch'
 
 interface KanbanColumn {
   status: ApplicationStatus
@@ -620,6 +621,13 @@ const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 const renderHighlightedLabel = (label: string, keyword: string) => {
   if (!keyword) return label
+  const normalizedKeyword = keyword.toLowerCase()
+  if (!label.toLowerCase().includes(normalizedKeyword)) {
+    if (createSearchTokens(label).includes(normalizedKeyword)) {
+      return h('mark', label)
+    }
+    return label
+  }
   const rx = new RegExp(escapeRegExp(keyword), 'ig')
   const nodes: any[] = []
   let lastIndex = 0
@@ -639,14 +647,22 @@ const renderHighlightedLabel = (label: string, keyword: string) => {
 }
 
 const highlightText = (text: string) => {
-  const kw = searchText.value.trim()
-  if (!kw) return text
+  const kwRaw = searchText.value.trim()
+  if (!kwRaw) return text
+  const keyword = kwRaw.toLowerCase()
   const safe = (s: string) => s
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-  const rx = new RegExp(escapeRegExp(kw), 'ig')
-  return safe(text).replace(rx, (m) => `<mark>${m}</mark>`)
+  const sanitized = safe(text)
+  const rx = new RegExp(escapeRegExp(kwRaw), 'ig')
+  if (text.toLowerCase().includes(keyword)) {
+    return sanitized.replace(rx, (m) => `<mark>${m}</mark>`)
+  }
+  if (createSearchTokens(text).includes(keyword)) {
+    return `<mark>${sanitized}</mark>`
+  }
+  return sanitized
 }
 
 const searchOptions = computed(() => {
@@ -660,7 +676,7 @@ const searchOptions = computed(() => {
       value: rawLabel,
       label: renderHighlightedLabel(rawLabel, searchText.value.trim()) as any,
       id: app.id,
-      _plain: rawLabel.toLowerCase(),
+      _plain: createSearchTokens(app.company_name),
     }
   })
   if (!keyword) return items.slice(0, 50)
@@ -758,11 +774,6 @@ const passedColumns = [
 
 // 定义用户主动拒绝状态列
 const userRejectedColumn = { status: ApplicationStatus.USER_REJECTED, title: '主动终止流程', color: '#ef4444' }
-
-// 切换标签页
-const setActiveTab = (tab: 'in-progress' | 'failed') => {
-  activeTab.value = tab
-}
 
 const projectApplications = computed(() => Array.isArray(applications.value) ? applications.value : [])
 
@@ -978,7 +989,9 @@ const handleDragChange = async (evt: any, newStatus: ApplicationStatus) => {
 
   try {
     await statusTrackingStore.updateApplicationStatus(app.id, payload, {
-      onUndo: fetchData
+      onUndo: async () => {
+        await fetchData()
+      }
     })
     await fetchData()
   } catch (error: any) {
@@ -1009,7 +1022,9 @@ const handleDragChange = async (evt: any, newStatus: ApplicationStatus) => {
         }
         try {
           await statusTrackingStore.updateApplicationStatus(app.id, retry, {
-            onUndo: fetchData
+            onUndo: async () => {
+              await fetchData()
+            }
           })
         } catch (e: any) {
           message.error((e?.message as string) || '状态更新失败')

@@ -6,7 +6,7 @@
         <a-col :xs="24" :sm="12" :md="8" :lg="6">
           <a-input
             v-model:value="filters.keyword"
-            placeholder="搜索公司名称或职位"
+            placeholder="搜索公司名称"
             allow-clear
             @change="handleSearch"
           >
@@ -43,22 +43,18 @@
           />
         </a-col>
 
-        <!-- 薪资范围筛选 -->
+        <!-- 企业类型筛选 -->
         <a-col :xs="24" :sm="12" :md="8" :lg="4">
           <a-select
-            v-model:value="filters.salaryRange"
-            placeholder="薪资范围"
+            v-model:value="filters.companyType"
+            placeholder="企业类型"
             allow-clear
             style="width: 100%"
             @change="handleFilterChange"
           >
-            <a-select-option value="">全部薪资</a-select-option>
-            <a-select-option value="0-10">10K以下</a-select-option>
-            <a-select-option value="10-15">10-15K</a-select-option>
-            <a-select-option value="15-20">15-20K</a-select-option>
-            <a-select-option value="20-25">20-25K</a-select-option>
-            <a-select-option value="25-30">25-30K</a-select-option>
-            <a-select-option value="30+">30K以上</a-select-option>
+            <a-select-option value="">全部类型</a-select-option>
+            <a-select-option value="央国企">央国企</a-select-option>
+            <a-select-option value="私企">私企</a-select-option>
           </a-select>
         </a-col>
 
@@ -85,6 +81,23 @@
                 <EnvironmentOutlined />
               </template>
             </a-input>
+          </a-col>
+          <a-col :span="8">
+            <a-select
+              v-model:value="filters.salaryRange"
+              placeholder="薪资范围"
+              allow-clear
+              style="width: 100%"
+              @change="handleFilterChange"
+            >
+              <a-select-option value="">全部薪资</a-select-option>
+              <a-select-option value="0-10">10K以下</a-select-option>
+              <a-select-option value="10-15">10-15K</a-select-option>
+              <a-select-option value="15-20">15-20K</a-select-option>
+              <a-select-option value="20-25">20-25K</a-select-option>
+              <a-select-option value="25-30">25-30K</a-select-option>
+              <a-select-option value="30+">30K以上</a-select-option>
+            </a-select>
           </a-col>
           <a-col :span="8">
             <a-select
@@ -128,6 +141,7 @@ interface FilterOptions {
   keyword: string
   status: string
   dateRange: [Dayjs, Dayjs] | null
+  companyType: string
   salaryRange: string
   location: string
   sortBy: string
@@ -145,6 +159,7 @@ const filters = reactive<FilterOptions>({
   keyword: '',
   status: '',
   dateRange: null,
+  companyType: '',
   salaryRange: '',
   location: '',
   sortBy: 'date_desc'
@@ -173,6 +188,7 @@ const handleReset = () => {
   filters.keyword = ''
   filters.status = ''
   filters.dateRange = null
+  filters.companyType = ''
   filters.salaryRange = ''
   filters.location = ''
   filters.sortBy = 'date_desc'

@@ -15,6 +15,14 @@ func NewJobApplicationService(repo repository.JobApplicationRepository) *JobAppl
 	return &JobApplicationService{repo: repo}
 }
 
+func normalizeProcessTypePointer(pt *model.ApplicationProcessType) *model.ApplicationProcessType {
+	if pt != nil {
+		return pt
+	}
+	defaultType := model.ProcessTypeAutumn
+	return &defaultType
+}
+
 // Create 创建新的投递记录
 func (s *JobApplicationService) Create(userID uint, req *model.CreateJobApplicationRequest) (*model.JobApplication, error) {
 	status := req.Status
@@ -23,6 +31,9 @@ func (s *JobApplicationService) Create(userID uint, req *model.CreateJobApplicat
 	}
 	if !status.IsValid() {
 		return nil, fmt.Errorf("invalid status: %s", status)
+	}
+	if !req.ProcessType.IsValid() {
+		req.ProcessType = model.ProcessTypeAutumn
 	}
 	return s.repo.Create(userID, req)
 }
@@ -38,6 +49,10 @@ func (s *JobApplicationService) GetAllPaginated(userID uint, req model.Paginatio
 	if req.Status != nil && !req.Status.IsValid() {
 		return nil, fmt.Errorf("invalid status: %s", *req.Status)
 	}
+	if req.ProcessType != nil && !req.ProcessType.IsValid() {
+		return nil, fmt.Errorf("invalid process type: %s", *req.ProcessType)
+	}
+	req.ProcessType = normalizeProcessTypePointer(req.ProcessType)
 	return s.repo.GetAllPaginated(userID, req)
 }
 
@@ -50,6 +65,9 @@ func (s *JobApplicationService) GetAll(userID uint) ([]model.JobApplication, err
 func (s *JobApplicationService) Update(userID uint, id int, req *model.UpdateJobApplicationRequest) (*model.JobApplication, error) {
 	if req.Status != nil && !req.Status.IsValid() {
 		return nil, fmt.Errorf("invalid status: %s", *req.Status)
+	}
+	if req.ProcessType != nil && !req.ProcessType.IsValid() {
+		return nil, fmt.Errorf("invalid process type: %s", *req.ProcessType)
 	}
 	return s.repo.Update(userID, id, req)
 }
@@ -74,6 +92,9 @@ func (s *JobApplicationService) BatchCreate(userID uint, applications []model.Cr
 		}
 		if !status.IsValid() {
 			return nil, fmt.Errorf("invalid status: %s", status)
+		}
+		if !req.ProcessType.IsValid() {
+			req.ProcessType = model.ProcessTypeAutumn
 		}
 	}
 	return s.repo.BatchCreate(userID, applications)
@@ -106,6 +127,10 @@ func (s *JobApplicationService) BatchDelete(userID uint, ids []int) error {
 
 func (s *JobApplicationService) SearchApplications(userID uint, searchQuery string, req model.PaginationRequest) (*model.PaginationResponse, error) {
 	req.ValidateAndSetDefaults()
+	if req.ProcessType != nil && !req.ProcessType.IsValid() {
+		return nil, fmt.Errorf("invalid process type: %s", *req.ProcessType)
+	}
+	req.ProcessType = normalizeProcessTypePointer(req.ProcessType)
 	if searchQuery == "" {
 		return s.GetAllPaginated(userID, req)
 	}
@@ -114,6 +139,10 @@ func (s *JobApplicationService) SearchApplications(userID uint, searchQuery stri
 
 func (s *JobApplicationService) GetApplicationsByDateRange(userID uint, startDate, endDate string, req model.PaginationRequest) (*model.PaginationResponse, error) {
 	req.ValidateAndSetDefaults()
+	if req.ProcessType != nil && !req.ProcessType.IsValid() {
+		return nil, fmt.Errorf("invalid process type: %s", *req.ProcessType)
+	}
+	req.ProcessType = normalizeProcessTypePointer(req.ProcessType)
 	return s.repo.ListByDateRange(userID, startDate, endDate, req)
 }
 
@@ -122,6 +151,10 @@ func (s *JobApplicationService) GetJobApplicationsWithStatusFilters(userID uint,
 	if status != nil && !status.IsValid() {
 		return nil, fmt.Errorf("invalid status: %s", *status)
 	}
+	if req.ProcessType != nil && !req.ProcessType.IsValid() {
+		return nil, fmt.Errorf("invalid process type: %s", *req.ProcessType)
+	}
+	req.ProcessType = normalizeProcessTypePointer(req.ProcessType)
 
 	var stageStatuses []string
 	if stage != nil {
@@ -132,14 +165,18 @@ func (s *JobApplicationService) GetJobApplicationsWithStatusFilters(userID uint,
 }
 
 // GetStatusStatistics 获取用户的状态统计信息
-func (s *JobApplicationService) GetStatusStatistics(userID uint) (map[string]interface{}, error) {
-	counts, err := s.repo.GetStatusStatistics(userID)
+func (s *JobApplicationService) GetStatusStatistics(userID uint, processType model.ApplicationProcessType) (map[string]interface{}, error) {
+	if !processType.IsValid() {
+		processType = model.ProcessTypeAutumn
+	}
+	counts, err := s.repo.GetStatusStatistics(userID, &processType)
 	if err != nil {
 		return nil, err
 	}
 
 	stats := map[string]interface{}{
 		"user_id":            userID,
+		"process_type":       processType,
 		"total_applications": 0,
 		"in_progress":        0,
 		"passed":             0,
@@ -159,7 +196,7 @@ func (s *JobApplicationService) GetStatusStatistics(userID uint) (map[string]int
 		}
 	}
 
-	hrPassCount, err := s.repo.GetHRPassCount(userID)
+	hrPassCount, err := s.repo.GetHRPassCount(userID, &processType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute HR pass count: %w", err)
 	}
@@ -191,9 +228,9 @@ func (s *JobApplicationService) getStatusesByStage(stage string) []string {
 		"final": {
 			"HR面通过", "已接受offer", "已拒绝offer", "已拒绝",
 		},
-		"in_progress": {"已投递", "简历筛选中", "笔试中", "一面中", "二面中", "三面中", "HR面中"},
-		"passed":      {"笔试通过", "一面通过", "二面通过", "三面通过", "HR面通过", "已接受offer", "已拒绝offer"},
-		"failed":      {"简历筛选未通过", "笔试未通过", "一面未通过", "二面未通过", "三面未通过", "HR面未通过"},
+		"in_progress":   {"已投递", "简历筛选中", "笔试中", "一面中", "二面中", "三面中", "HR面中"},
+		"passed":        {"笔试通过", "一面通过", "二面通过", "三面通过", "HR面通过", "已接受offer", "已拒绝offer"},
+		"failed":        {"简历筛选未通过", "笔试未通过", "一面未通过", "二面未通过", "三面未通过", "HR面未通过"},
 		"user_rejected": {"已拒绝"},
 	}
 
@@ -204,24 +241,28 @@ func (s *JobApplicationService) getStatusesByStage(stage string) []string {
 }
 
 // GetDashboardData 获取仪表板数据
-func (s *JobApplicationService) GetDashboardData(userID uint) (map[string]interface{}, error) {
+func (s *JobApplicationService) GetDashboardData(userID uint, processType model.ApplicationProcessType) (map[string]interface{}, error) {
+	if !processType.IsValid() {
+		processType = model.ProcessTypeAutumn
+	}
+
 	// 获取状态统计
-	statistics, err := s.GetStatusStatistics(userID)
+	statistics, err := s.GetStatusStatistics(userID, processType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get status statistics: %w", err)
 	}
 
-	recentApplications, err := s.repo.ListRecentApplications(userID, 10)
+	recentApplications, err := s.repo.ListRecentApplications(userID, 10, &processType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get recent applications: %w", err)
 	}
 
-	upcomingInterviews, err := s.repo.ListUpcomingInterviews(userID, 5)
+	upcomingInterviews, err := s.repo.ListUpcomingInterviews(userID, 5, &processType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get upcoming interviews: %w", err)
 	}
 
-	dailyStats, err := s.repo.ListDailyStats(userID, 30)
+	dailyStats, err := s.repo.ListDailyStats(userID, 30, &processType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get daily stats: %w", err)
 	}
@@ -233,6 +274,7 @@ func (s *JobApplicationService) GetDashboardData(userID uint) (map[string]interf
 		"upcoming_interviews": upcomingInterviews,
 		"daily_stats":         dailyStats,
 		"generated_at":        time.Now(),
+		"process_type":        processType,
 	}
 
 	return dashboard, nil

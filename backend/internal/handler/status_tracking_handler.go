@@ -14,6 +14,7 @@ import (
 	"jobView-backend/internal/utils"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gorilla/mux"
 )
@@ -324,8 +325,10 @@ func (h *StatusTrackingHandler) GetStatusAnalytics(w http.ResponseWriter, r *htt
 		return
 	}
 
+	processType := h.resolveProcessTypeParam(r.URL.Query().Get("process_type"))
+
 	// 调用服务获取分析数据
-	analytics, err := h.statusService.GetStatusAnalytics(uint(userID))
+	analytics, err := h.statusService.GetStatusAnalytics(uint(userID), processType)
 	if err != nil {
 		h.writeErrorResponse(w, http.StatusInternalServerError, "failed to get status analytics", err)
 		return
@@ -352,16 +355,19 @@ func (h *StatusTrackingHandler) GetStatusTrends(w http.ResponseWriter, r *http.R
 		}
 	}
 
+	processType := h.resolveProcessTypeParam(r.URL.Query().Get("process_type"))
+
 	// 调用服务获取趋势数据
-	trends, err := h.statusService.GetStatusTrends(uint(userID), days)
+	trends, err := h.statusService.GetStatusTrends(uint(userID), days, processType)
 	if err != nil {
 		h.writeErrorResponse(w, http.StatusInternalServerError, "failed to get status trends", err)
 		return
 	}
 
 	h.writeSuccessResponse(w, http.StatusOK, "status trends retrieved successfully", map[string]interface{}{
-		"days":   days,
-		"trends": trends,
+		"days":         days,
+		"process_type": processType,
+		"trends":       trends,
 	})
 }
 
@@ -375,15 +381,17 @@ func (h *StatusTrackingHandler) GetProcessInsights(w http.ResponseWriter, r *htt
 		return
 	}
 
+	processType := h.resolveProcessTypeParam(r.URL.Query().Get("process_type"))
+
 	// 获取分析数据
-	analytics, err := h.statusService.GetStatusAnalytics(uint(userID))
+	analytics, err := h.statusService.GetStatusAnalytics(uint(userID), processType)
 	if err != nil {
 		h.writeErrorResponse(w, http.StatusInternalServerError, "failed to get process insights", err)
 		return
 	}
 
 	// 获取趋势数据
-	trends, err := h.statusService.GetStatusTrends(uint(userID), 90) // 最近90天
+	trends, err := h.statusService.GetStatusTrends(uint(userID), 90, processType) // 最近90天
 	if err != nil {
 		h.writeErrorResponse(w, http.StatusInternalServerError, "failed to get trends for insights", err)
 		return
@@ -395,6 +403,7 @@ func (h *StatusTrackingHandler) GetProcessInsights(w http.ResponseWriter, r *htt
 			"total_applications":  analytics.TotalApplications,
 			"success_rate":        analytics.SuccessRate,
 			"active_applications": h.calculateActiveApplications(analytics.StatusDistribution),
+			"process_type":        processType,
 		},
 		"performance": map[string]interface{}{
 			"average_durations": analytics.AverageDurations,
@@ -483,6 +492,18 @@ func (h *StatusTrackingHandler) generateRecommendations(analytics *model.StatusA
 	}
 
 	return recommendations
+}
+
+func (h *StatusTrackingHandler) resolveProcessTypeParam(raw string) model.ApplicationProcessType {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return model.ProcessTypeAutumn
+	}
+	pt := model.ApplicationProcessType(value)
+	if !pt.IsValid() {
+		return model.ProcessTypeAutumn
+	}
+	return pt
 }
 
 // writeSuccessResponse 写入成功响应

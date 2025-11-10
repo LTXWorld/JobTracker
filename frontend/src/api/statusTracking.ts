@@ -12,6 +12,7 @@ import type {
   StatusUndoRequest,
   StatusUndoResult
 } from '../types'
+import { JobProcessType } from '../types'
 import { StatusHelper } from '../types'
 
 /**
@@ -272,10 +273,12 @@ export class StatusTrackingAPI {
   static async getStatusAnalytics(params?: {
     start_date?: string;
     end_date?: string;
+    process_type?: JobProcessType;
   }): Promise<StatusAnalytics> {
     const queryParams = new URLSearchParams()
     if (params?.start_date) queryParams.append('start_date', params.start_date)
     if (params?.end_date) queryParams.append('end_date', params.end_date)
+    queryParams.append('process_type', params?.process_type || JobProcessType.AUTUMN)
     
     const url = '/v1/job-applications/status-analytics' + 
                 (queryParams.toString() ? `?${queryParams.toString()}` : '')
@@ -295,6 +298,7 @@ export class StatusTrackingAPI {
     period?: 'week' | 'month' | 'quarter';
     start_date?: string; // 目前后端未使用
     end_date?: string;   // 目前后端未使用
+    process_type?: JobProcessType;
   }): Promise<{
     trends: Array<{
       date: string;
@@ -306,8 +310,9 @@ export class StatusTrackingAPI {
     // 兼容后端实现：使用 days 参数，而不是 period
     const period = params?.period
     const days = period === 'week' ? 7 : period === 'quarter' ? 90 : 30
+    const processType = params?.process_type || JobProcessType.AUTUMN
 
-    const url = `/v1/job-applications/status-trends?days=${days}`
+    const url = `/v1/job-applications/status-trends?days=${days}&process_type=${encodeURIComponent(processType)}`
     const response = await request.get(url)
     if (!response.data?.data) {
       throw new Error('获取趋势数据失败')
@@ -348,7 +353,7 @@ export class StatusTrackingAPI {
   /**
    * 获取流程洞察和建议
    */
-  static async getProcessInsights(): Promise<{
+  static async getProcessInsights(processType: JobProcessType): Promise<{
     insights: Array<{
       type: 'warning' | 'info' | 'success';
       title: string;
@@ -363,7 +368,7 @@ export class StatusTrackingAPI {
       impact_level: 'high' | 'medium' | 'low';
     }>;
   }> {
-    const response = await request.get('/v1/job-applications/process-insights')
+    const response = await request.get(`/v1/job-applications/process-insights?process_type=${encodeURIComponent(processType)}`)
     if (!response.data.data) {
       throw new Error('获取洞察数据失败')
     }
@@ -381,6 +386,7 @@ export class StatusTrackingAPI {
     stage?: string;
     page?: number;
     page_size?: number;
+    process_type?: JobProcessType;
   }): Promise<{
     applications: any[];
     total: number;
@@ -395,6 +401,7 @@ export class StatusTrackingAPI {
     if (params.stage) queryParams.append('stage', params.stage)
     if (params.page) queryParams.append('page', params.page.toString())
     if (params.page_size) queryParams.append('page_size', params.page_size.toString())
+    queryParams.append('process_type', params.process_type || JobProcessType.AUTUMN)
     
     const response = await request.get(`/v1/applications?${queryParams.toString()}`)
     if (!response.data.data) {
@@ -412,6 +419,7 @@ export class StatusTrackingAPI {
     filters?: Record<string, any>;
     page?: number;
     page_size?: number;
+    process_type?: JobProcessType;
   }): Promise<{
     applications: any[];
     total: number;
@@ -424,6 +432,7 @@ export class StatusTrackingAPI {
     if (params.filters) queryParams.append('filters', JSON.stringify(params.filters))
     if (params.page) queryParams.append('page', params.page.toString())
     if (params.page_size) queryParams.append('page_size', params.page_size.toString())
+    queryParams.append('process_type', params.process_type || JobProcessType.AUTUMN)
     
     const response = await request.get(`/v1/applications/search?${queryParams.toString()}`)
     if (!response.data.data) {
@@ -435,7 +444,7 @@ export class StatusTrackingAPI {
   /**
    * 获取仪表板数据聚合
    */
-  static async getDashboardData(): Promise<{
+  static async getDashboardData(processType: JobProcessType): Promise<{
     summary: {
       total_applications: number;
       active_applications: number;
@@ -463,7 +472,7 @@ export class StatusTrackingAPI {
       priority: 'high' | 'medium' | 'low';
     }>;
   }> {
-    const response = await request.get('/v1/applications/dashboard')
+    const response = await request.get(`/v1/applications/dashboard?process_type=${encodeURIComponent(processType)}`)
     if (!response.data.data) {
       throw new Error('获取仪表板数据失败')
     }

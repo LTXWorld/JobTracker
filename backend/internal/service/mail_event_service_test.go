@@ -83,9 +83,13 @@ func (f *fakeJobRepo) Update(userID uint, id int, req *model.UpdateJobApplicatio
 	return nil, nil
 }
 
-func (f *fakeJobRepo) Delete(userID uint, id int) error                        { return nil }
-func (f *fakeJobRepo) GetStatusStatistics(userID uint) (map[string]int, error) { return nil, nil }
-func (f *fakeJobRepo) GetHRPassCount(userID uint) (int, error)                 { return 0, nil }
+func (f *fakeJobRepo) Delete(userID uint, id int) error { return nil }
+func (f *fakeJobRepo) GetStatusStatistics(userID uint, processType *model.ApplicationProcessType) (map[string]int, error) {
+	return nil, nil
+}
+func (f *fakeJobRepo) GetHRPassCount(userID uint, processType *model.ApplicationProcessType) (int, error) {
+	return 0, nil
+}
 func (f *fakeJobRepo) BatchCreate(userID uint, applications []model.CreateJobApplicationRequest) ([]model.JobApplication, error) {
 	return nil, nil
 }
@@ -102,13 +106,13 @@ func (f *fakeJobRepo) ListByDateRange(userID uint, startDate, endDate string, re
 func (f *fakeJobRepo) ListWithStatusFilters(userID uint, status *model.ApplicationStatus, stageStatuses []string, req model.PaginationRequest) (*model.PaginationResponse, error) {
 	return nil, nil
 }
-func (f *fakeJobRepo) ListRecentApplications(userID uint, limit int) ([]map[string]interface{}, error) {
+func (f *fakeJobRepo) ListRecentApplications(userID uint, limit int, processType *model.ApplicationProcessType) ([]map[string]interface{}, error) {
 	return nil, nil
 }
-func (f *fakeJobRepo) ListUpcomingInterviews(userID uint, limit int) ([]map[string]interface{}, error) {
+func (f *fakeJobRepo) ListUpcomingInterviews(userID uint, limit int, processType *model.ApplicationProcessType) ([]map[string]interface{}, error) {
 	return nil, nil
 }
-func (f *fakeJobRepo) ListDailyStats(userID uint, days int) ([]map[string]interface{}, error) {
+func (f *fakeJobRepo) ListDailyStats(userID uint, days int, processType *model.ApplicationProcessType) ([]map[string]interface{}, error) {
 	return nil, nil
 }
 

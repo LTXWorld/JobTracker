@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"jobView-backend/internal/auth"
 	"jobView-backend/internal/model"
@@ -21,10 +22,10 @@ type JobApplicationUseCase interface {
 	GetAll(userID uint) ([]model.JobApplication, error)
 	Update(userID uint, id int, req *model.UpdateJobApplicationRequest) (*model.JobApplication, error)
 	Delete(userID uint, id int) error
-	GetStatusStatistics(userID uint) (map[string]interface{}, error)
+	GetStatusStatistics(userID uint, processType model.ApplicationProcessType) (map[string]interface{}, error)
 	GetJobApplicationsWithStatusFilters(userID uint, status *model.ApplicationStatus, stage *string, req model.PaginationRequest) (*model.PaginationResponse, error)
 	SearchApplications(userID uint, query string, req model.PaginationRequest) (*model.PaginationResponse, error)
-	GetDashboardData(userID uint) (map[string]interface{}, error)
+	GetDashboardData(userID uint, processType model.ApplicationProcessType) (map[string]interface{}, error)
 }
 
 type JobApplicationHandler struct {
@@ -219,7 +220,9 @@ func (h *JobApplicationHandler) GetStatistics(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	statistics, err := h.service.GetStatusStatistics(userID)
+	processType := h.resolveProcessTypeParam(r.URL.Query().Get("process_type"))
+
+	statistics, err := h.service.GetStatusStatistics(userID, processType)
 	if err != nil {
 		h.writeErrorResponse(w, http.StatusInternalServerError, "failed to get statistics", err)
 		return
@@ -305,6 +308,13 @@ func (h *JobApplicationHandler) validateCreateRequest(req *model.CreateJobApplic
 		return err
 	}
 
+	if req.ProcessType != "" && !req.ProcessType.IsValid() {
+		return fmt.Errorf("求职周期类型无效")
+	}
+	if req.ProcessType == "" {
+		req.ProcessType = model.ProcessTypeAutumn
+	}
+
 	return nil
 }
 
@@ -358,7 +368,23 @@ func (h *JobApplicationHandler) validateUpdateRequest(req *model.UpdateJobApplic
 		}
 	}
 
+	if req.ProcessType != nil && !req.ProcessType.IsValid() {
+		return fmt.Errorf("求职周期类型无效")
+	}
+
 	return nil
+}
+
+func (h *JobApplicationHandler) resolveProcessTypeParam(raw string) model.ApplicationProcessType {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return model.ProcessTypeAutumn
+	}
+	pt := model.ApplicationProcessType(value)
+	if !pt.IsValid() {
+		return model.ProcessTypeAutumn
+	}
+	return pt
 }
 
 // GetJobApplicationsWithFilters 根据状态和阶段筛选获取岗位申请
@@ -405,6 +431,9 @@ func (h *JobApplicationHandler) GetJobApplicationsWithFilters(w http.ResponseWri
 		}
 	}
 
+	processType := h.resolveProcessTypeParam(r.URL.Query().Get("process_type"))
+	req.ProcessType = &processType
+
 	// 调用服务获取筛选结果
 	result, err := h.service.GetJobApplicationsWithStatusFilters(userID, status, stage, req)
 	if err != nil {
@@ -447,6 +476,9 @@ func (h *JobApplicationHandler) SearchJobApplications(w http.ResponseWriter, r *
 		}
 	}
 
+	processType := h.resolveProcessTypeParam(r.URL.Query().Get("process_type"))
+	req.ProcessType = &processType
+
 	// 调用服务进行搜索
 	result, err := h.service.SearchApplications(userID, query, req)
 	if err != nil {
@@ -467,8 +499,10 @@ func (h *JobApplicationHandler) GetDashboardData(w http.ResponseWriter, r *http.
 		return
 	}
 
+	processType := h.resolveProcessTypeParam(r.URL.Query().Get("process_type"))
+
 	// 调用服务获取仪表板数据
-	dashboard, err := h.service.GetDashboardData(userID)
+	dashboard, err := h.service.GetDashboardData(userID, processType)
 	if err != nil {
 		h.writeErrorResponse(w, http.StatusInternalServerError, "failed to get dashboard data", err)
 		return

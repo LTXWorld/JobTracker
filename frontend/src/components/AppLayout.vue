@@ -76,61 +76,80 @@
 
     <!-- 标签导航栏 -->
     <div class="tab-navigation" v-if="authStore.isLoggedIn">
-      <a-tabs 
-        v-model:activeKey="activeTab" 
-        @change="handleTabChange"
-        type="card"
-        class="main-tabs"
-      >
-        <a-tab-pane key="home" tab="主页">
-          <template #tab>
-            <span>
-              <HomeOutlined />
-              主页
-            </span>
-          </template>
-        </a-tab-pane>
-        <a-tab-pane key="kanban" tab="求职进程">
-          <template #tab>
-            <span>
-              <AppstoreOutlined />
-              求职进程
-            </span>
-          </template>
-        </a-tab-pane>
-        <a-tab-pane key="timeline" tab="投递记录">
-          <template #tab>
-            <span>
-              <ClockCircleOutlined />
-              投递记录
-            </span>
-          </template>
-        </a-tab-pane>
-        <a-tab-pane key="reminders" tab="提醒中心">
-          <template #tab>
-            <span>
-              <BellOutlined />
-              提醒中心
-            </span>
-          </template>
-        </a-tab-pane>
-        <a-tab-pane key="statistics" tab="数据统计">
-          <template #tab>
-            <span>
-              <BarChartOutlined />
-              数据统计
-            </span>
-          </template>
-        </a-tab-pane>
-        <a-tab-pane key="resume" tab="我的简历">
-          <template #tab>
-            <span>
-              <BarChartOutlined />
-              我的简历
-            </span>
-          </template>
-        </a-tab-pane>
-      </a-tabs>
+      <div class="tab-navigation-main">
+        <a-tabs 
+          v-model:activeKey="activeTab" 
+          @change="handleTabChange"
+          type="card"
+          class="main-tabs"
+        >
+          <a-tab-pane key="home" tab="主页">
+            <template #tab>
+              <span>
+                <HomeOutlined />
+                主页
+              </span>
+            </template>
+          </a-tab-pane>
+          <a-tab-pane key="kanban" tab="求职进程">
+            <template #tab>
+              <span>
+                <AppstoreOutlined />
+                求职进程
+              </span>
+            </template>
+          </a-tab-pane>
+          <a-tab-pane key="timeline" tab="投递记录">
+            <template #tab>
+              <span>
+                <ClockCircleOutlined />
+                投递记录
+              </span>
+            </template>
+          </a-tab-pane>
+          <a-tab-pane key="reminders" tab="提醒中心">
+            <template #tab>
+              <span>
+                <BellOutlined />
+                提醒中心
+              </span>
+            </template>
+          </a-tab-pane>
+          <a-tab-pane key="statistics" tab="数据统计">
+            <template #tab>
+              <span>
+                <BarChartOutlined />
+                数据统计
+              </span>
+            </template>
+          </a-tab-pane>
+          <a-tab-pane key="resume" tab="我的简历">
+            <template #tab>
+              <span>
+                <BarChartOutlined />
+                我的简历
+              </span>
+            </template>
+          </a-tab-pane>
+        </a-tabs>
+        <div class="process-type-switch">
+          <span class="switch-label">求职周期：</span>
+          <a-radio-group
+            size="small"
+            button-style="solid"
+            :value="jobStore.currentProcessType"
+            @change="onProcessTypeChange"
+          >
+            <a-radio-button
+              v-for="option in jobStore.processTypeOptions"
+              :key="option.value"
+              :value="option.value"
+            >
+              {{ option.label }}
+            </a-radio-button>
+          </a-radio-group>
+        </div>
+      </div>
       <div class="tab-actions" v-if="showGlobalRefresh">
         <a-button type="primary" ghost :icon="h(ReloadOutlined)" @click="handleRefresh" :loading="refreshing">
           刷新数据
@@ -190,6 +209,7 @@ import {
   HomeOutlined
 } from '@ant-design/icons-vue'
 import { useJobApplicationStore } from '../stores/jobApplication'
+import { useStatusTrackingStore } from '../stores/statusTracking'
 import RobotAssistant from './RobotAssistant.vue'
 import UserGuide from './UserGuide.vue'
 import MusicPlayer from './MusicPlayer.vue'
@@ -199,6 +219,7 @@ import { UserGuideManager } from '../utils/userGuide'
 const router = useRouter()
 const route = useRoute()
 const jobStore = useJobApplicationStore()
+const statusTrackingStore = useStatusTrackingStore()
 const authStore = useAuthStore()
 
 const formatAvatar = (raw?: string) => {
@@ -285,6 +306,15 @@ const handleRefresh = async () => {
   } finally {
     refreshing.value = false
   }
+}
+
+const onProcessTypeChange = async (event: any) => {
+  const value = event?.target?.value || event
+  await jobStore.setProcessType(value)
+  statusTrackingStore.clearCache()
+  await statusTrackingStore.fetchDashboardData(true)
+  statusTrackingStore.fetchAnalytics(true)
+  statusTrackingStore.fetchStatusTrends()
 }
 
 // 跳转到主页
@@ -493,6 +523,25 @@ watch(() => authStore.isLoggedIn, (isLoggedIn) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.tab-navigation-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
+.process-type-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.process-type-switch .switch-label {
+  color: #666;
+  font-size: 13px;
 }
 
 .main-tabs {

@@ -25,6 +25,7 @@ CREATE TABLE job_applications (
     company_name VARCHAR(100) NOT NULL, -- 公司名称
     position_title VARCHAR(100) NOT NULL, -- 职位名称  
     application_date DATE NOT NULL DEFAULT CURRENT_DATE, -- 投递日期
+    process_type VARCHAR(16) NOT NULL DEFAULT '秋招', -- 求职周期
     status application_status NOT NULL DEFAULT '已投递', -- 投递状态
     job_description TEXT, -- 岗位描述
     salary_range VARCHAR(50), -- 薪资范围
