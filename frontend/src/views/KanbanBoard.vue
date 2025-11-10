@@ -26,21 +26,45 @@
         </div>
         <!-- 状态总览 -->
         <div class="status-summary">
-          <div class="summary-item summary-progress">
+          <div
+            class="summary-item summary-progress"
+            role="button"
+            tabindex="0"
+            aria-label="定位到进行中区域"
+            @click="scrollToSection('progress')"
+            @keydown.enter.prevent="scrollToSection('progress')"
+            @keydown.space.prevent="scrollToSection('progress')"
+          >
             <ClockCircleOutlined />
             <div class="summary-content">
               <div class="summary-title">进行中</div>
               <div class="summary-count">{{ inProgressCount }}</div>
             </div>
           </div>
-          <div class="summary-item summary-passed">
+          <div
+            class="summary-item summary-passed"
+            role="button"
+            tabindex="0"
+            aria-label="定位到通过阶段区域"
+            @click="scrollToSection('passed')"
+            @keydown.enter.prevent="scrollToSection('passed')"
+            @keydown.space.prevent="scrollToSection('passed')"
+          >
             <TrophyOutlined />
             <div class="summary-content">
               <div class="summary-title">通过阶段</div>
               <div class="summary-count">{{ passedCount }}</div>
             </div>
           </div>
-          <div class="summary-item summary-failed">
+          <div
+            class="summary-item summary-failed"
+            role="button"
+            tabindex="0"
+            aria-label="定位到未通过区域"
+            @click="scrollToSection('failed')"
+            @keydown.enter.prevent="scrollToSection('failed')"
+            @keydown.space.prevent="scrollToSection('failed')"
+          >
             <CloseCircleOutlined />
             <div class="summary-content">
               <div class="summary-title">未通过</div>
@@ -74,7 +98,7 @@
     <!-- 看板主体 -->
     <div class="kanban-main" v-if="!loading">
       <!-- 进行中 -->
-      <section class="kanban-section">
+      <section class="kanban-section" ref="inProgressSectionRef">
         <div class="section-header">
           <h3>进行中</h3>
           <span class="section-subtitle">从投递到 HR 面试的推进阶段</span>
@@ -162,7 +186,7 @@
       </section>
 
       <!-- 通过阶段 -->
-      <section class="kanban-section passed-section">
+      <section class="kanban-section passed-section" ref="passedSectionRef">
         <div class="section-header">
           <h3>通过阶段</h3>
           <span class="section-subtitle">HR 面通过后进入最终选择</span>
@@ -422,7 +446,7 @@
       </section>
 
       <!-- 未通过 -->
-      <section class="kanban-section failed-section">
+      <section class="kanban-section failed-section" ref="failedSectionRef">
         <div class="section-header">
           <h3>未通过</h3>
           <span class="section-subtitle">各阶段未通过记录，建议及时复盘</span>
@@ -606,10 +630,30 @@ const editingApplication = ref<JobApplication | null>(null)
 const selectedApplication = ref<JobApplication | null>(null)
 const selectedApplicationId = ref<number>(0)
 const selectedApplicationStatus = ref<AppStatus>('已投递')
+const inProgressSectionRef = ref<HTMLElement | null>(null)
+const passedSectionRef = ref<HTMLElement | null>(null)
+const failedSectionRef = ref<HTMLElement | null>(null)
 
 const openCreateModal = () => {
   editingApplication.value = null
   showCreateModal.value = true
+}
+
+// 状态概览点击后滚动到对应的区域，便于快速定位
+const scrollToSection = (section: 'progress' | 'passed' | 'failed') => {
+  if (typeof window === 'undefined') return
+  const sectionMap = {
+    progress: inProgressSectionRef.value,
+    passed: passedSectionRef.value,
+    failed: failedSectionRef.value,
+  } as const
+  const target = sectionMap[section]
+  if (!target) return
+  const offsetTop = target.getBoundingClientRect().top + window.scrollY - 16
+  window.scrollTo({
+    top: Math.max(offsetTop, 0),
+    behavior: 'smooth',
+  })
 }
 
 // 搜索相关
@@ -1214,6 +1258,20 @@ onMounted(() => {
   border: 1px solid var(--border-color);
   min-width: 140px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  outline: none;
+}
+
+.summary-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.15);
+}
+
+.summary-item:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
 }
 
 .summary-item svg {

@@ -52,7 +52,7 @@
             style="width: 100%"
             @change="handleFilterChange"
           >
-            <a-select-option value="">全部类型</a-select-option>
+            <a-select-option value="">公司类型</a-select-option>
             <a-select-option value="央国企">央国企</a-select-option>
             <a-select-option value="私企">私企</a-select-option>
           </a-select>

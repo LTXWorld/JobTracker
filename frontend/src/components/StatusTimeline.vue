@@ -60,133 +60,154 @@
     </div>
 
     <!-- 时间轴内容 -->
-    <div class="timeline-content">
-      <a-spin :spinning="loading">
-      <a-empty
-        v-if="!loading && timelineData.length === 0"
-        description="暂无状态历史记录"
-      />
-      
-      <a-timeline v-else class="status-timeline-wrapper">
-        <a-timeline-item
-          v-for="(item, index) in timelineData"
-          :key="item.id"
-          :color="getTimelineColor(item)"
-        >
-          <template #dot>
-            <div 
-              class="timeline-dot" 
-              :class="{
-                'current-dot': item.is_current,
-                'failed-dot': item.is_failed,
-                'passed-dot': item.is_passed
-              }"
-            >
-              <component 
-                :is="getIconComponent(item.icon)" 
-                :style="{ fontSize: '14px', color: '#fff' }"
-              />
-            </div>
-          </template>
-          
-          <div class="timeline-item-content">
-            <!-- 状态标题 -->
-            <div class="status-header">
-              <h4 class="status-title">
-                <a-tag 
-                  :color="item.color"
-                  class="status-tag"
-                >
-                  {{ item.status }}
-                </a-tag>
-                <span 
-                  v-if="item.is_current" 
-                  class="current-badge"
-                >
-                  当前状态
-                </span>
-              </h4>
-              <span class="status-time">
-                {{ formatTimestamp(item.timestamp, 'MM-DD HH:mm') }}
-              </span>
-            </div>
-
-            <!-- 状态详情 -->
-            <div class="status-details">
-              <div class="detail-row" v-if="item.duration && index > 0">
-                <ClockCircleOutlined />
-                <span>停留时长：{{ formatDuration(item.duration) }}</span>
-              </div>
-              
-              <div class="detail-row" v-if="item.interview_scheduled">
-                <CalendarOutlined />
-                <span>
-                  面试安排：{{ formatTimestamp(item.interview_scheduled, 'YYYY-MM-DD HH:mm') }}
-                </span>
-              </div>
-              
-              <div class="detail-row" v-if="item.note">
-                <FileTextOutlined />
-                <span class="status-note">{{ item.note }}</span>
-              </div>
-
-              <div
-                v-if="item.interviewExperience"
-                class="interview-experience-card"
-                :class="{ skip: item.interviewExperience?.skip }"
+    <div class="timeline-scroll-container">
+      <div
+        class="timeline-content"
+        :style="timelineContainerStyle"
+        ref="timelineScrollRef"
+        @scroll="handleTimelineScroll"
+      >
+        <a-spin :spinning="loading">
+        <a-empty
+          v-if="!loading && timelineData.length === 0"
+          description="暂无状态历史记录"
+        />
+        
+        <a-timeline v-else class="status-timeline-wrapper">
+          <a-timeline-item
+            v-for="(item, index) in timelineData"
+            :key="item.id"
+            :color="getTimelineColor(item)"
+          >
+            <template #dot>
+              <div 
+                class="timeline-dot" 
+                :class="{
+                  'current-dot': item.is_current,
+                  'failed-dot': item.is_failed,
+                  'passed-dot': item.is_passed
+                }"
               >
-                <div class="experience-header">
-                  <component
-                    :is="getInterviewExperienceMeta(item.interviewExperience).icon"
-                    class="experience-icon"
-                  />
-                  <a-tag
-                    class="experience-tag"
-                    :color="getInterviewExperienceMeta(item.interviewExperience).color"
+                <component 
+                  :is="getIconComponent(item.icon)" 
+                  :style="{ fontSize: '14px', color: '#fff' }"
+                />
+              </div>
+            </template>
+            
+            <div class="timeline-item-content">
+              <!-- 状态标题 -->
+              <div class="status-header">
+                <h4 class="status-title">
+                  <a-tag 
+                    :color="item.color"
+                    class="status-tag"
                   >
-                    {{ getInterviewExperienceMeta(item.interviewExperience).label }}
+                    {{ item.status }}
                   </a-tag>
-                  <span
-                    v-if="item.interviewExperience?.recordedAt"
-                    class="experience-time"
+                  <span 
+                    v-if="item.is_current" 
+                    class="current-badge"
                   >
-                    记录于 {{ formatTimestamp(item.interviewExperience.recordedAt, 'YYYY-MM-DD HH:mm') }}
+                    当前状态
+                  </span>
+                </h4>
+                <span class="status-time">
+                  {{ formatTimestamp(item.timestamp, 'MM-DD HH:mm') }}
+                </span>
+              </div>
+
+              <!-- 状态详情 -->
+              <div class="status-details">
+                <div class="detail-row" v-if="item.duration && index > 0">
+                  <ClockCircleOutlined />
+                  <span>停留时长：{{ formatDuration(item.duration) }}</span>
+                </div>
+                
+                <div class="detail-row" v-if="item.interview_scheduled">
+                  <CalendarOutlined />
+                  <span>
+                    面试安排：{{ formatTimestamp(item.interview_scheduled, 'YYYY-MM-DD HH:mm') }}
                   </span>
                 </div>
-                <p
-                  v-if="getInterviewExperiencePrimary(item.interviewExperience)"
-                  class="experience-note"
-                >
-                  {{ getInterviewExperiencePrimary(item.interviewExperience) }}
-                </p>
-                <p
-                  v-if="getInterviewExperienceSecondary(item.interviewExperience)"
-                  class="experience-extra"
-                >
-                  {{ getInterviewExperienceSecondary(item.interviewExperience) }}
-                </p>
-              </div>
-            </div>
+                
+                <div class="detail-row" v-if="item.note">
+                  <FileTextOutlined />
+                  <span class="status-note">{{ item.note }}</span>
+                </div>
 
-            <!-- 时间进度条（对于当前状态显示） -->
-            <div v-if="item.is_current && !item.is_failed" class="time-progress">
-              <div class="progress-info">
-                <span>当前阶段进度</span>
-                <span class="progress-time">
-                  {{ formatDuration(getCurrentStatusDuration(item.timestamp)) }}
-                </span>
+                <div
+                  v-if="item.interviewExperience"
+                  class="interview-experience-card"
+                  :class="{ skip: item.interviewExperience?.skip }"
+                >
+                  <div class="experience-header">
+                    <component
+                      :is="getInterviewExperienceMeta(item.interviewExperience).icon"
+                      class="experience-icon"
+                    />
+                    <a-tag
+                      class="experience-tag"
+                      :color="getInterviewExperienceMeta(item.interviewExperience).color"
+                    >
+                      {{ getInterviewExperienceMeta(item.interviewExperience).label }}
+                    </a-tag>
+                    <span
+                      v-if="item.interviewExperience?.recordedAt"
+                      class="experience-time"
+                    >
+                      记录于 {{ formatTimestamp(item.interviewExperience.recordedAt, 'YYYY-MM-DD HH:mm') }}
+                    </span>
+                  </div>
+                  <p
+                    v-if="getInterviewExperiencePrimary(item.interviewExperience)"
+                    class="experience-note"
+                  >
+                    {{ getInterviewExperiencePrimary(item.interviewExperience) }}
+                  </p>
+                  <p
+                    v-if="getInterviewExperienceSecondary(item.interviewExperience)"
+                    class="experience-extra"
+                  >
+                    {{ getInterviewExperienceSecondary(item.interviewExperience) }}
+                  </p>
+                </div>
               </div>
-              <a-progress
-                :percent="getProgressPercent(item.status)"
-                :status="item.is_failed ? 'exception' : 'active'"
-                :stroke-color="item.color"
-                size="small"
-              />
+
+              <!-- 时间进度条（对于当前状态显示） -->
+              <div v-if="item.is_current && !item.is_failed" class="time-progress">
+                <div class="progress-info">
+                  <span>当前阶段进度</span>
+                  <span class="progress-time">
+                    {{ formatDuration(getCurrentStatusDuration(item.timestamp)) }}
+                  </span>
+                </div>
+                <a-progress
+                  :percent="getProgressPercent(item.status)"
+                  :status="item.is_failed ? 'exception' : 'active'"
+                  :stroke-color="item.color"
+                  size="small"
+                />
+              </div>
             </div>
-          </div>
-        </a-timeline-item>
-      </a-timeline>
-      </a-spin>
+          </a-timeline-item>
+        </a-timeline>
+        </a-spin>
+      </div>
+
+      <div
+        v-if="showCustomScrollbar"
+        class="custom-scrollbar"
+        :class="{ dragging: isDraggingScrollbar }"
+      >
+        <div class="scrollbar-track">
+          <div
+            class="scrollbar-thumb"
+            :style="customScrollbarStyle"
+            @pointerdown="handleScrollbarPointerDown"
+          ></div>
+        </div>
+      </div>
     </div>
 
     <!-- 时间统计摘要 -->
@@ -195,8 +216,7 @@
         <a-col :span="6">
           <a-statistic
             title="总流程时间"
-            :value="totalDuration"
-            :formatter="(value) => formatDuration(Number(value))"
+            :value="totalDurationText"
           />
         </a-col>
         <a-col :span="6">
@@ -216,8 +236,7 @@
         <a-col :span="6">
           <a-statistic
             title="最后更新"
-            :value="statusHistory.metadata.last_updated"
-            :formatter="(value) => (value ? formatTimestamp(String(value), 'MM-DD HH:mm') : '-')"
+            :value="lastUpdatedText"
           />
         </a-col>
       </a-row>
@@ -276,6 +295,7 @@ const statusTrackingStore = useStatusTrackingStore()
 // 响应式数据
 const loading = ref(false)
 const statusHistory = ref<StatusHistory | null>(null)
+const timelineScrollRef = ref<HTMLElement | null>(null)
 const flowChainRef = ref<HTMLElement | null>(null)
 // 关键锚点与通用映射
 const appliedTagEl = ref<HTMLElement | null>(null)
@@ -316,9 +336,32 @@ const timelineData = computed((): StatusTimelineItem[] => {
   return statusTrackingStore.convertToTimelineData(statusHistory.value)
 })
 
+const timelineContainerStyle = computed(() => ({
+  maxHeight: props.maxHeight
+}))
+
 const totalDuration = computed((): number => {
   return statusHistory.value?.metadata.total_duration || 0
 })
+
+const totalDurationText = computed(() => formatDuration(totalDuration.value || 0))
+
+const lastUpdatedText = computed(() => {
+  const last = statusHistory.value?.metadata.last_updated
+  return last ? formatTimestamp(last, 'MM-DD HH:mm') : '-'
+})
+
+const showCustomScrollbar = ref(false)
+const customScrollbarThumbHeight = ref(40)
+const customScrollbarThumbOffset = ref(0)
+const isDraggingScrollbar = ref(false)
+const dragStartY = ref(0)
+const dragStartScrollTop = ref(0)
+
+const customScrollbarStyle = computed(() => ({
+  height: `${customScrollbarThumbHeight.value}px`,
+  transform: `translateY(${customScrollbarThumbOffset.value}px)`
+}))
 
 const offerReached = computed(() => {
   const terminalNames = new Set(['HR面通过', '已接受offer', '已拒绝offer'])
@@ -357,7 +400,58 @@ const handleTravelEnd = () => {
   ocHasAnimated.value = true
 }
 
+const updateCustomScrollbar = () => {
+  const container = timelineScrollRef.value
+  if (!container) return
+  const { scrollHeight, clientHeight, scrollTop } = container
+  const scrollable = scrollHeight - clientHeight
+  showCustomScrollbar.value = scrollable > 4
+  if (!showCustomScrollbar.value) {
+    customScrollbarThumbOffset.value = 0
+    return
+  }
+
+  const minThumb = 36
+  const thumbHeight = Math.max((clientHeight / scrollHeight) * clientHeight, minThumb)
+  customScrollbarThumbHeight.value = thumbHeight
+  const trackRange = Math.max(clientHeight - thumbHeight, 0)
+  const progress = scrollable > 0 ? scrollTop / scrollable : 0
+  customScrollbarThumbOffset.value = progress * trackRange
+}
+
+const handleTimelineScroll = () => {
+  updateCustomScrollbar()
+}
+
+const handleScrollbarPointerDown = (event: PointerEvent) => {
+  if (!timelineScrollRef.value) return
+  isDraggingScrollbar.value = true
+  dragStartY.value = event.clientY
+  dragStartScrollTop.value = timelineScrollRef.value.scrollTop
+  document.addEventListener('pointermove', handleScrollbarPointerMove)
+  document.addEventListener('pointerup', handleScrollbarPointerUp)
+  event.preventDefault()
+}
+
+const handleScrollbarPointerMove = (event: PointerEvent) => {
+  if (!isDraggingScrollbar.value || !timelineScrollRef.value) return
+  const container = timelineScrollRef.value
+  const deltaY = event.clientY - dragStartY.value
+  const scrollable = container.scrollHeight - container.clientHeight
+  const trackRange = Math.max(container.clientHeight - customScrollbarThumbHeight.value, 1)
+  const scrollDelta = (deltaY / trackRange) * scrollable
+  container.scrollTop = dragStartScrollTop.value + scrollDelta
+}
+
+const handleScrollbarPointerUp = () => {
+  if (!isDraggingScrollbar.value) return
+  isDraggingScrollbar.value = false
+  document.removeEventListener('pointermove', handleScrollbarPointerMove)
+  document.removeEventListener('pointerup', handleScrollbarPointerUp)
+}
+
 let resizeObs: ResizeObserver | null = null
+let scrollResizeObs: ResizeObserver | null = null
 const updateOcTrack = () => {
   const container = flowChainRef.value
   // 起点：优先“已投递”，否则元数据 initial_status，再否则链路第一项
@@ -514,6 +608,10 @@ const fetchStatusHistory = async (forceRefresh = false) => {
   try {
     const history = await statusTrackingStore.fetchStatusHistory(props.applicationId, forceRefresh)
     statusHistory.value = history
+    nextTick(() => {
+      updateCustomScrollbar()
+      updateOcTrack()
+    })
   } finally {
     loading.value = false
   }
@@ -532,11 +630,17 @@ onMounted(() => {
   fetchStatusHistory()
   nextTick(() => {
     updateOcTrack()
+    updateCustomScrollbar()
     if (flowChainRef.value && 'ResizeObserver' in window) {
       resizeObs = new ResizeObserver(() => updateOcTrack())
       resizeObs.observe(flowChainRef.value)
     }
+    if (timelineScrollRef.value && 'ResizeObserver' in window) {
+      scrollResizeObs = new ResizeObserver(() => updateCustomScrollbar())
+      scrollResizeObs.observe(timelineScrollRef.value)
+    }
     window.addEventListener('resize', updateOcTrack)
+    window.addEventListener('resize', updateCustomScrollbar)
   })
 })
 
@@ -562,7 +666,10 @@ watch([timelineData, () => statusHistory.value?.metadata?.initial_status], () =>
   if (!ocHasAnimated.value) {
     ocAnimKey.value++
   }
-  nextTick(() => updateOcTrack())
+  nextTick(() => {
+    updateOcTrack()
+    updateCustomScrollbar()
+  })
 })
 
 watch([appliedTagEl, screeningTagEl, firstChainTagEl, secondChainTagEl, () => props.currentStatus], () => {
@@ -570,9 +677,29 @@ watch([appliedTagEl, screeningTagEl, firstChainTagEl, secondChainTagEl, () => pr
   nextTick(() => updateOcTrack())
 })
 
+watch(() => props.maxHeight, () => {
+  nextTick(() => updateCustomScrollbar())
+})
+
+watch(timelineScrollRef, (el) => {
+  if (typeof window === 'undefined') return
+  if (scrollResizeObs) {
+    scrollResizeObs.disconnect()
+    scrollResizeObs = null
+  }
+  if (el && 'ResizeObserver' in window) {
+    scrollResizeObs = new ResizeObserver(() => updateCustomScrollbar())
+    scrollResizeObs.observe(el)
+  }
+})
+
 onBeforeUnmount(() => {
   if (resizeObs) resizeObs.disconnect()
+  if (scrollResizeObs) scrollResizeObs.disconnect()
   window.removeEventListener('resize', updateOcTrack)
+  window.removeEventListener('resize', updateCustomScrollbar)
+  document.removeEventListener('pointermove', handleScrollbarPointerMove)
+  document.removeEventListener('pointerup', handleScrollbarPointerUp)
 })
 
 // 当当前状态变化时，从起点再次滚到新的当前位置
@@ -716,9 +843,67 @@ watch(() => props.currentStatus, (cur, prev) => {
   gap: 8px;
 }
 
+.timeline-scroll-container {
+  position: relative;
+  padding-right: 20px;
+}
+
 .timeline-content {
-  max-height: v-bind(maxHeight);
+  position: relative;
   overflow-y: auto;
+  padding: 4px 12px 4px 28px;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+
+.timeline-content::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.custom-scrollbar {
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  right: 2px;
+  width: 14px;
+  display: flex;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.scrollbar-track {
+  position: relative;
+  width: 8px;
+  flex: 1;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f7f8fb 0%, #eef1f7 100%);
+  border: 1px solid #e4e7ef;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.scrollbar-thumb {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  margin-left: -4px;
+  width: 8px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #d5d8de, #c3c7cf);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.6);
+  cursor: grab;
+  pointer-events: all;
+  transition: background-color 0.2s ease, opacity 0.2s ease;
+}
+
+.custom-scrollbar.dragging .scrollbar-thumb {
+  cursor: grabbing;
+  background: linear-gradient(180deg, #c2c6cf, #b1b6c0);
+}
+
+.status-timeline-wrapper {
+  margin-left: 8px;
+  padding-left: 4px;
 }
 
 .status-timeline-wrapper :deep(.ant-timeline-item-tail) {

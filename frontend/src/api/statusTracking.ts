@@ -1,4 +1,5 @@
 import request from './request'
+import dayjs from 'dayjs'
 import type { 
   StatusHistory,
   StatusAnalytics,
@@ -10,7 +11,8 @@ import type {
   ApplicationStatus,
   StatusUpdateResult,
   StatusUndoRequest,
-  StatusUndoResult
+  StatusUndoResult,
+  StatusHistoryEntry
 } from '../types'
 import { JobProcessType } from '../types'
 import { StatusHelper } from '../types'
@@ -63,20 +65,65 @@ export class StatusTrackingAPI {
       prevStatus = newStatus
     }
 
-    const history = compressed.map((r: any) => ({
-      status: r.new_status as any,
-      timestamp: r.status_changed_at,
-      duration: r.duration_minutes ?? undefined,
-      note: r.note ?? r.metadata?.note,
-      trigger: r.trigger,
-      user_id: r.user_id,
-      interview_scheduled: r.metadata?.interview_time || r.metadata?.interview_scheduled || undefined,
-      metadata: r.metadata || undefined,
+    const pickValidTimestamp = (...candidates: any[]): string => {
+      for (const value of candidates) {
+        if (!value || (typeof value === 'string' && !value.trim())) continue
+        const parsed = dayjs(value)
+        if (parsed.isValid()) {
+          return typeof value === 'string' ? value : parsed.toISOString()
+        }
+      }
+      return ''
+    }
+
+    const ensureDuration = (value: any): number => {
+      const num = Number(value)
+      return Number.isFinite(num) && num > 0 ? num : 0
+    }
+
+    const calculateGapMinutes = (start?: string, end?: string): number => {
+      if (!start || !end) return 0
+      const startTime = dayjs(start)
+      const endTime = dayjs(end)
+      if (!startTime.isValid() || !endTime.isValid()) return 0
+      const diff = endTime.diff(startTime, 'minute')
+      return diff > 0 ? diff : 0
+    }
+
+    const history: StatusHistoryEntry[] = compressed.map((r: any) => ({
+      status: r.new_status as ApplicationStatus,
+      timestamp: pickValidTimestamp(r.status_changed_at, r.changed_at, r.created_at),
+      duration: ensureDuration(r.duration_minutes),
+      note: r.note ?? r.metadata?.note ?? undefined,
+      trigger: r.trigger ?? undefined,
+      user_id: r.user_id ?? undefined,
+      interview_scheduled: pickValidTimestamp(r.metadata?.interview_time, r.metadata?.interview_scheduled),
+      metadata: r.metadata || undefined
     }))
 
-    const totalDuration = history.reduce((sum: number, h: any) => sum + (Number(h.duration || 0)), 0)
-    const lastUpdated = history.length ? history[history.length - 1].timestamp : ''
-    const currentStage = history.length ? history[history.length - 1].status : '未知阶段'
+    const normalizedHistory: StatusHistoryEntry[] = history.map((entry, index) => {
+      let duration = ensureDuration(entry.duration)
+      if (!duration) {
+        const next = history[index + 1]
+        duration = calculateGapMinutes(entry.timestamp, next?.timestamp)
+      }
+      return {
+        ...entry,
+        duration: duration || undefined
+      }
+    })
+
+    let totalDuration = normalizedHistory.reduce((sum, h) => sum + (h.duration || 0), 0)
+    const firstTimestamp = normalizedHistory[0]?.timestamp
+    const lastTimestamp = normalizedHistory[normalizedHistory.length - 1]?.timestamp
+    if ((!totalDuration || totalDuration <= 0) && firstTimestamp && lastTimestamp) {
+      const fallback = calculateGapMinutes(firstTimestamp, lastTimestamp)
+      if (fallback > 0) {
+        totalDuration = fallback
+      }
+    }
+
+    const currentStage = normalizedHistory.length ? normalizedHistory[normalizedHistory.length - 1].status : '未知阶段'
     let initialStatus = compressed.length && compressed[0].old_status ? compressed[0].old_status : undefined
     if (!initialStatus) {
       // 默认展示“已投递”起点，便于可视化
@@ -84,11 +131,11 @@ export class StatusTrackingAPI {
     }
 
     return {
-      history,
+      history: normalizedHistory,
       metadata: {
         total_duration: totalDuration,
-        status_count: history.length,
-        last_updated: lastUpdated,
+        status_count: normalizedHistory.length,
+        last_updated: pickValidTimestamp(lastTimestamp, raw?.last_updated, raw?.updated_at),
         current_stage: currentStage,
         initial_status: initialStatus,
       }
