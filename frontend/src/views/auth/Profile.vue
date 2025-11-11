@@ -15,8 +15,9 @@
                 :custom-request="handleAvatarUpload"
               >
                 <a-avatar 
-                  :size="100" 
+                  :size="120" 
                   :src="userAvatar"
+                  shape="circle"
                   class="user-avatar"
                 >
                   <template #icon>
@@ -59,8 +60,8 @@
             <span class="stat-value">{{ userStats.receivedOffers || 0 }}</span>
           </div>
           <div class="stat-item">
-            <span class="stat-label">成功率</span>
-            <span class="stat-value">{{ userStats.successRate || '0%' }}</span>
+            <span class="stat-label">面试转化率</span>
+            <span class="stat-value">{{ userStats.interviewConversion || '0%' }}</span>
           </div>
         </a-card>
       </a-col>
@@ -335,7 +336,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
 import { 
@@ -353,6 +354,7 @@ import {
 import { AuthAPI } from '../../api/auth'
 import { useAuthStore } from '../../stores/auth'
 import { useJobApplicationStore } from '../../stores/jobApplication'
+import { ApplicationStatus } from '../../types'
 import type { UpdateProfileData } from '../../types/auth'
 import type { Rule } from 'ant-design-vue/es/form'
 import type { UploadProps } from 'ant-design-vue'
@@ -375,7 +377,7 @@ const userStats = ref({
   totalApplications: 0,
   activeApplications: 0,
   receivedOffers: 0,
-  successRate: '0%'
+  interviewConversion: '0%'
 })
 
 // 头像预览与显示
@@ -654,28 +656,75 @@ const handleDeleteAccount = async () => {
   }
 }
 
+const inactiveStatuses: ApplicationStatus[] = [
+  ApplicationStatus.RESUME_SCREENING_FAIL,
+  ApplicationStatus.WRITTEN_TEST_FAIL,
+  ApplicationStatus.FIRST_FAIL,
+  ApplicationStatus.SECOND_FAIL,
+  ApplicationStatus.THIRD_FAIL,
+  ApplicationStatus.HR_FAIL,
+  ApplicationStatus.HR_PASS,
+  ApplicationStatus.OFFER_ACCEPTED,
+  ApplicationStatus.REJECTED,
+  ApplicationStatus.USER_REJECTED
+]
+
+const passedStageStatuses: ApplicationStatus[] = [
+  ApplicationStatus.HR_PASS,
+  ApplicationStatus.OFFER_ACCEPTED,
+  ApplicationStatus.REJECTED
+]
+
+const interviewStatuses: ApplicationStatus[] = [
+  ApplicationStatus.FIRST_INTERVIEW, ApplicationStatus.FIRST_PASS, ApplicationStatus.FIRST_FAIL,
+  ApplicationStatus.SECOND_INTERVIEW, ApplicationStatus.SECOND_PASS, ApplicationStatus.SECOND_FAIL,
+  ApplicationStatus.THIRD_INTERVIEW, ApplicationStatus.THIRD_PASS, ApplicationStatus.THIRD_FAIL,
+  ApplicationStatus.HR_INTERVIEW, ApplicationStatus.HR_PASS, ApplicationStatus.HR_FAIL,
+  ApplicationStatus.OFFER_ACCEPTED, ApplicationStatus.REJECTED
+]
+
+const updateUserStatsFromApplications = () => {
+  const applications = Array.isArray(applicationStore.applications)
+    ? applicationStore.applications
+    : []
+
+  const total = applications.length
+  const activeCount = applications.filter(app => !inactiveStatuses.includes(app.status)).length
+  const passedCount = applications.filter(app => passedStageStatuses.includes(app.status)).length
+  const interviewCount = applications.filter(app => interviewStatuses.includes(app.status)).length
+  const conversionRate = total > 0 ? `${((interviewCount / total) * 100).toFixed(1)}%` : '0%'
+
+  userStats.value = {
+    totalApplications: total,
+    activeApplications: activeCount,
+    receivedOffers: passedCount,
+    interviewConversion: conversionRate
+  }
+}
+
 // 获取用户统计数据
 const fetchUserStats = async () => {
   try {
     await applicationStore.fetchApplications()
-    const applications = applicationStore.applications
-    
-    userStats.value = {
-      totalApplications: applications.length,
-      activeApplications: applications.filter(app => 
-        !['已拒绝offer', '已接受offer', '简历筛选未通过', '笔试未通过', '一面未通过', '二面未通过', '三面未通过'].includes(app.status)
-      ).length,
-      receivedOffers: applications.filter(app => 
-        ['HR面通过', '已接受offer'].includes(app.status)
-      ).length,
-      successRate: applications.length > 0 
-        ? `${Math.round((applications.filter(app => ['HR面通过', '已接受offer'].includes(app.status)).length / applications.length) * 100)}%`
-        : '0%'
-    }
   } catch (error) {
     console.error('获取用户统计失败:', error)
+  } finally {
+    updateUserStatsFromApplications()
   }
 }
+
+watch(
+  () => applicationStore.applications,
+  () => updateUserStatsFromApplications(),
+  { deep: true, immediate: true }
+)
+
+watch(
+  () => applicationStore.currentProcessType,
+  async () => {
+    await fetchUserStats()
+  }
+)
 
 // 组件挂载
 onMounted(() => {
@@ -705,17 +754,40 @@ onMounted(() => {
 }
 
 .user-avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
   margin-bottom: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  background-color: #f4f6fb;
 }
 
 .avatar-upload-container {
   position: relative;
   display: inline-block;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  overflow: hidden;
 }
 
 .avatar-uploader {
-  display: inline-block;
+  display: inline-flex;
+  width: 100%;
+  height: 100%;
+}
+
+.avatar-uploader :deep(.ant-upload.ant-upload-select-picture-card) {
+  border-radius: 50%;
+  width: 120px;
+  height: 120px;
+  margin: 0;
+  padding: 0;
+  border: 1px dashed #d9d9d9;
+  overflow: hidden;
+  background: #fff;
+  cursor: pointer;
 }
 
 .avatar-upload-overlay {

@@ -10,7 +10,7 @@
             v-model:value="searchText"
             :options="searchOptions"
             :filter-option="false"
-            style="width: 320px"
+            style="width: 100%"
             @select="onSearchSelect"
           >
             <a-input
@@ -1208,31 +1208,46 @@ onMounted(() => {
 
 .kanban-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 16px 32px;
   margin-bottom: 24px;
 }
 
 .kanban-search {
   display: flex;
   align-items: center;
+  flex: 1 1 320px;
+  min-width: 240px;
+  max-width: 480px;
 }
 
 .kanban-header h2 {
   margin: 0;
   font-size: 24px;
   font-weight: 600;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding-top: 4px;
 }
 
 .header-right {
   display: flex;
-  align-items: center;
-  gap: 24px;
+  align-items: flex-start;
+  gap: 16px;
+  flex: 1 1 0;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .kanban-actions {
   display: flex;
   gap: 12px;
+  flex: 0 1 360px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-left: auto;
 }
 
 /* 看板主容器 */
@@ -1246,6 +1261,7 @@ onMounted(() => {
   display: flex;
   gap: 16px;
   align-items: stretch;
+  flex: 2 1 360px;
 }
 
 .summary-item {
