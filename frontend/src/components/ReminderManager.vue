@@ -1,6 +1,6 @@
 <template>
   <div class="reminder-container">
-    <a-card :loading="cardLoading" title="提醒中心">
+    <a-card :loading="cardLoading" title="提醒中心" class="reminder-card">
       <template #extra>
         <a-badge :count="activeBadgeCount" :showZero="true">
           <BellOutlined style="font-size: 20px" />
@@ -714,6 +714,34 @@ onUnmounted(() => {
   height: 100%;
 }
 
+.reminder-card :deep(.ant-card-head-title),
+.reminder-card :deep(.ant-tabs-nav .ant-tabs-tab-btn),
+.reminder-card :deep(.mail-event-title span),
+.reminder-title span {
+  color: var(--text-color);
+}
+
+.reminder-card :deep(.ant-tabs-nav .ant-tabs-tab) {
+  color: var(--text-secondary);
+}
+
+.reminder-card :deep(.ant-tabs-tab.ant-tabs-tab-active) {
+  color: var(--text-color);
+}
+
+.reminder-card :deep(.ant-tabs-tab-btn:focus),
+.reminder-card :deep(.ant-tabs-tab-btn:active) {
+  color: #1890ff;
+}
+
+.reminder-card :deep(.ant-radio-button-wrapper) {
+  color: var(--text-secondary);
+}
+
+.reminder-card :deep(.ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled)) {
+  color: var(--text-color);
+}
+
 .filter-bar {
   margin-bottom: 16px;
 }
@@ -726,7 +754,7 @@ onUnmounted(() => {
 
 .reminder-info p {
   margin: 4px 0;
-  color: #666;
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -752,7 +780,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .mail-event-info p {
@@ -763,7 +791,7 @@ onUnmounted(() => {
 }
 
 .mail-event-snippet {
-  background: var(--bg-card, #fafafa);
+  background: var(--bg-muted);
   padding: 8px;
   border-radius: 6px;
   line-height: 1.5;

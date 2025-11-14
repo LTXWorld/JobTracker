@@ -261,11 +261,12 @@ onMounted(() => {
 }
 
 .simple-card {
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 4px;
   padding: 8px;
   border-left: 3px solid #1890ff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  color: var(--text-color);
 }
 
 .card-title {
@@ -276,7 +277,7 @@ onMounted(() => {
 
 .card-position {
   font-size: 12px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .loading-container {

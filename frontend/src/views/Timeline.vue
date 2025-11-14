@@ -61,7 +61,9 @@
           :color="getStatusColor(app.status)"
         >
           <template #dot>
-            <component :is="getStatusIcon(app.status)" />
+            <span class="timeline-dot" :class="getStatusTone(app.status)">
+              <component :is="getStatusIcon(app.status)" />
+            </span>
           </template>
           
           <div class="timeline-item">
@@ -377,6 +379,24 @@ const getStatusIcon = (status: ApplicationStatus) => {
   return ClockCircleOutlined
 }
 
+const getStatusTone = (status: ApplicationStatus) => {
+  const successStatuses: ApplicationStatus[] = [
+    ApplicationStatus.HR_PASS,
+    ApplicationStatus.OFFER_ACCEPTED
+  ]
+  const dangerStatuses: ApplicationStatus[] = [
+    ApplicationStatus.RESUME_SCREENING_FAIL,
+    ApplicationStatus.WRITTEN_TEST_FAIL,
+    ApplicationStatus.FIRST_FAIL,
+    ApplicationStatus.SECOND_FAIL,
+    ApplicationStatus.THIRD_FAIL,
+    ApplicationStatus.REJECTED
+  ]
+  if (successStatuses.includes(status)) return 'dot-success'
+  if (dangerStatuses.includes(status)) return 'dot-danger'
+  return 'dot-info'
+}
+
 // 高亮关键词
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
@@ -462,7 +482,28 @@ onMounted(() => {
 }
 
 .timeline-item {
-  padding: 12px 0;
+  padding: 16px 20px;
+  background: var(--bg-card);
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.ant-timeline {
+  padding-top: 8px;
+}
+
+.timeline-page :deep(.ant-timeline-item-head) {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  width: 32px;
+  height: 32px;
+  margin-top: 2px;
+}
+
+.timeline-page :deep(.ant-timeline-item-tail) {
+  border-inline-start: 2px solid rgba(255, 255, 255, 0.15);
 }
 
 /* 统计行：五等分一行展示 */
@@ -474,7 +515,17 @@ onMounted(() => {
 }
 
 .stats-grid :deep(.ant-statistic-title) {
-  color: #8c8c8c;
+  color: var(--text-secondary);
+}
+
+.stats-grid :deep(.ant-statistic-content-value),
+.stats-grid :deep(.ant-statistic-content-suffix),
+.stats-grid :deep(.ant-statistic-content-prefix) {
+  color: var(--text-color);
+}
+
+.timeline-page :deep(.ant-card-head-title) {
+  color: var(--text-color);
 }
 
 .stats-grid :deep(.ant-statistic-content) {
@@ -492,11 +543,12 @@ onMounted(() => {
   margin: 0;
   font-size: 16px;
   font-weight: 500;
+  color: var(--text-color);
 }
 
 .timeline-content {
   margin-bottom: 12px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .timeline-content p {
@@ -504,6 +556,10 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  color: inherit;
+}
+.timeline-content p :deep(.anticon) {
+  color: var(--text-tertiary);
 }
 
 .timeline-actions {
@@ -527,5 +583,34 @@ onMounted(() => {
   background-color: #ffe58f;
   padding: 0 2px;
   border-radius: 2px;
+}
+
+.timeline-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+}
+
+.timeline-dot.dot-info {
+  background: rgba(105, 192, 255, 0.15);
+  border-color: rgba(105, 192, 255, 0.45);
+  color: #69c0ff;
+}
+
+.timeline-dot.dot-success {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.5);
+  color: #52c41a;
+}
+
+.timeline-dot.dot-danger {
+  background: rgba(255, 77, 79, 0.2);
+  border-color: rgba(255, 77, 79, 0.55);
+  color: #ff7875;
 }
 </style>

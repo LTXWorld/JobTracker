@@ -146,8 +146,90 @@ watch(() => attachments.value && attachments.value[0]?.url, (u) => {
 </script>
 
 <style scoped>
-.resume-page { padding: 24px; }
-.header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
-.meta { color:#888; display:flex; gap:16px; }
+.resume-page {
+  padding: 24px;
+  background: var(--bg-page);
+  min-height: calc(100vh - 48px - 56px - 70px);
+  color: var(--text-color);
+}
+
+.header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:16px;
+}
+
+.header h2 {
+  margin: 0;
+  color: var(--text-color);
+}
+
+.meta {
+  color: var(--text-secondary);
+  display:flex;
+  gap:16px;
+}
+
+.resume-page :deep(.ant-menu) {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.resume-page :deep(.ant-menu-item) {
+  color: var(--text-secondary);
+}
+
+.resume-page :deep(.ant-menu-item-selected) {
+  background: var(--bg-muted) !important;
+  color: var(--text-color) !important;
+  border-radius: 0;
+}
+
+.resume-page :deep(.ant-card) {
+  background: var(--bg-card);
+  border-color: var(--border-color);
+  color: var(--text-color);
+}
+
+.resume-page :deep(.ant-card-head-title) {
+  color: var(--text-color);
+}
+
+.resume-page :deep(.ant-form-item-label > label) {
+  color: var(--text-color);
+}
+
+.resume-page :deep(.ant-form-item-extra),
+.resume-page :deep(.ant-form-item-required) {
+  color: var(--text-secondary);
+}
+
+.resume-page :deep(.ant-input),
+.resume-page :deep(.ant-input-affix-wrapper),
+.resume-page :deep(.ant-input-number),
+.resume-page :deep(.ant-upload),
+.resume-page :deep(.ant-select-selector) {
+  background: var(--bg-muted);
+  color: var(--text-color);
+  border-color: var(--border-color);
+}
+
+.resume-page :deep(.ant-input::placeholder),
+.resume-page :deep(.ant-input-number input::placeholder),
+.resume-page :deep(.ant-select-selection-placeholder) {
+  color: var(--text-secondary);
+}
+
+.resume-page :deep(.ant-upload) {
+  border: 1px dashed var(--border-color);
+}
+
+.resume-page :deep(.ant-result-subtitle) {
+  color: var(--text-secondary);
+}
+
 .upload-tip { margin-top: 12px; }
 </style>

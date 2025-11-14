@@ -12,6 +12,7 @@
   --border-color: #e5e7eb;
   --text-color: #213547;
   --text-secondary: #5f6b7a; /* 次级文字/占位符 */
+  --text-tertiary: #8c8c8c;   /* 更弱文字 */
 }
 
 [data-theme="dark"] {
@@ -21,6 +22,7 @@
   --border-color: #2a2f3a;
   --text-color: #e5e7eb;  /* 主要文字 */
   --text-secondary: #b8c0cc; /* 次级文字/占位符，提高暗色可读性 */
+  --text-tertiary: #94a0b5;
 }
 
 html, body {

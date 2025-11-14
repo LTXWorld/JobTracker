@@ -1204,6 +1204,7 @@ onMounted(() => {
   padding: 24px 24px 120px; /* 底部预留空间，与页脚错开 */
   background: var(--bg-page);
   box-sizing: border-box;
+  color: var(--text-color);
 }
 
 .kanban-header {
@@ -1230,6 +1231,7 @@ onMounted(() => {
   flex: 0 0 auto;
   white-space: nowrap;
   padding-top: 4px;
+  color: var(--text-color);
 }
 
 .header-right {
@@ -1303,13 +1305,13 @@ onMounted(() => {
 .summary-title {
   font-size: 12px;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 .summary-count {
   font-size: 18px;
   font-weight: 700;
-  color: #111827;
+  color: var(--text-color);
 }
 
 .summary-progress {
@@ -1349,11 +1351,12 @@ onMounted(() => {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
+  color: var(--text-color);
 }
 
 .section-subtitle {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--text-secondary);
 }
 
 .passed-flow {
@@ -1396,7 +1399,7 @@ onMounted(() => {
   width: 100%;
   text-align: center;
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--text-secondary);
   margin-bottom: 8px;
 }
 
@@ -1434,7 +1437,7 @@ onMounted(() => {
 
 .column-header {
   padding: 12px 16px; /* 从18px 20px减少到12px 16px */
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1446,7 +1449,7 @@ onMounted(() => {
   margin: 0;
   font-size: 14px; /* 从16px减少到14px */
   font-weight: 600;
-  color: #262626;
+  color: var(--text-color);
 }
 
 .column-content {
@@ -1515,7 +1518,7 @@ onMounted(() => {
   gap: 4px; /* 从8px减少到4px */
   margin-bottom: 8px; /* 从12px减少到8px */
   font-size: 12px; /* 从14px减少到12px */
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .card-info span {
@@ -1527,7 +1530,7 @@ onMounted(() => {
 
 .card-date {
   font-size: 10px;
-  color: #999;
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -1536,28 +1539,28 @@ onMounted(() => {
 
 .interview-info {
   font-size: 11px; /* 从13px减少到11px */
-  color: #ff4d4f;
+  color: #ff7875;
   display: flex;
   align-items: center;
   gap: 4px;
   margin-top: 6px;
   padding: 4px 8px; /* 从6px 10px减少到4px 8px */
-  background: linear-gradient(135deg, #fff2f0 0%, #ffebe8 100%);
+  background: rgba(255, 77, 79, 0.12);
   border-radius: 4px;
-  border: 1px solid #ffccc7;
+  border: 1px solid rgba(255, 77, 79, 0.35);
   font-weight: 500;
 }
 
 .card-footer {
   padding-top: 10px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border-color);
   margin-top: 8px;
 }
 
 .notes {
   margin: 0;
   font-size: 12px;
-  color: #8c8c8c;
+  color: var(--text-secondary);
   line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1597,7 +1600,7 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .ghost-card {
@@ -1725,19 +1728,19 @@ onMounted(() => {
 
 .kanban-container::-webkit-scrollbar-track,
 .column-content::-webkit-scrollbar-track {
-  background: #f0f0f0;
+  background: var(--bg-muted);
   border-radius: 4px;
 }
 
 .kanban-container::-webkit-scrollbar-thumb,
 .column-content::-webkit-scrollbar-thumb {
-  background: #d9d9d9;
+  background: rgba(0, 0, 0, 0.2);
   border-radius: 4px;
 }
 
 .kanban-container::-webkit-scrollbar-thumb:hover,
 .column-content::-webkit-scrollbar-thumb:hover {
-  background: #bfbfbf;
+  background: rgba(0, 0, 0, 0.35);
 }
 
 /* 状态跟踪相关样式 */
@@ -1746,7 +1749,7 @@ onMounted(() => {
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  color: #8c8c8c;
+  color: var(--text-secondary);
   margin-bottom: 6px;
 }
 
@@ -1763,7 +1766,7 @@ onMounted(() => {
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  color: #8c8c8c;
+  color: var(--text-secondary);
   margin-bottom: 8px;
 }
 
@@ -1833,5 +1836,58 @@ onMounted(() => {
   color: inherit;
   padding: 0 2px;
   border-radius: 2px;
+}
+
+[data-theme="dark"] .kanban-board .summary-item {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="dark"] .kanban-board .summary-progress {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(23, 42, 74, 0.85));
+  border-color: rgba(99, 102, 241, 0.45);
+}
+
+[data-theme="dark"] .kanban-board .summary-passed {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(13, 48, 38, 0.85));
+  border-color: rgba(16, 185, 129, 0.45);
+}
+
+[data-theme="dark"] .kanban-board .summary-failed {
+  background: linear-gradient(135deg, rgba(248, 113, 113, 0.12), rgba(53, 18, 23, 0.85));
+  border-color: rgba(248, 113, 113, 0.45);
+}
+
+[data-theme="dark"] .kanban-board .kanban-column {
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .kanban-board .job-card {
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="dark"] .kanban-board .job-card:hover {
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.65);
+}
+
+[data-theme="dark"] .kanban-board .card-footer {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .kanban-board .interview-info {
+  background: rgba(255, 77, 79, 0.2);
+  border-color: rgba(255, 77, 79, 0.5);
+  color: #ffb3b3;
+}
+
+[data-theme="dark"] .kanban-board .kanban-container::-webkit-scrollbar-thumb,
+[data-theme="dark"] .kanban-board .column-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+[data-theme="dark"] .kanban-board .kanban-container::-webkit-scrollbar-thumb:hover,
+[data-theme="dark"] .kanban-board .column-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
 }
 </style>

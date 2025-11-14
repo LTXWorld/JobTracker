@@ -424,6 +424,7 @@ onMounted(() => {
   padding: 24px;
   background: var(--bg-page);
   min-height: calc(100vh - 48px - 56px - 70px);
+  color: var(--text-color);
 }
 
 @media (max-width: 992px) {
@@ -432,14 +433,35 @@ onMounted(() => {
   }
 }
 
+.mailbox-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.reminder-page :deep(.ant-card-head-title),
+.reminder-page :deep(.ant-card-extra),
+.reminder-page :deep(.ant-form-item-label > label),
+.reminder-page :deep(.ant-statistic-title) {
+  color: var(--text-color);
+}
+
+.reminder-page :deep(.ant-tabs-tab-btn),
+.reminder-page :deep(.ant-radio-button-wrapper),
+.reminder-page :deep(.ant-form-item-extra),
+.reminder-page :deep(.ant-statistic-content),
+.reminder-page :deep(.ant-alert-description),
+.reminder-page :deep(.ant-alert-message) {
+  color: var(--text-secondary);
+}
+
+.reminder-page :deep(.ant-card-head) {
+  border-color: var(--border-color);
+}
+
 .reminder-page :deep(.ant-empty) {
   background: var(--bg-card);
   padding: 24px;
   border-radius: 8px;
-}
-
-.mailbox-actions {
-  display: flex;
-  justify-content: flex-end;
+  color: var(--text-secondary);
 }
 </style>

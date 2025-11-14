@@ -11,6 +11,7 @@
 - [📈 统计分析API](#统计分析api)
 - [🔔 提醒功能API](#提醒功能api)
 - [⚙️ 系统监控API](#系统监控api)
+- [📱 移动端专用 API 契约](#移动端专用-api-契约)
 
 ## 🚀 快速开始
 
@@ -361,6 +362,17 @@ Authorization: Bearer YOUR_JWT_TOKEN
 GET /api/v1/stats/connection-pool
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
+
+## 📱 移动端专用 API 契约
+
+Kotlin Compose Android 客户端的专用接口定义（折叠状态列表、移动统计、个人资料/简历等）已独立整理为 [mobile-kotlin-contract.md](./mobile-kotlin-contract.md)，主要包含：
+
+- `GET /applications/mobile-overview` 及 `POST /applications/status/bulk`
+- `GET /analytics/mobile` 的统计响应结构
+- `GET/PUT /me/profile` 与 `GET/PUT /me/resumes`
+- 通用约定与错误码表
+
+若需扩展/实现移动端功能或同步 OpenAPI，请以该文件为准。
 
 ## 📝 错误处理
 

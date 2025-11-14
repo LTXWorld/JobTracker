@@ -82,7 +82,7 @@
                       </div>
                     </div>
                   </template>
-                  <InfoCircleOutlined style="margin-left: 4px; font-size: 14px; color: #999; cursor: help;" />
+                  <InfoCircleOutlined style="margin-left: 4px; font-size: 14px; color: var(--text-secondary); cursor: help;" />
                 </a-tooltip>
               </template>
               <template #prefix>
@@ -211,7 +211,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, defineAsyncComponent } from 'vue'
+import { ref, computed, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { storeToRefs } from 'pinia'
 // 延迟加载图表相关依赖，避免首次进入时动态导入失败导致整页加载失败
 const VChart = defineAsyncComponent(async () => {
@@ -265,6 +265,30 @@ import { ApplicationStatus, StatusHelper } from '../types'
 import ExportHistory from '../components/ExportHistory.vue'
 import ExportDialog from '../components/ExportDialog.vue'
 import dayjs from 'dayjs'
+
+const getChartTheme = () => {
+  const theme = document.documentElement.getAttribute('data-theme') || 'light'
+  if (theme === 'dark') {
+    return {
+      text: '#e5e7eb',
+      subText: '#b8c0cc',
+      axis: '#4c566a',
+      gridLine: 'rgba(255, 255, 255, 0.12)',
+      tooltipBg: '#1a1f27',
+      border: '#2a2f3a'
+    }
+  }
+  return {
+    text: '#1f1f1f',
+    subText: '#5f6b7a',
+    axis: '#8c8c8c',
+    gridLine: 'rgba(0, 0, 0, 0.06)',
+    tooltipBg: '#ffffff',
+    border: '#f0f0f0'
+  }
+}
+
+const chartTheme = ref(getChartTheme())
 
 // 由 defineAsyncComponent 内部在运行时注册 ECharts 依赖
 
@@ -389,11 +413,16 @@ const statusPieOption = computed(() => {
   return {
     tooltip: {
       trigger: 'item',
-      formatter: '{b}: {c} ({d}%)'
+      formatter: '{b}: {c} ({d}%)',
+      backgroundColor: chartTheme.value.tooltipBg,
+      textStyle: { color: chartTheme.value.text }
     },
     legend: {
       orient: 'vertical',
-      left: 'left'
+      left: 'left',
+      textStyle: {
+        color: chartTheme.value.text
+      }
     },
     series: [
       {
@@ -402,18 +431,20 @@ const statusPieOption = computed(() => {
         avoidLabelOverlap: false,
         itemStyle: {
           borderRadius: 10,
-          borderColor: '#fff',
+          borderColor: chartTheme.value.border,
           borderWidth: 2
         },
         label: {
           show: false,
-          position: 'center'
+          position: 'center',
+          color: chartTheme.value.text
         },
         emphasis: {
           label: {
             show: true,
             fontSize: 20,
-            fontWeight: 'bold'
+            fontWeight: 'bold',
+            color: chartTheme.value.text
           }
         },
         labelLine: {
@@ -442,7 +473,9 @@ const trendLineOption = computed(() => {
 
   return {
     tooltip: {
-      trigger: 'axis'
+      trigger: 'axis',
+      backgroundColor: chartTheme.value.tooltipBg,
+      textStyle: { color: chartTheme.value.text }
     },
     grid: {
       left: '3%',
@@ -453,10 +486,16 @@ const trendLineOption = computed(() => {
     xAxis: {
       type: 'category',
       boundaryGap: false,
-      data: last30Days
+      data: last30Days,
+      axisLabel: { color: chartTheme.value.text },
+      axisLine: { lineStyle: { color: chartTheme.value.axis } },
+      splitLine: { show: false }
     },
     yAxis: {
-      type: 'value'
+      type: 'value',
+      axisLabel: { color: chartTheme.value.text },
+      axisLine: { lineStyle: { color: chartTheme.value.axis } },
+      splitLine: { lineStyle: { color: chartTheme.value.gridLine } }
     },
     series: [
       {
@@ -508,11 +547,24 @@ const stageBarOption = computed(() => {
           const total = stageData.total_count || stageData.TotalCount || 0
           const rate = params[0].value
           return `${params[0].axisValue}<br/>通过: ${pass}/${total}<br/>通过率: ${rate}%`
-        }
+        },
+        backgroundColor: chartTheme.value.tooltipBg,
+        textStyle: { color: chartTheme.value.text }
       },
       grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-      xAxis: { type: 'category', data: names.map(n => n.name) },
-      yAxis: { type: 'value', max: 100, axisLabel: { formatter: '{value}%' } },
+      xAxis: {
+        type: 'category',
+        data: names.map(n => n.name),
+        axisLabel: { color: chartTheme.value.text },
+        axisLine: { lineStyle: { color: chartTheme.value.axis } }
+      },
+      yAxis: {
+        type: 'value',
+        max: 100,
+        axisLabel: { formatter: '{value}%', color: chartTheme.value.text },
+        axisLine: { lineStyle: { color: chartTheme.value.axis } },
+        splitLine: { lineStyle: { color: chartTheme.value.gridLine } }
+      },
       series: [{
         type: 'bar',
         data: rates,
@@ -528,7 +580,7 @@ const stageBarOption = computed(() => {
             const total = stageData.total_count || stageData.TotalCount || 0
             return `${pass}/${total}`
           },
-          color: '#666',
+          color: chartTheme.value.text,
           fontSize: 12
         }
       }]
@@ -588,11 +640,24 @@ const stageBarOption = computed(() => {
         const idx = params[0].dataIndex
         const data = stageData[idx]
         return `${params[0].axisValue}<br/>通过: ${data.passCount}/${data.totalCount}<br/>通过率: ${data.rate}%`
-      }
+      },
+      backgroundColor: chartTheme.value.tooltipBg,
+      textStyle: { color: chartTheme.value.text }
     },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-    xAxis: { type: 'category', data: names },
-    yAxis: { type: 'value', max: 100, axisLabel: { formatter: '{value}%' } },
+    xAxis: {
+      type: 'category',
+      data: names,
+      axisLabel: { color: chartTheme.value.text },
+      axisLine: { lineStyle: { color: chartTheme.value.axis } }
+    },
+    yAxis: {
+      type: 'value',
+      max: 100,
+      axisLabel: { formatter: '{value}%', color: chartTheme.value.text },
+      axisLine: { lineStyle: { color: chartTheme.value.axis } },
+      splitLine: { lineStyle: { color: chartTheme.value.gridLine } }
+    },
     series: [
       {
         type: 'bar',
@@ -612,7 +677,7 @@ const stageBarOption = computed(() => {
             const data = stageData[idx]
             return `${data.passCount}/${data.totalCount}`
           },
-          color: '#666',
+          color: chartTheme.value.text,
           fontSize: 12
         }
       }
@@ -648,7 +713,9 @@ const salaryBarOption = computed(() => {
 
   return {
     tooltip: {
-      trigger: 'axis'
+      trigger: 'axis',
+      backgroundColor: chartTheme.value.tooltipBg,
+      textStyle: { color: chartTheme.value.text }
     },
     grid: {
       left: '3%',
@@ -658,10 +725,15 @@ const salaryBarOption = computed(() => {
     },
     xAxis: {
       type: 'category',
-      data: Object.keys(salaryRanges)
+      data: Object.keys(salaryRanges),
+      axisLabel: { color: chartTheme.value.text },
+      axisLine: { lineStyle: { color: chartTheme.value.axis } }
     },
     yAxis: {
-      type: 'value'
+      type: 'value',
+      axisLabel: { color: chartTheme.value.text },
+      axisLine: { lineStyle: { color: chartTheme.value.axis } },
+      splitLine: { lineStyle: { color: chartTheme.value.gridLine } }
     },
     series: [
       {
@@ -761,6 +833,8 @@ const handleExportSuccess = () => {
   // 导出成功后可以刷新导出历史
 }
 
+let themeObserver: MutationObserver | null = null
+
 onMounted(async () => {
   await jobStore.fetchApplications()
   await jobStore.fetchStatistics() // 获取服务器端统计数据（通用）
@@ -769,14 +843,23 @@ onMounted(async () => {
   } catch (e) {
     console.warn('获取状态分析失败，使用前端推断通过率', e)
   }
+  themeObserver = new MutationObserver(() => {
+    chartTheme.value = getChartTheme()
+  })
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+})
+
+onUnmounted(() => {
+  themeObserver?.disconnect()
 })
 </script>
 
 <style scoped>
 .statistics-page {
   padding: 24px;
-  background: #f0f2f5;
+  background: var(--bg-page);
   min-height: calc(100vh - 48px - 56px - 70px);
+  color: var(--text-color);
 }
 
 .stats-overview {
@@ -789,6 +872,18 @@ onMounted(async () => {
 
 .stat-card :deep(.ant-card-body) {
   padding: 20px;
+  background: var(--bg-card);
+  color: var(--text-color);
+}
+
+.chart-card :deep(.ant-card-head-title),
+.detail-card :deep(.ant-card-head-title) {
+  color: var(--text-color);
+}
+
+.chart-card :deep(.ant-card-head),
+.detail-card :deep(.ant-card-head) {
+  border-color: var(--border-color);
 }
 
 .charts-container {

@@ -208,7 +208,7 @@ watch(filters, (newFilters) => {
 }
 
 .filter-card {
-  background: #fff;
+  background: var(--bg-card);
 }
 
 .filter-card :deep(.ant-card-body) {
@@ -223,7 +223,7 @@ watch(filters, (newFilters) => {
   text-align: center;
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border-color);
 }
 
 .advanced-toggle a {

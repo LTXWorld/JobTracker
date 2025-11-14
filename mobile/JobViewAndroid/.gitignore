@@ -1,0 +1,20 @@
+# Gradle
+.gradle/
+build/
+
+# Android Studio
+.idea/
+*.iml
+caches/
+
+# Local configuration
+local.properties
+*.keystore
+*.jks
+
+# Generated files
+app/release/
+app/debug/
+
+# Kotlin build cache
+*.kotlin_module

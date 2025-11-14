@@ -246,6 +246,7 @@ onMounted(() => {
   font-size: 16px;
   font-weight: 600;
   flex: 1;
+  color: var(--text-color);
 }
 
 .timeline-details {
@@ -256,12 +257,12 @@ onMounted(() => {
   display: flex;
   align-items: center;
   margin-bottom: 8px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .detail-item :deep(.anticon) {
   margin-right: 8px;
-  color: #999;
+  color: var(--text-tertiary);
 }
 
 .timeline-actions {

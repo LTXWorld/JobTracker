@@ -44,7 +44,9 @@ docs/
 │   ├── optimization/
 │   └── query-optimization/
 │
-├── 📱 Android/                  # 移动端文档 (待开发)
+├── 📱 Android/                  # 移动端文档
+│   ├── kotlin-compose-migration.md  # Kotlin Compose 实施方案
+│   ├── kotlin-compose-wireframes.md # Kotlin 客户端低保真交互
 │   ├── architecture/
 │   ├── deployment/
 │   └── preparation/
@@ -98,6 +100,9 @@ docs/
 | [系统架构文档](./architecture/) | 技术架构设计 | 架构师、开发者 |
 | [部署运维指南](./deployment/README.md) | 生产环境部署 | 运维工程师 |
 | [测试文档](./testing/) | 测试策略和用例 | 测试工程师 |
+| [Kotlin Compose 移动方案](./Android/kotlin-compose-migration.md) | Android/Kotlin 客户端实施规划 | 移动开发、架构师 |
+| [移动端 API 契约](./api/mobile-kotlin-contract.md) | Kotlin 客户端专用接口定义 | 后端/移动开发 |
+| [Kotlin 客户端交互稿](./Android/kotlin-compose-wireframes.md) | 低保真布局与交互说明 | UI/移动开发 |
 
 ### 📋 管理文档
 | 文档名称 | 描述 | 目标用户 |
